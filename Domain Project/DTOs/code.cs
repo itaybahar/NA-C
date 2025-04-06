@@ -1,4 +1,5 @@
-﻿using System;
+﻿using Domain_Project.Models;
+using System;
 using System.ComponentModel.DataAnnotations;
 
 namespace Domain_Project.DTOs
@@ -66,5 +67,118 @@ namespace Domain_Project.DTOs
         public int TeamID { get; set; }
         public string ReasonForBlacklisting { get; set; }
         public DateTime BlacklistDate { get; set; }
+    }
+    public class AuthenticationResponseDto
+    {
+        public string Token { get; set; }
+        public UserDto User { get; set; }
+    }
+
+    public class UserRegistrationDto
+    {
+        public string Username { get; set; }
+        public string Password { get; set; }
+        public string Email { get; set; }
+        public string FirstName { get; set; }
+        public string LastName { get; set; }
+    }
+    public class BlacklistCreateDto
+    {
+        [Required]
+        public int TeamID { get; set; }
+
+        [Required]
+        public int BlacklistedBy { get; set; }
+
+        [Required]
+        [StringLength(200, MinimumLength = 10)]
+        public string ReasonForBlacklisting { get; set; }
+
+        [MaxLength(500)]
+        public string? Notes { get; set; }
+
+        // Optional additional properties for more context
+        public DateTime BlacklistDate { get; set; } = DateTime.UtcNow;
+
+        // Validation to ensure reason is meaningful
+        public bool IsValidReason()
+        {
+            return !string.IsNullOrWhiteSpace(ReasonForBlacklisting)
+                   && ReasonForBlacklisting.Length >= 10;
+        }
+    }
+    public class TeamMemberDto
+    {
+        [Required]
+        public int TeamID { get; set; }
+
+        [Required]
+        public int UserID { get; set; }
+
+        [StringLength(100)]
+        public string TeamName { get; set; }
+
+        [StringLength(100)]
+        public string Username { get; set; }
+
+        [StringLength(50)]
+        public string AssignedRole { get; set; }
+
+        public DateTime JoinDate { get; set; }
+
+        public bool IsActive { get; set; } = true;
+
+        // Additional user details
+        public string FirstName { get; set; }
+        public string LastName { get; set; }
+        public string Email { get; set; }
+
+        // Validation method
+        public bool IsValid()
+        {
+            return TeamID > 0 &&
+                   UserID > 0 &&
+                   !string.IsNullOrWhiteSpace(Username);
+        }
+
+        // Method to create a DTO from a domain model
+        public static TeamMemberDto FromModel(TeamMember member)
+        {
+            return new TeamMemberDto
+            {
+                TeamID = member.TeamID,
+                UserID = member.UserID,
+                AssignedRole = member.AssignedRole,
+                JoinDate = member.JoinDate,
+                IsActive = member.IsActive
+            };
+        }
+        public class RegisterDto
+        {
+            public string Username { get; set; }
+            public string Email { get; set; }
+            public string Password { get; set; }
+            public string Role { get; set; }
+        }
+
+    }
+
+    // DTO for creating a new team member
+    public class TeamMemberCreateDto
+    {
+        [Required]
+        public int TeamID { get; set; }
+
+        [Required]
+        public int UserID { get; set; }
+
+        [StringLength(50)]
+        public string? AssignedRole { get; set; }
+
+        // Validation method
+        public bool IsValid()
+        {
+            return TeamID > 0 && UserID > 0;
+        }
     }
 }

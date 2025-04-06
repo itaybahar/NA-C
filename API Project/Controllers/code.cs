@@ -1,109 +1,108 @@
-﻿using Microsoft.AspNetCore.Authentication.JwtBearer;
+﻿using Domain_Project.Interfaces;
+using Domain_Project.Models;
 using Microsoft.AspNetCore.Authorization;
-using Microsoft.EntityFrameworkCore;
-using Microsoft.IdentityModel.Tokens;
-using Microsoft.OpenApi.More;
-using System.Text;
+using Microsoft.AspNetCore.Mvc;
+using System.Threading.Tasks;
 
-// Your project-specific namespaces
-using API_Project.Data;
-using Domain_Project.Interfaces;
-using API_Project.Repositories;
-using API_Project.Services;
-using API_Project.Configuration;
-
-namespace API_Project
+namespace API_Project.Controllers
 {
-    public class Program
+    [ApiController]
+    public abstract class BaseController<TEntity, TRepository> : ControllerBase
+        where TEntity : class
+        where TRepository : IGenericRepository<TEntity>
     {
-        public static void Main(string[] args)
+        protected readonly TRepository _repository;
+
+        protected BaseController(TRepository repository)
         {
-            var builder = WebApplication.CreateBuilder(args);
-
-            // Add services to the container
-            ConfigureServices(builder.Services, builder.Configuration);
-
-            var app = builder.Build();
-
-            // Configure the HTTP request pipeline
-            ConfigurePipeline(app);
-
-            app.Run();
+            _repository = repository;
         }
 
-        private static void ConfigureServices(IServiceCollection services, IConfiguration configuration)
+        [HttpGet]
+        public virtual async Task<IActionResult> GetAll()
         {
-            // Add controllers
-            services.AddControllers();
-
-            // Configure DbContext
-            services.AddDbContext<EquipmentManagementContext>(options =>
-                options.UseMySql(
-                    configuration.GetConnectionString("DefaultConnection"),
-                    new MySqlServerVersion(new Version(8, 0, 21))
-                )
-            );
-
-            // Configure Authentication Settings
-            var authSettings = new AuthenticationSettings
-            {
-                SecretKey = configuration["Authentication:SecretKey"],
-                Issuer = configuration["Authentication:Issuer"],
-                Audience = configuration["Authentication:Audience"],
-                ExpirationInMinutes = int.Parse(configuration["Authentication:ExpirationInMinutes"] ?? "60")
-            };
-            services.AddSingleton(authSettings);
-
-            // Configure Repositories
-            services.AddScoped(typeof(IGenericRepository<>), typeof(GenericRepository<>));
-            services.AddScoped<IUserRepository, UserRepository>();
-
-            // Configure Services
-            services.AddScoped<IAuthenticationService, AuthenticationService>();
-
-            // Configure Swagger
-            services.AddEndpointsApiExplorer();
-            services.AddSwaggerGen();
-
-            // Configure Authentication
-            services.AddAuthentication(JwtBearerDefaults.AuthenticationScheme)
-                .AddJwtBearer(options =>
-                {
-                    options.TokenValidationParameters = new TokenValidationParameters
-                    {
-                        ValidateIssuer = true,
-                        ValidateAudience = true,
-                        ValidateLifetime = true,
-                        ValidateIssuerSigningKey = true,
-                        ValidIssuer = authSettings.Issuer,
-                        ValidAudience = authSettings.Audience,
-                        IssuerSigningKey = authSettings.GetSymmetricSecurityKey()
-                    };
-                });
-
-            // Configure Authorization
-            services.AddAuthorization(options =>
-            {
-                options.AddPolicy("WarehouseManager", policy =>
-                    policy.RequireRole("WarehouseManager"));
-                options.AddPolicy("CentralManager", policy =>
-                    policy.RequireRole("CentralManager"));
-            });
+            var entities = await _repository.GetAllAsync();
+            return Ok(entities);
         }
 
-        private static void ConfigurePipeline(WebApplication app)
+        [HttpGet("{id}")]
+        public virtual async Task<IActionResult> GetById(int id)
         {
-            // Configure the HTTP request pipeline
-            if (app.Environment.IsDevelopment())
+            var entity = await _repository.GetByIdAsync(id);
+            if (entity == null)
             {
-                app.UseSwagger();
-                app.UseSwaggerUI();
+                return NotFound();
+            }
+            return Ok(entity);
+        }
+
+        [HttpPost]
+        public virtual async Task<IActionResult> Create([FromBody] TEntity entity)
+        {
+            await _repository.AddAsync(entity);
+            await _repository.SaveChangesAsync();
+            return CreatedAtAction(nameof(GetById), new { id = GetEntityId(entity) }, entity);
+        }
+
+        [HttpPut("{id}")]
+        public virtual async Task<IActionResult> Update(int id, [FromBody] TEntity entity)
+        {
+            if (id != GetEntityId(entity))
+            {
+                return BadRequest();
             }
 
-            app.UseHttpsRedirection();
-            app.UseAuthentication();
-            app.UseAuthorization();
-            app.MapControllers();
+            await _repository.UpdateAsync(entity);
+            await _repository.SaveChangesAsync();
+            return NoContent();
         }
+
+        [HttpDelete("{id}")]
+        public virtual async Task<IActionResult> Delete(int id)
+        {
+            await _repository.DeleteAsync(id);
+            await _repository.SaveChangesAsync();
+            return NoContent();
+        }
+
+        [Route("api/[controller]")]
+        [Authorize(Roles = "WarehouseManager,CentralManager")]
+        public class UsersController : BaseController<User, IGenericRepository<User>>
+        {
+            public UsersController(IGenericRepository<User> repository) : base(repository) { }
+
+            protected override int GetEntityId(User entity) => entity.UserID;
+
+            [HttpGet("profile")]
+            [Authorize]
+            public async Task<IActionResult> GetCurrentUserProfile()
+            {
+                var username = User.Identity?.Name;
+                if (string.IsNullOrEmpty(username))
+                {
+                    return Unauthorized();
+                }
+
+                var user = await _repository.FindAsync(u => u.Username == username);
+                var userProfile = user.FirstOrDefault();
+
+                if (userProfile == null)
+                {
+                    return NotFound();
+                }
+
+                return Ok(userProfile);
+            }
+
+            [HttpGet("roles")]
+            [Authorize(Roles = "WarehouseManager")]
+            public async Task<IActionResult> GetUserRoles(int userId)
+            {
+                var userRoles = await _repository.FindAsync(u => u.UserID == userId);
+                return Ok(userRoles);
+            }
+        }
+
+        protected abstract int GetEntityId(TEntity entity);
     }
 }

@@ -1,12 +1,17 @@
 ﻿using System;
 using System.IdentityModel.Tokens.Jwt;
 using System.Security.Claims;
+using System.Security.Cryptography;
+using System.Text;
 using System.Threading.Tasks;
+using Microsoft.EntityFrameworkCore;
 using Microsoft.IdentityModel.Tokens;
-using API_Project.Configuration;
+
+// Project-specific namespaces
 using Domain_Project.Interfaces;
 using Domain_Project.Models;
 using Domain_Project.DTOs;
+using API_Project.Data;
 
 namespace API_Project.Services
 {
@@ -20,6 +25,7 @@ namespace API_Project.Services
     {
         private readonly IUserRepository _userRepository;
         private readonly AuthenticationSettings _authSettings;
+        private Configuration.AuthenticationSettings authSettings;
 
         public AuthenticationService(
             IUserRepository userRepository,
@@ -27,6 +33,12 @@ namespace API_Project.Services
         {
             _userRepository = userRepository;
             _authSettings = authSettings;
+        }
+
+        public AuthenticationService(IUserRepository userRepository, Configuration.AuthenticationSettings authSettings)
+        {
+            _userRepository = userRepository;
+            this.authSettings = authSettings;
         }
 
         public async Task<AuthenticationResponseDto> AuthenticateAsync(UserLoginDto loginDto)
@@ -86,7 +98,7 @@ namespace API_Project.Services
                 Email = userDto.Email,
                 FirstName = userDto.FirstName,
                 LastName = userDto.LastName,
-                PasswordHash = password, // The repository will hash this
+                PasswordHash = HashPassword(password), // Hash the password
                 IsActive = true,
                 CreatedDate = DateTime.UtcNow
             };
@@ -136,6 +148,22 @@ namespace API_Project.Services
 
             return new JwtSecurityTokenHandler().WriteToken(token);
         }
+
+        // Password hashing utility methods
+        private string HashPassword(string password)
+        {
+            using (var sha256 = SHA256.Create())
+            {
+                var hashedBytes = sha256.ComputeHash(Encoding.UTF8.GetBytes(password));
+                return Convert.ToBase64String(hashedBytes);
+            }
+        }
+
+        private bool VerifyPasswordHash(string inputPassword, string storedHash)
+        {
+            var inputHash = HashPassword(inputPassword);
+            return inputHash == storedHash;
+        }
     }
 
     // Additional DTOs for authentication
@@ -143,5 +171,22 @@ namespace API_Project.Services
     {
         public string Token { get; set; }
         public UserDto User { get; set; }
+    }
+
+    // Remove the duplicate AuthenticationService class
+    // The second implementation was redundant and should be deleted
+
+    // Authentication settings class
+    public class AuthenticationSettings
+    {
+        public string SecretKey { get; set; }
+        public string Issuer { get; set; }
+        public string Audience { get; set; }
+        public int ExpirationInMinutes { get; set; }
+
+        public SymmetricSecurityKey GetSymmetricSecurityKey()
+        {
+            return new SymmetricSecurityKey(Encoding.UTF8.GetBytes(SecretKey));
+        }
     }
 }

@@ -35,5 +35,6 @@ namespace API_Project.Configuration
                 ClockSkew = TimeSpan.Zero
             };
         }
+
     }
 }

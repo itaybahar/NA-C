@@ -1,0 +1,552 @@
+﻿@page "/teams/members/{TeamId:int}"
+@using Blazor_WebAssembly.Models
+@inject NavigationManager NavigationManager
+@inject HttpClient Http
+
+<div class="container mt-4">
+    <div class="row mb-4">
+        <div class="col">
+            <h2>Team Members</h2>
+            <nav aria-label="breadcrumb">
+                <ol class="breadcrumb">
+                    <li class="breadcrumb-item"><a href="/">Home</a></li>
+                    <li class="breadcrumb-item"><a href="/teams">Teams</a></li>
+                    <li class="breadcrumb-item"><a href="/teams/details/@TeamId">Team Details</a></li>
+                    <li class="breadcrumb-item active" aria-current="page">Members</li>
+                </ol>
+            </nav>
+        </div>
+        <div class="col-auto">
+            <button class="btn btn-outline-secondary" @onclick="NavigateBack">
+                <i class="fas fa-arrow-left me-1"></i> Back
+            </button>
+        </div>
+    </div>
+
+    @if (isLoading)
+    {
+        <div class="card shadow-sm">
+            <div class="card-body text-center py-5">
+                <div class="spinner-border text-primary" role="status">
+                    <span class="visually-hidden">Loading...</span>
+                </div>
+                <p class="mt-2">Loading team members...</p>
+            </div>
+        </div>
+    }
+    else if (team != null)
+    {
+        <div class="row mb-4">
+            <div class="col-md-6">
+                <div class="card shadow-sm">
+                    <div class="card-header bg-light">
+                        <div class="d-flex justify-content-between align-items-center">
+                            <h5 class="mb-0">Team: @team.Name</h5>
+                            <span class="badge @(team.IsActive ? "bg-success" : "bg-secondary")">
+                                @(team.IsActive ? "Active" : "Inactive")
+                            </span>
+                        </div>
+                    </div>
+                    <div class="card-body">
+                        <p>@team.Description</p>
+                        <p class="mb-0"><strong>Team Leader:</strong> @team.TeamLeader</p>
+                    </div>
+                </div>
+            </div>
+            <div class="col-md-6">
+                <div class="card shadow-sm">
+                    <div class="card-header bg-light">
+                        <h5 class="mb-0">Search Members</h5>
+                    </div>
+                    <div class="card-body">
+                        <div class="input-group mb-3">
+                            <input type="text" class="form-control" placeholder="Search by name..."
+                                   @bind="searchQuery" @bind:event="oninput" @onkeypress="HandleKeyPress" />
+                            <button class="btn btn-outline-secondary" type="button" @onclick="SearchMembers">
+                                <i class="fas fa-search"></i>
+                            </button>
+                        </div>
+                        <div class="d-flex justify-content-between">
+                            <div>
+                                <div class="form-check form-check-inline">
+                                    <input class="form-check-input" type="checkbox" id="activeOnly" @bind="activeOnly" />
+                                    <label class="form-check-label" for="activeOnly">Active Only</label>
+                                </div>
+                            </div>
+                            <button class="btn btn-primary btn-sm" @onclick="ShowAddMemberModal">
+                                <i class="fas fa-plus me-1"></i> Add Member
+                            </button>
+                        </div>
+                    </div>
+                </div>
+            </div>
+        </div>
+
+        <div class="card shadow-sm">
+            <div class="card-header bg-light">
+                <div class="d-flex justify-content-between align-items-center">
+                    <h5 class="mb-0">Team Members</h5>
+                    <span class="badge bg-info">@(filteredMembers?.Count ?? 0) Members</span>
+                </div>
+            </div>
+            <div class="card-body p-0">
+                <div class="table-responsive">
+                    <table class="table mb-0">
+                        <thead class="table-light">
+                            <tr>
+                                <th>Name</th>
+                                <th>Role</th>
+                                <th>Joined Date</th>
+                                <th>Status</th>
+                                <th>Actions</th>
+                            </tr>
+                        </thead>
+                        <tbody>
+                            @if (filteredMembers != null && filteredMembers.Any())
+                            {
+                                @foreach (var member in filteredMembers)
+                                {
+                                    <tr>
+                                        <td>
+                                            <div class="d-flex align-items-center">
+                                                <i class="fas fa-user-circle me-2 text-secondary"></i>
+                                                <div>
+                                                    <div>@member.Name</div>
+                                                    @if (!string.IsNullOrEmpty(member.Email))
+                                                    {
+                                                        <small class="text-muted">@member.Email</small>
+                                                    }
+                                                </div>
+                                            </div>
+                                        </td>
+                                        <td>@member.Role</td>
+                                        <td>@member.JoinedDate.ToShortDateString()</td>
+                                        <td>
+                                            @if (member.IsActive)
+                                            {
+                                                <span class="badge bg-success">Active</span>
+                                            }
+                                            else
+                                            {
+                                                <span class="badge bg-secondary">Inactive</span>
+                                            }
+                                        </td>
+                                        <td>
+                                            <div class="btn-group">
+                                                <button class="btn btn-sm btn-outline-primary" @onclick="() => EditMember(member)">
+                                                    <i class="fas fa-edit"></i>
+                                                </button>
+                                                @if (member.IsActive)
+                                                {
+                                                    <button class="btn btn-sm btn-outline-secondary" @onclick="() => DeactivateMember(member)">
+                                                        <i class="fas fa-user-slash"></i>
+                                                    </button>
+                                                }
+                                                else
+                                                {
+                                                    <button class="btn btn-sm btn-outline-success" @onclick="() => ActivateMember(member)">
+                                                        <i class="fas fa-user-check"></i>
+                                                    </button>
+                                                }
+                                                <button class="btn btn-sm btn-outline-danger" @onclick="() => RemoveMember(member)">
+                                                    <i class="fas fa-trash"></i>
+                                                </button>
+                                            </div>
+                                        </td>
+                                    </tr>
+                                }
+                            }
+                            else
+                            {
+                                <tr>
+                                    <td colspan="5" class="text-center py-3">
+                                        @if (!string.IsNullOrEmpty(searchQuery) || activeOnly)
+                                        {
+                                            <p>No members found matching your criteria.</p>
+                                            <button class="btn btn-sm btn-outline-secondary" @onclick="ClearFilters">
+                                                <i class="fas fa-times me-1"></i> Clear Filters
+                                            </button>
+                                        }
+                                        else
+                                        {
+                                            <p>No team members found.</p>
+                                            <button class="btn btn-sm btn-primary" @onclick="ShowAddMemberModal">
+                                                <i class="fas fa-plus me-1"></i> Add Member
+                                            </button>
+                                        }
+                                    </td>
+                                </tr>
+                            }
+                        </tbody>
+                    </table>
+                </div>
+            </div>
+        </div>
+    }
+    else
+    {
+        <div class="alert alert-warning">
+            <i class="fas fa-exclamation-triangle me-2"></i>
+            Team not found.
+        </div>
+    }
+
+    @if (showAddMemberModal)
+    {
+        <div class="modal fade show" style="display: block;" tabindex="-1">
+            <div class="modal-dialog">
+                <div class="modal-content">
+                    <div class="modal-header">
+                        <h5 class="modal-title">@(editingMember == null ? "Add New Member" : "Edit Member")</h5>
+                        <button type="button" class="btn-close" @onclick="CloseModal"></button>
+                    </div>
+                    <div class="modal-body">
+                        <div class="mb-3">
+                            <label for="memberName" class="form-label">Name</label>
+                            <input type="text" class="form-control" id="memberName" @bind="newMember.Name" />
+                            @if (nameError)
+                            {
+                                <div class="text-danger mt-1">Name is required</div>
+                            }
+                        </div>
+                        <div class="mb-3">
+                            <label for="memberEmail" class="form-label">Email</label>
+                            <input type="email" class="form-control" id="memberEmail" @bind="newMember.Email" />
+                        </div>
+                        <div class="mb-3">
+                            <label for="memberRole" class="form-label">Role</label>
+                            <select class="form-select" id="memberRole" @bind="newMember.Role">
+                                <option value="Member">Member</option>
+                                <option value="Team Leader">Team Leader</option>
+                                <option value="Equipment Manager">Equipment Manager</option>
+                                <option value="Supervisor">Supervisor</option>
+                            </select>
+                        </div>
+                        <div class="form-check mb-3">
+                            <input class="form-check-input" type="checkbox" id="memberActive" @bind="newMember.IsActive" />
+                            <label class="form-check-label" for="memberActive">
+                                Active
+                            </label>
+                        </div>
+                    </div>
+                    <div class="modal-footer">
+                        <button type="button" class="btn btn-secondary" @onclick="CloseModal">Cancel</button>
+                        <button type="button" class="btn btn-primary" @onclick="SaveMember">
+                            @(editingMember == null ? "Add Member" : "Update Member")
+                        </button>
+                    </div>
+                </div>
+            </div>
+        </div>
+        <div class="modal-backdrop fade show"></div>
+    }
+
+    @if (showConfirmModal)
+    {
+        <div class="modal fade show" style="display: block;" tabindex="-1">
+            <div class="modal-dialog">
+                <div class="modal-content">
+                    <div class="modal-header">
+                        <h5 class="modal-title">@confirmTitle</h5>
+                        <button type="button" class="btn-close" @onclick="CloseConfirmModal"></button>
+                    </div>
+                    <div class="modal-body">
+                        <p>@confirmMessage</p>
+                    </div>
+                    <div class="modal-footer">
+                        <button type="button" class="btn btn-secondary" @onclick="CloseConfirmModal">Cancel</button>
+                        <button type="button" class="btn btn-@confirmButtonClass" @onclick="ConfirmAction">
+                            @confirmButtonText
+                        </button>
+                    </div>
+                </div>
+            </div>
+        </div>
+        <div class="modal-backdrop fade show"></div>
+    }
+</div>
+
+@code {
+    [Parameter]
+    public int TeamId { get; set; }
+
+    private TeamDto team;
+    private List<TeamMemberDto> members;
+    private List<TeamMemberDto> filteredMembers;
+    private bool isLoading = true;
+
+    // Search and filter
+    private string searchQuery = "";
+    private bool activeOnly = false;
+
+    // Add/Edit member modal
+    private bool showAddMemberModal = false;
+    private TeamMemberDto newMember = new TeamMemberDto();
+    private TeamMemberDto editingMember = null;
+    private bool nameError = false;
+
+    // Confirmation modal
+    private bool showConfirmModal = false;
+    private string confirmTitle = "";
+    private string confirmMessage = "";
+    private string confirmButtonText = "";
+    private string confirmButtonClass = "primary";
+    private Action confirmAction;
+
+    protected override async Task OnInitializedAsync()
+    {
+        await LoadData();
+    }
+
+    private async Task LoadData()
+    {
+        try
+        {
+            isLoading = true;
+
+            // Get team details
+            team = await Http.GetFromJsonAsync<TeamDto>($"api/teams/{TeamId}");
+
+            if (team != null)
+            {
+                // Get team members
+                members = await Http.GetFromJsonAsync<List<TeamMemberDto>>($"api/teams/{TeamId}/members");
+                ApplyFilters();
+            }
+        }
+        catch (Exception)
+        {
+            // Error handling would go here
+        }
+        finally
+        {
+            isLoading = false;
+        }
+    }
+
+    private void NavigateBack()
+    {
+        NavigationManager.NavigateTo($"/teams/details/{TeamId}");
+    }
+
+    private void HandleKeyPress(KeyboardEventArgs e)
+    {
+        if (e.Key == "Enter")
+        {
+            SearchMembers();
+        }
+    }
+
+    private void SearchMembers()
+    {
+        ApplyFilters();
+    }
+
+    private void ClearFilters()
+    {
+        searchQuery = "";
+        activeOnly = false;
+        ApplyFilters();
+    }
+
+    private void ApplyFilters()
+    {
+        if (members == null)
+        {
+            filteredMembers = new List<TeamMemberDto>();
+            return;
+        }
+
+        var query = members.AsEnumerable();
+
+        if (!string.IsNullOrWhiteSpace(searchQuery))
+        {
+            query = query.Where(m =>
+                m.Name.Contains(searchQuery, StringComparison.OrdinalIgnoreCase) ||
+                (m.Email != null && m.Email.Contains(searchQuery, StringComparison.OrdinalIgnoreCase)));
+        }
+
+        if (activeOnly)
+        {
+            query = query.Where(m => m.IsActive);
+        }
+
+        filteredMembers = query.ToList();
+    }
+
+    private void ShowAddMemberModal()
+    {
+        editingMember = null;
+        newMember = new TeamMemberDto
+        {
+            TeamId = TeamId,
+            IsActive = true,
+            Role = "Member",
+            JoinedDate = DateTime.Today
+        };
+        nameError = false;
+        showAddMemberModal = true;
+    }
+
+    private void EditMember(TeamMemberDto member)
+    {
+        editingMember = member;
+        newMember = new TeamMemberDto
+        {
+            Id = member.Id,
+            TeamId = member.TeamId,
+            Name = member.Name,
+            Email = member.Email,
+            Role = member.Role,
+            IsActive = member.IsActive,
+            JoinedDate = member.JoinedDate
+        };
+        nameError = false;
+        showAddMemberModal = true;
+    }
+
+    private void CloseModal()
+    {
+        showAddMemberModal = false;
+    }
+
+    private async Task SaveMember()
+    {
+        nameError = string.IsNullOrWhiteSpace(newMember.Name);
+
+        if (nameError)
+            return;
+
+        try
+        {
+            if (editingMember == null)
+            {
+                // Add new member
+                await Http.PostAsJsonAsync($"api/teams/{TeamId}/members", newMember);
+            }
+            else
+            {
+                // Update existing member
+                await Http.PutAsJsonAsync($"api/teams/{TeamId}/members/{newMember.Id}", newMember);
+            }
+
+            showAddMemberModal = false;
+            await LoadData();
+        }
+        catch (Exception)
+        {
+            // Error handling would go here
+        }
+    }
+
+    private void DeactivateMember(TeamMemberDto member)
+    {
+        confirmTitle = "Deactivate Member";
+        confirmMessage = $"Are you sure you want to deactivate {member.Name}? They will no longer be able to checkout equipment.";
+        confirmButtonText = "Deactivate";
+        confirmButtonClass = "warning";
+        confirmAction = async () =>
+        {
+            await UpdateMemberStatus(member, false);
+        };
+        showConfirmModal = true;
+    }
+
+    private void ActivateMember(TeamMemberDto member)
+    {
+        confirmTitle = "Activate Member";
+        confirmMessage = $"Are you sure you want to activate {member.Name}?";
+        confirmButtonText = "Activate";
+        confirmButtonClass = "success";
+        confirmAction = async () =>
+        {
+            await UpdateMemberStatus(member, true);
+        };
+        showConfirmModal = true;
+    }
+
+    private async Task UpdateMemberStatus(TeamMemberDto member, bool isActive)
+    {
+        try
+        {
+            member.IsActive = isActive;
+            await Http.PutAsJsonAsync($"api/teams/{TeamId}/members/{member.Id}/status", isActive);
+
+            // Update local data
+            var existingMember = members.FirstOrDefault(m => m.Id == member.Id);
+            if (existingMember != null)
+            {
+                existingMember.IsActive = isActive;
+            }
+
+            ApplyFilters();
+            CloseConfirmModal();
+        }
+        catch (Exception)
+        {
+            // Error handling would go here
+        }
+    }
+
+    private void RemoveMember(TeamMemberDto member)
+    {
+        confirmTitle = "Remove Member";
+        confirmMessage = $"Are you sure you want to remove {member.Name} from this team? This action cannot be undone.";
+        confirmButtonText = "Remove";
+        confirmButtonClass = "danger";
+        confirmAction = async () =>
+        {
+            await DeleteMember(member);
+        };
+        showConfirmModal = true;
+    }
+
+    private async Task DeleteMember(TeamMemberDto member)
+    {
+        try
+        {
+            await Http.DeleteAsync($"api/teams/{TeamId}/members/{member.Id}");
+
+            // Update local data
+            members.RemoveAll(m => m.Id == member.Id);
+            ApplyFilters();
+            CloseConfirmModal();
+        }
+        catch (Exception)
+        {
+            // Error handling would go here
+        }
+    }
+
+    private void CloseConfirmModal()
+    {
+        showConfirmModal = false;
+    }
+
+    private void ConfirmAction()
+    {
+        confirmAction?.Invoke();
+    }
+
+    // Data model classes
+    public class TeamDto
+    {
+        public int Id { get; set; }
+        public string Name { get; set; }
+        public string Description { get; set; }
+        public string TeamLeader { get; set; }
+        public bool IsActive { get; set; }
+        public bool IsBlacklisted { get; set; }
+    }
+
+    public class TeamMemberDto
+    {
+        public int Id { get; set; }
+        public int TeamId { get; set; }
+        public string Name { get; set; }
+        public string Email { get; set; }
+        public string Role { get; set; }
+        public DateTime JoinedDate { get; set; }
+        public bool IsActive { get; set; }
+    }
+}

@@ -1,0 +1,118 @@
+﻿@page "/login"
+
+<style>
+    body, html {
+        margin: 0;
+        padding: 0;
+        font-family: 'Arial', sans-serif;
+        background: url('/image.png') no-repeat center center fixed;
+        background-size: cover;
+        direction: rtl;
+    }
+
+    .login-container {
+        width: 350px;
+        margin: 80px auto;
+        background-color: rgba(255, 255, 255, 0.95);
+        padding: 30px;
+        border-radius: 15px;
+        box-shadow: 0 0 15px rgba(0, 0, 0, 0.3);
+        text-align: center;
+    }
+
+        .login-container img.logo {
+            width: 120px;
+            margin-bottom: 20px;
+        }
+
+    h2 {
+        margin-bottom: 5px;
+        color: #a30000;
+        font-size: 24px;
+    }
+
+    h4 {
+        margin-bottom: 25px;
+        color: #333;
+    }
+
+    input[type="text"],
+    input[type="password"] {
+        width: 100%;
+        padding: 10px;
+        margin: 8px 0;
+        border: 1px solid #ccc;
+        border-radius: 8px;
+    }
+
+    .remember-me {
+        text-align: right;
+        margin-bottom: 10px;
+    }
+
+    .btn-login {
+        width: 100%;
+        background-color: #a30000;
+        color: white;
+        border: none;
+        padding: 10px;
+        font-weight: bold;
+        border-radius: 8px;
+        cursor: pointer;
+    }
+
+        .btn-login:hover {
+            background-color: #850000;
+        }
+
+    .extra-links {
+        margin-top: 15px;
+        font-size: 0.9em;
+    }
+
+        .extra-links a {
+            color: #a30000;
+            text-decoration: none;
+            display: block;
+            margin: 5px 0;
+        }
+
+            .extra-links a:hover {
+                text-decoration: underline;
+            }
+
+    .footer {
+        text-align: center;
+        margin-top: 30px;
+        font-size: 0.8em;
+        color: #888;
+    }
+</style>
+
+<div class="login-container">
+    <img class="logo" src="/unnamed.jpg" alt="לוגו שבט הנשיא" />
+    <h2>עמוד כניסה</h2>
+    <h4>מחסן שבט הנשיא</h4>
+
+    <input type="text" placeholder="שם משתמש" />
+    <input type="password" placeholder="סיסמה" />
+
+    <div class="remember-me">
+        <input type="checkbox" id="rememberMe" />
+        <label for="rememberMe">זכור אותי</label>
+    </div>
+
+    <button class="btn-login">התחבר</button>
+
+    <div class="extra-links">
+        <a href="#">שכחת סיסמה?</a>
+        <a href="#">צריך עזרה?</a>
+        <a href="/register" style="font-weight: bold; color: #0066cc;">
+            אין לך חשבון? לחץ כאן להרשמה
+        </a>
+    </div>
+
+    <div class="footer">
+        © 2025 מחסן שבט הנשיא | כל הזכויות שמורות
+    </div>
+</div>

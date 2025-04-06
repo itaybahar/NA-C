@@ -1,0 +1,16 @@
+﻿using System.Threading.Tasks;
+using Blazor_WebAssembly.Models.Auth;
+using Blazor_WebAssembly_Project.Models.Auth;
+
+namespace Blazor_WebAssembly.Services.Interfaces
+{
+    public interface IAuthService
+    {
+        Task<AuthenticationResponse> LoginAsync(LoginModel loginModel);
+        Task<bool> Login(string username, string password);
+        Task<bool> Register(string username, string email, string password);
+        Task<bool> RegisterAsync(RegisterModel registerModel); // ✅ השורה החשובה
+        Task<bool> Logout();
+        Task<bool> ChangePassword(string oldPassword, string newPassword);
+    }
+}

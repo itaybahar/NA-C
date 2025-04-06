@@ -1,0 +1,46 @@
+﻿@page "/"
+@inject NavigationManager NavigationManager
+
+<h1>Welcome to Equipment Management System</h1>
+
+<div class="row mt-4">
+    <div class="col-md-4">
+        <div class="card">
+            <div class="card-header">
+                <h5>Quick Access</h5>
+            </div>
+            <div class="card-body">
+                <div class="d-grid gap-2">
+                    <a class="btn btn-primary" href="EquipmentInventory">
+                        Equipment Inventory
+                    </a>
+                    <a class="btn btn-primary" href="EquipmentRequestList">
+                        Equipment Requests
+                    </a>
+                    <a class="btn btn-primary" href="EquipmentCheckout">
+                        Equipment Checkout
+                    </a>
+                </div>
+            </div>
+        </div>
+    </div>
+</div>
+
+@code {
+    protected override void OnInitialized()
+    {
+        // Navigate to login page if the user is not authenticated
+        // Assuming you have a method IsUserAuthenticated() to check authentication status
+        if (!IsUserAuthenticated())
+        {
+            NavigationManager.NavigateTo("login");
+        }
+    }
+
+    private bool IsUserAuthenticated()
+    {
+        // Implement your authentication check logic here
+        // For example, check if a valid token exists in local storage
+        return false; // Placeholder, replace with actual logic
+    }
+}

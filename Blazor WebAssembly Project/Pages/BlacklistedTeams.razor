@@ -1,0 +1,323 @@
+﻿@page "/blacklist"
+@using Blazor_WebAssembly.Models
+@inject NavigationManager NavigationManager
+@inject HttpClient Http
+
+<div class="container mt-4">
+    <div class="row mb-4">
+        <div class="col">
+            <h2>Blacklisted Teams</h2>
+            <nav aria-label="breadcrumb">
+                <ol class="breadcrumb">
+                    <li class="breadcrumb-item"><a href="/">Home</a></li>
+                    <li class="breadcrumb-item"><a href="/teams">Teams</a></li>
+                    <li class="breadcrumb-item active" aria-current="page">Blacklisted Teams</li>
+                </ol>
+            </nav>
+        </div>
+        <div class="col-auto">
+            <button class="btn btn-outline-secondary" @onclick="NavigateBack">
+                <i class="fas fa-arrow-left me-1"></i> Back
+            </button>
+        </div>
+    </div>
+
+    <div class="row mb-4">
+        <div class="col-md-6">
+            <div class="card shadow-sm">
+                <div class="card-header bg-light">
+                    <h5 class="mb-0">Blacklist Information</h5>
+                </div>
+                <div class="card-body">
+                    <p>
+                        Blacklisted teams are temporarily suspended from checking out equipment due to policy violations
+                        or overdue equipment returns. Teams on the blacklist must resolve outstanding issues before they
+                        can resume equipment checkouts.
+                    </p>
+                    <div class="alert alert-info">
+                        <i class="fas fa-info-circle me-2"></i>
+                        <strong>Note:</strong> Teams on the blacklist for more than 30 days may be subject to additional
+                        review by department management.
+                    </div>
+                </div>
+            </div>
+        </div>
+        <div class="col-md-6">
+            <div class="card shadow-sm">
+                <div class="card-header bg-light">
+                    <h5 class="mb-0">Search</h5>
+                </div>
+                <div class="card-body">
+                    <div class="input-group mb-3">
+                        <input type="text" class="form-control" placeholder="Search by team name or reason..."
+                               @bind="searchQuery" @bind:event="oninput" @onkeypress="HandleKeyPress" />
+                        <button class="btn btn-outline-secondary" type="button" @onclick="SearchTeams">
+                            <i class="fas fa-search"></i>
+                        </button>
+                    </div>
+                    <div class="d-flex justify-content-between">
+                        <div>
+                            <select class="form-select form-select-sm" @bind="sortBy">
+                                <option value="DateAdded">Sort by Date Added</option>
+                                <option value="Name">Sort by Team Name</option>
+                                <option value="DaysBlacklisted">Sort by Days on Blacklist</option>
+                            </select>
+                        </div>
+                        <button class="btn btn-sm btn-outline-secondary" @onclick="ClearFilters">
+                            <i class="fas fa-times me-1"></i> Clear
+                        </button>
+                    </div>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    @if (isLoading)
+    {
+        <div class="card shadow-sm">
+            <div class="card-body text-center py-5">
+                <div class="spinner-border text-primary" role="status">
+                    <span class="visually-hidden">Loading...</span>
+                </div>
+                <p class="mt-2">Loading blacklisted teams...</p>
+            </div>
+        </div>
+    }
+    else if (blacklistedTeams != null && blacklistedTeams.Any())
+    {
+        <div class="row">
+            @foreach (var team in blacklistedTeams)
+            {
+                <div class="col-md-6 col-lg-4 mb-4">
+                    <div class="card shadow-sm h-100 border-danger">
+                        <div class="card-header bg-danger text-white">
+                            <div class="d-flex justify-content-between align-items-center">
+                                <h5 class="mb-0">@team.Name</h5>
+                                <span class="badge bg-dark">
+                                    <i class="fas fa-ban me-1"></i> @team.DaysBlacklisted days
+                                </span>
+                            </div>
+                        </div>
+                        <div class="card-body">
+                            <div class="mb-3">
+                                <strong>Reason for Blacklisting:</strong>
+                                <p>@team.BlacklistReason</p>
+                            </div>
+                            <div class="mb-3">
+                                <strong>Date Added:</strong>
+                                <p>@team.BlacklistDate.ToShortDateString()</p>
+                            </div>
+                            <div class="mb-3">
+                                <strong>Added By:</strong>
+                                <p>@team.BlacklistedBy</p>
+                            </div>
+                            @if (team.OverdueItems > 0)
+                            {
+                                <div class="alert alert-warning">
+                                    <i class="fas fa-exclamation-triangle me-1"></i>
+                                    <span>@team.OverdueItems @(team.OverdueItems == 1 ? "item" : "items") overdue</span>
+                                </div>
+                            }
+                        </div>
+                        <div class="card-footer bg-white">
+                            <div class="d-flex justify-content-between">
+                                <button class="btn btn-sm btn-outline-primary" @onclick="() => NavigateToTeamDetails(team.Id)">
+                                    <i class="fas fa-info-circle me-1"></i> Details
+                                </button>
+                                <button class="btn btn-sm btn-success" @onclick="() => ShowRemoveFromBlacklistModal(team)">
+                                    <i class="fas fa-check-circle me-1"></i> Remove from Blacklist
+                                </button>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+            }
+        </div>
+    }
+    else
+    {
+        <div class="card shadow-sm">
+            <div class="card-body text-center py-5">
+                @if (!string.IsNullOrEmpty(searchQuery))
+                {
+                    <i class="fas fa-search fa-3x mb-3 text-muted"></i>
+                    <h5>No teams found matching your search criteria.</h5>
+                    <button class="btn btn-outline-secondary mt-3" @onclick="ClearFilters">
+                        <i class="fas fa-times me-1"></i> Clear Search
+                    </button>
+                }
+                else
+                {
+                    <i class="fas fa-check-circle fa-3x mb-3 text-success"></i>
+                    <h5>No teams are currently blacklisted.</h5>
+                }
+            </div>
+        </div>
+    }
+
+    @if (showConfirmModal)
+    {
+        <div class="modal fade show" style="display: block;" tabindex="-1">
+            <div class="modal-dialog">
+                <div class="modal-content">
+                    <div class="modal-header">
+                        <h5 class="modal-title">Remove from Blacklist</h5>
+                        <button type="button" class="btn-close" @onclick="CloseConfirmModal"></button>
+                    </div>
+                    <div class="modal-body">
+                        <p>Are you sure you want to remove <strong>@selectedTeam?.Name</strong> from the blacklist?</p>
+                        <p>This will allow the team to check out equipment again.</p>
+
+                        <div class="mb-3">
+                            <label for="removalNotes" class="form-label">Notes (Optional)</label>
+                            <textarea id="removalNotes" class="form-control" rows="3" @bind="removalNotes"></textarea>
+                        </div>
+                    </div>
+                    <div class="modal-footer">
+                        <button type="button" class="btn btn-secondary" @onclick="CloseConfirmModal">Cancel</button>
+                        <button type="button" class="btn btn-success" @onclick="RemoveFromBlacklist">
+                            Remove from Blacklist
+                        </button>
+                    </div>
+                </div>
+            </div>
+        </div>
+        <div class="modal-backdrop fade show"></div>
+    }
+</div>
+
+@code {
+    private List<BlacklistedTeamDto> blacklistedTeams;
+    private bool isLoading = true;
+    private string searchQuery = "";
+    private string sortBy = "DateAdded";
+    private bool showConfirmModal = false;
+    private BlacklistedTeamDto selectedTeam;
+    private string removalNotes = "";
+
+    protected override async Task OnInitializedAsync()
+    {
+        await LoadData();
+    }
+
+    private async Task LoadData()
+    {
+        try
+        {
+            isLoading = true;
+
+            // Get blacklisted teams
+            blacklistedTeams = await Http.GetFromJsonAsync<List<BlacklistedTeamDto>>("api/teams/blacklisted");
+
+            // Apply any filters
+            ApplyFilters();
+        }
+        catch (Exception)
+        {
+            // Error handling would go here
+        }
+        finally
+        {
+            isLoading = false;
+        }
+    }
+
+    private void NavigateBack()
+    {
+        NavigationManager.NavigateTo("/teams");
+    }
+
+    private void NavigateToTeamDetails(int teamId)
+    {
+        NavigationManager.NavigateTo($"/teams/details/{teamId}");
+    }
+
+    private void HandleKeyPress(KeyboardEventArgs e)
+    {
+        if (e.Key == "Enter")
+        {
+            SearchTeams();
+        }
+    }
+
+    private void SearchTeams()
+    {
+        ApplyFilters();
+    }
+
+    private void ClearFilters()
+    {
+        searchQuery = "";
+        sortBy = "DateAdded";
+        ApplyFilters();
+    }
+
+    private void ApplyFilters()
+    {
+        if (blacklistedTeams == null)
+            return;
+
+        // Apply search filter
+        if (!string.IsNullOrWhiteSpace(searchQuery))
+        {
+            blacklistedTeams = blacklistedTeams
+                .Where(t => t.Name.Contains(searchQuery, StringComparison.OrdinalIgnoreCase) ||
+                           t.BlacklistReason.Contains(searchQuery, StringComparison.OrdinalIgnoreCase))
+                .ToList();
+        }
+
+        // Apply sorting
+        blacklistedTeams = sortBy switch
+        {
+            "Name" => blacklistedTeams.OrderBy(t => t.Name).ToList(),
+            "DaysBlacklisted" => blacklistedTeams.OrderByDescending(t => t.DaysBlacklisted).ToList(),
+            _ => blacklistedTeams.OrderByDescending(t => t.BlacklistDate).ToList() // DateAdded is default
+        };
+    }
+
+    private void ShowRemoveFromBlacklistModal(BlacklistedTeamDto team)
+    {
+        selectedTeam = team;
+        removalNotes = "";
+        showConfirmModal = true;
+    }
+
+    private void CloseConfirmModal()
+    {
+        showConfirmModal = false;
+    }
+
+    private async Task RemoveFromBlacklist()
+    {
+        try
+        {
+            if (selectedTeam != null)
+            {
+                // Call API to remove from blacklist
+                await Http.PostAsJsonAsync($"api/teams/{selectedTeam.Id}/removeFromBlacklist", new { Notes = removalNotes });
+
+                // Refresh data
+                await LoadData();
+            }
+        }
+        catch (Exception)
+        {
+            // Error handling would go here
+        }
+        finally
+        {
+            showConfirmModal = false;
+        }
+    }
+
+    public class BlacklistedTeamDto
+    {
+        public int Id { get; set; }
+        public string Name { get; set; }
+        public string BlacklistReason { get; set; }
+        public DateTime BlacklistDate { get; set; }
+        public string BlacklistedBy { get; set; }
+        public int DaysBlacklisted { get; set; }
+        public int OverdueItems { get; set; }
+    }
+}

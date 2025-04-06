@@ -1,0 +1,510 @@
+﻿@page "/equipment/return"
+@attribute [Authorize(Roles = "Operator,Manager")]
+@using Blazor_WebAssembly.Services.Interfaces
+@using Microsoft.AspNetCore.Authorization
+@inject NavigationManager NavigationManager
+
+<div class="container mt-4">
+    <div class="row mb-4">
+        <div class="col">
+            <h2>Equipment Return</h2>
+            <nav aria-label="breadcrumb">
+                <ol class="breadcrumb">
+                    <li class="breadcrumb-item"><a href="/">Home</a></li>
+                    <li class="breadcrumb-item active" aria-current="page">Equipment Return</li>
+                </ol>
+            </nav>
+        </div>
+    </div>
+
+    <div class="row">
+        <div class="col-md-5">
+            <div class="card shadow-sm mb-4">
+                <div class="card-header bg-light">
+                    <h5 class="mb-0">Search Checked Out Equipment</h5>
+                </div>
+                <div class="card-body">
+                    <div class="mb-3">
+                        <label class="form-label">Search By</label>
+                        <div class="btn-group w-100" role="group">
+                            <input type="radio" class="btn-check" name="searchType" id="searchByTeam"
+                                   checked="@(_searchType == SearchType.Team)"
+                                   @onclick="() => _searchType = SearchType.Team" />
+                            <label class="btn btn-outline-primary" for="searchByTeam">Team</label>
+
+                            <input type="radio" class="btn-check" name="searchType" id="searchByMember"
+                                   checked="@(_searchType == SearchType.Member)"
+                                   @onclick="() => _searchType = SearchType.Member" />
+                            <label class="btn btn-outline-primary" for="searchByMember">Team Member</label>
+
+                            <input type="radio" class="btn-check" name="searchType" id="searchByEquipment"
+                                   checked="@(_searchType == SearchType.Equipment)"
+                                   @onclick="() => _searchType = SearchType.Equipment" />
+                            <label class="btn btn-outline-primary" for="searchByEquipment">Equipment ID</label>
+                        </div>
+                    </div>
+
+                    @if (_searchType == SearchType.Team)
+                    {
+                        <div class="mb-3">
+                            <label for="teamSelect" class="form-label">Select Team</label>
+                            <select id="teamSelect" class="form-select" @bind="_selectedTeamId">
+                                <option value="0">-- Select Team --</option>
+                                @foreach (var team in _teams)
+                                {
+                                    <option value="@team.Id">@team.Name</option>
+                                }
+                            </select>
+                        </div>
+                    }
+                    else if (_searchType == SearchType.Member)
+                    {
+                        <div class="mb-3">
+                            <label for="memberSearch" class="form-label">Team Member Name</label>
+                            <div class="input-group">
+                                <input type="text" class="form-control" id="memberSearch"
+                                       @bind="_memberSearchTerm" @bind:event="oninput" />
+                                <button class="btn btn-outline-secondary" @onclick="SearchMembers">
+                                    <i class="fas fa-search"></i>
+                                </button>
+                            </div>
+                        </div>
+
+                        @if (_filteredMembers.Any())
+                        {
+                            <div class="mb-3">
+                                <label for="memberSelect" class="form-label">Select Team Member</label>
+                                <select id="memberSelect" class="form-select" @bind="_selectedMemberId">
+                                    <option value="0">-- Select Member --</option>
+                                    @foreach (var member in _filteredMembers)
+                                    {
+                                        <option value="@member.Id">@member.Name (@member.Team)</option>
+                                    }
+                                </select>
+                            </div>
+                        }
+                    }
+                    else if (_searchType == SearchType.Equipment)
+                    {
+                        <div class="mb-3">
+                            <label for="equipmentIdSearch" class="form-label">Equipment ID</label>
+                            <div class="input-group">
+                                <input type="text" class="form-control" id="equipmentIdSearch"
+                                       @bind="_equipmentIdSearch" @bind:event="oninput" />
+                                <button class="btn btn-outline-secondary" @onclick="SearchByEquipmentId">
+                                    <i class="fas fa-search"></i>
+                                </button>
+                            </div>
+                            <div class="form-text">Enter equipment inventory number or scan barcode</div>
+                        </div>
+                    }
+
+                    <div class="d-grid mt-4">
+                        <button class="btn btn-primary" @onclick="SearchCheckouts" disabled="@(!CanSearch())">
+                            <i class="fas fa-search me-1"></i> Search Checkouts
+                        </button>
+                    </div>
+                </div>
+            </div>
+
+            @if (_activeCheckout != null)
+            {
+                <div class="card shadow-sm mb-4">
+                    <div class="card-header bg-light">
+                        <h5 class="mb-0">Return Details</h5>
+                    </div>
+                    <div class="card-body">
+                        <div class="mb-3">
+                            <label for="returnDate" class="form-label">Return Date</label>
+                            <input type="date" id="returnDate" class="form-control" @bind="_returnDate" />
+                        </div>
+
+                        <div class="mb-3">
+                            <label for="returnCondition" class="form-label">Equipment Condition</label>
+                            <select id="returnCondition" class="form-select" @bind="_returnCondition">
+                                <option value="Good">Good</option>
+                                <option value="Fair">Fair</option>
+                                <option value="Poor">Poor</option>
+                                <option value="Damaged">Damaged</option>
+                            </select>
+                        </div>
+
+                        <div class="mb-3">
+                            <label for="returnNotes" class="form-label">Return Notes</label>
+                            <textarea id="returnNotes" class="form-control" rows="3" @bind="_returnNotes"></textarea>
+                        </div>
+
+                        <div class="form-check mb-3">
+                            <input class="form-check-input" type="checkbox" id="markForMaintenance" @bind="_markForMaintenance">
+                            <label class="form-check-label" for="markForMaintenance">
+                                Mark for maintenance
+                            </label>
+                        </div>
+                    </div>
+                </div>
+            }
+        </div>
+
+        <div class="col-md-7">
+            <div class="card shadow-sm">
+                <div class="card-header bg-light">
+                    <h5 class="mb-0">Checked Out Equipment</h5>
+                </div>
+                <div class="card-body">
+                    @if (_checkouts.Any())
+                    {
+                        <div class="list-group">
+                            @foreach (var checkout in _checkouts)
+                            {
+                                <button class="list-group-item list-group-item-action @(_activeCheckout?.Id == checkout.Id ? "active" : "")"
+                                        @onclick="() => SelectCheckout(checkout)">
+                                    <div class="d-flex w-100 justify-content-between">
+                                        <h5 class="mb-1">@checkout.TeamName</h5>
+                                        <small>Checked out: @checkout.CheckoutDate.ToShortDateString()</small>
+                                    </div>
+                                    <p class="mb-1">Team Member: @checkout.MemberName</p>
+                                    <div class="d-flex justify-content-between align-items-center">
+                                        <small>Equipment: @checkout.Items.Count items</small>
+                                        <span class="badge bg-primary rounded-pill">Due: @checkout.DueDate.ToShortDateString()</span>
+                                    </div>
+                                </button>
+                            }
+                        </div>
+                    }
+                    else if (_hasSearched)
+                    {
+                        <div class="text-center py-4">
+                            <i class="fas fa-box-open fa-3x mb-3 text-muted"></i>
+                            <p>No checked out equipment found for your search criteria.</p>
+                        </div>
+                    }
+                    else
+                    {
+                        <div class="text-center py-4">
+                            <i class="fas fa-search fa-3x mb-3 text-muted"></i>
+                            <p>Use the search options to find checked out equipment.</p>
+                        </div>
+                    }
+                </div>
+            </div>
+
+            @if (_activeCheckout != null)
+            {
+                <div class="card shadow-sm mt-4">
+                    <div class="card-header bg-light">
+                        <div class="d-flex justify-content-between align-items-center">
+                            <h5 class="mb-0">Equipment Items</h5>
+                            <div>
+                                <div class="form-check form-switch">
+                                    <input class="form-check-input" type="checkbox" id="returnAll" @bind="_returnAllItems">
+                                    <label class="form-check-label" for="returnAll">Return All Items</label>
+                                </div>
+                            </div>
+                        </div>
+                    </div>
+                    <div class="card-body p-0">
+                        <div class="table-responsive">
+                            <table class="table mb-0">
+                                <thead class="table-light">
+                                    <tr>
+                                        <th>Return</th>
+                                        <th>Item</th>
+                                        <th>Category</th>
+                                        <th>Quantity</th>
+                                        <th>Status</th>
+                                    </tr>
+                                </thead>
+                                <tbody>
+                                    @foreach (var item in _activeCheckout.Items)
+                                    {
+                                        <tr>
+                                            <td>
+                                                <div class="form-check">
+                                                    <input class="form-check-input" type="checkbox"
+                                                           checked="@(_returnAllItems || _selectedItemsToReturn.Contains(item.Id))"
+                                                           @onchange="e => ToggleItemReturn(item.Id, (bool)e.Value)" />
+                                                </div>
+                                            </td>
+                                            <td>
+                                                <div class="d-flex align-items-center">
+                                                    <span class="equipment-icon me-2">
+                                                        <i class="@GetEquipmentIcon(item.Category)"></i>
+                                                    </span>
+                                                    <div>
+                                                        <span class="d-block">@item.Name</span>
+                                                        <small class="text-muted">ID: @item.InventoryNumber</small>
+                                                    </div>
+                                                </div>
+                                            </td>
+                                            <td>@item.Category</td>
+                                            <td>@item.Quantity</td>
+                                            <td>
+                                                @if (_returnAllItems || _selectedItemsToReturn.Contains(item.Id))
+                                                {
+                                                    <span class="badge bg-success">Ready to Return</span>
+                                                }
+                                                else
+                                                {
+                                                    <span class="badge bg-warning">Checked Out</span>
+                                                }
+                                            </td>
+                                        </tr>
+                                    }
+                                </tbody>
+                            </table>
+                        </div>
+                    </div>
+                    <div class="card-footer bg-white">
+                        <div class="d-flex justify-content-between align-items-center">
+                            <div>
+                                <span>Returning @(_returnAllItems? _activeCheckout.Items.Count : _selectedItemsToReturn.Count) of @_activeCheckout.Items.Count items</span>
+                            </div>
+                            <button class="btn btn-primary"
+                                    @onclick="ProcessReturn"
+                                    disabled="@(!CanProcessReturn())">
+                                <i class="fas fa-undo-alt me-1"></i> Process Return
+                            </button>
+                        </div>
+                    </div>
+                </div>
+            }
+        </div>
+    </div>
+</div>
+
+@code {
+    private enum SearchType
+    {
+        Team,
+        Member,
+        Equipment
+    }
+
+    // Search parameters
+    private SearchType _searchType = SearchType.Team;
+    private int _selectedTeamId = 0;
+    private string _memberSearchTerm = "";
+    private int _selectedMemberId = 0;
+    private string _equipmentIdSearch = "";
+    private bool _hasSearched = false;
+
+    // Return details
+    private DateTime _returnDate = DateTime.Today;
+    private string _returnCondition = "Good";
+    private string _returnNotes = "";
+    private bool _markForMaintenance = false;
+    private bool _returnAllItems = true;
+    private HashSet<int> _selectedItemsToReturn = new HashSet<int>();
+
+    // Data collections
+    private List<Team> _teams = new()
+    {
+        new Team { Id = 1, Name = "Alpha Team" },
+        new Team { Id = 2, Name = "Bravo Team" },
+        new Team { Id = 3, Name = "Charlie Team" },
+        new Team { Id = 4, Name = "Delta Team" }
+    };
+
+    private List<TeamMember> _allTeamMembers = new()
+    {
+        new TeamMember { Id = 1, TeamId = 1, Name = "John Smith", Team = "Alpha Team" },
+        new TeamMember { Id = 2, TeamId = 1, Name = "Jane Doe", Team = "Alpha Team" },
+        new TeamMember { Id = 3, TeamId = 2, Name = "Robert Johnson", Team = "Bravo Team" },
+        new TeamMember { Id = 4, TeamId = 2, Name = "Emily Davis", Team = "Bravo Team" },
+        new TeamMember { Id = 5, TeamId = 3, Name = "Michael Wilson", Team = "Charlie Team" },
+        new TeamMember { Id = 6, TeamId = 4, Name = "Sarah Martinez", Team = "Delta Team" }
+    };
+
+    private List<TeamMember> _filteredMembers = new();
+    private List<EquipmentCheckout> _checkouts = new();
+    private EquipmentCheckout? _activeCheckout;
+
+    // Sample data for checkouts
+    private List<EquipmentCheckout> GetSampleCheckouts()
+    {
+        return new List<EquipmentCheckout>
+        {
+            new EquipmentCheckout
+            {
+                Id = 1,
+                TeamId = 1,
+                TeamName = "Alpha Team",
+                MemberId = 1,
+                MemberName = "John Smith",
+                CheckoutDate = DateTime.Now.AddDays(-14),
+                DueDate = DateTime.Now.AddDays(7),
+                Items = new List<CheckoutItem>
+                {
+                    new CheckoutItem { Id = 1, InventoryNumber = "EQ001", Name = "Tactical Radio", Category = "Communication", Quantity = 2 },
+                    new CheckoutItem { Id = 2, InventoryNumber = "EQ003", Name = "Tactical Vest", Category = "Personal Protection", Quantity = 5 }
+                }
+            },
+            new EquipmentCheckout
+            {
+                Id = 2,
+                TeamId = 2,
+                TeamName = "Bravo Team",
+                MemberId = 3,
+                MemberName = "Robert Johnson",
+                CheckoutDate = DateTime.Now.AddDays(-7),
+                DueDate = DateTime.Now.AddDays(14),
+                Items = new List<CheckoutItem>
+                {
+                    new CheckoutItem { Id = 3, InventoryNumber = "EQ002", Name = "Night Vision Goggles", Category = "Observation", Quantity = 3 },
+                    new CheckoutItem { Id = 4, InventoryNumber = "EQ004", Name = "First Aid Kit", Category = "Medical", Quantity = 8 }
+                }
+            },
+            new EquipmentCheckout
+            {
+                Id = 3,
+                TeamId = 3,
+                TeamName = "Charlie Team",
+                MemberId = 5,
+                MemberName = "Michael Wilson",
+                CheckoutDate = DateTime.Now.AddDays(-3),
+                DueDate = DateTime.Now.AddDays(18),
+                Items = new List<CheckoutItem>
+                {
+                    new CheckoutItem { Id = 5, InventoryNumber = "EQ005", Name = "Field Binoculars", Category = "Observation", Quantity = 4 }
+                }
+            }
+        };
+    }
+
+    private void SearchMembers()
+    {
+        if (!string.IsNullOrWhiteSpace(_memberSearchTerm))
+        {
+            _filteredMembers = _allTeamMembers
+                .Where(m => m.Name.Contains(_memberSearchTerm, StringComparison.OrdinalIgnoreCase))
+                .ToList();
+        }
+        else
+        {
+            _filteredMembers.Clear();
+        }
+    }
+
+    private void SearchByEquipmentId()
+    {
+        // This would contain logic to find checkouts by equipment ID
+        SearchCheckouts();
+    }
+
+    private bool CanSearch()
+    {
+        return _searchType switch
+        {
+            SearchType.Team => _selectedTeamId > 0,
+            SearchType.Member => _selectedMemberId > 0,
+            SearchType.Equipment => !string.IsNullOrWhiteSpace(_equipmentIdSearch),
+            _ => false
+        };
+    }
+
+    private void SearchCheckouts()
+    {
+        _hasSearched = true;
+        _activeCheckout = null;
+        _selectedItemsToReturn.Clear();
+
+        // Simulating search based on selected criteria
+        var allCheckouts = GetSampleCheckouts();
+
+        _checkouts = _searchType switch
+        {
+            SearchType.Team => allCheckouts.Where(c => c.TeamId == _selectedTeamId).ToList(),
+            SearchType.Member => allCheckouts.Where(c => c.MemberId == _selectedMemberId).ToList(),
+            SearchType.Equipment => allCheckouts.Where(c =>
+                c.Items.Any(i => i.InventoryNumber.Contains(_equipmentIdSearch, StringComparison.OrdinalIgnoreCase))).ToList(),
+            _ => new List<EquipmentCheckout>()
+        };
+    }
+
+    private void SelectCheckout(EquipmentCheckout checkout)
+    {
+        _activeCheckout = checkout;
+        _selectedItemsToReturn.Clear();
+        _returnAllItems = true;
+
+        // Add all item IDs to selected items set
+        foreach (var item in checkout.Items)
+        {
+            _selectedItemsToReturn.Add(item.Id);
+        }
+    }
+
+    private void ToggleItemReturn(int itemId, bool isSelected)
+    {
+        if (isSelected)
+        {
+            _selectedItemsToReturn.Add(itemId);
+        }
+        else
+        {
+            _selectedItemsToReturn.Remove(itemId);
+            _returnAllItems = false;
+        }
+    }
+
+    private bool CanProcessReturn()
+    {
+        return _activeCheckout != null && (_returnAllItems || _selectedItemsToReturn.Any());
+    }
+
+    private void ProcessReturn()
+    {
+        // Process return logic would be implemented here
+        // After successful return, redirect to confirmation or return history
+        NavigationManager.NavigateTo("/equipment/return/confirmation");
+    }
+
+    private string GetEquipmentIcon(string category)
+    {
+        return category switch
+        {
+            "Communication" => "fas fa-satellite-dish",
+            "Observation" => "fas fa-binoculars",
+            "Personal Protection" => "fas fa-shield-alt",
+            "Medical" => "fas fa-first-aid",
+            "Navigation" => "fas fa-compass",
+            _ => "fas fa-box"
+        };
+    }
+
+    // Model classes
+    private class Team
+    {
+        public int Id { get; set; }
+        public string Name { get; set; } = "";
+    }
+
+    private class TeamMember
+    {
+        public int Id { get; set; }
+        public int TeamId { get; set; }
+        public string Name { get; set; } = "";
+        public string Team { get; set; } = "";
+    }
+
+    private class EquipmentCheckout
+    {
+        public int Id { get; set; }
+        public int TeamId { get; set; }
+        public string TeamName { get; set; } = "";
+        public int MemberId { get; set; }
+        public string MemberName { get; set; } = "";
+        public DateTime CheckoutDate { get; set; }
+        public DateTime DueDate { get; set; }
+        public List<CheckoutItem> Items { get; set; } = new();
+    }
+
+    private class CheckoutItem
+    {
+        public int Id { get; set; }
+        public string InventoryNumber { get; set; } = "";
+        public string Name { get; set; } = "";
+        public string Category { get; set; } = "";
+        public int Quantity { get; set; }
+    }
+}

@@ -1,0 +1,133 @@
+﻿@using Blazor_WebAssembly.Services.Interfaces
+@using Microsoft.AspNetCore.Components.Authorization
+@using System.Security.Claims
+@inject NavigationManager Navigation
+@inject AuthenticationStateProvider AuthenticationStateProvider
+@inject IAuthService AuthService
+
+<AuthorizeView>
+    <Authorized>
+        <div class="user-info-container">
+            <div class="dropdown">
+                <button class="btn btn-link dropdown-toggle" @onclick="ToggleUserMenu" id="userDropdown" aria-expanded="@_isUserMenuVisible">
+                    <i class="fas fa-user-circle"></i>
+                    <span>@GetUserName()</span>
+                </button>
+                <div class="dropdown-menu dropdown-menu-end @(_isUserMenuVisible ? "show" : "")" aria-labelledby="userDropdown">
+                    <h6 class="dropdown-header">@GetUserRole()</h6>
+                    <div class="dropdown-divider"></div>
+                    <button class="dropdown-item" @onclick="UserProfile">
+                        <i class="fas fa-id-card"></i> Profile
+                    </button>
+                    <button class="dropdown-item" @onclick="ChangePassword">
+                        <i class="fas fa-key"></i> Change Password
+                    </button>
+                    <div class="dropdown-divider"></div>
+                    <button class="dropdown-item" @onclick="BeginLogout">
+                        <i class="fas fa-sign-out-alt"></i> Logout
+                    </button>
+                </div>
+            </div>
+        </div>
+    </Authorized>
+    <NotAuthorized>
+        <div class="auth-links">
+            <button class="btn btn-outline-primary" @onclick="Login">
+                <i class="fas fa-sign-in-alt"></i> Login
+            </button>
+        </div>
+    </NotAuthorized>
+</AuthorizeView>
+
+@code {
+    private bool _isUserMenuVisible = false;
+
+    private void ToggleUserMenu()
+    {
+        _isUserMenuVisible = !_isUserMenuVisible;
+    }
+
+    private void Login()
+    {
+        Navigation.NavigateTo("login");
+    }
+
+    private async Task BeginLogout()
+    {
+        await AuthService.Logout();
+        Navigation.NavigateTo("/");
+    }
+
+    private void UserProfile()
+    {
+        Navigation.NavigateTo("user/profile");
+    }
+
+    private void ChangePassword()
+    {
+        Navigation.NavigateTo("user/change-password");
+    }
+
+    private string GetUserName()
+    {
+        var authState = AuthenticationStateProvider.GetAuthenticationStateAsync().Result;
+        var user = authState.User;
+
+        if (user.Identity.IsAuthenticated)
+        {
+            var nameClaim = user.FindFirst(ClaimTypes.Name)?.Value;
+            if (!string.IsNullOrEmpty(nameClaim))
+            {
+                return nameClaim;
+            }
+
+            return user.FindFirst(ClaimTypes.Email)?.Value ?? "User";
+        }
+
+        return "User";
+    }
+
+    private string GetUserRole()
+    {
+        var authState = AuthenticationStateProvider.GetAuthenticationStateAsync().Result;
+        var user = authState.User;
+
+        if (user.Identity.IsAuthenticated)
+        {
+            var roleClaim = user.FindFirst(ClaimTypes.Role)?.Value;
+            return !string.IsNullOrEmpty(roleClaim) ? roleClaim : "User";
+        }
+
+        return "User";
+    }
+}
+
+<style>
+    .user-info-container {
+        display: flex;
+        align-items: center;
+    }
+
+    .dropdown-toggle::after {
+        margin-left: 0.5em;
+    }
+
+    .dropdown-menu {
+        min-width: 12rem;
+    }
+
+    .dropdown-item {
+        display: flex;
+        align-items: center;
+        padding: 0.5rem 1rem;
+    }
+
+        .dropdown-item i {
+            margin-right: 0.5rem;
+        }
+
+    .auth-links {
+        display: flex;
+        gap: 0.5rem;
+    }
+</style>

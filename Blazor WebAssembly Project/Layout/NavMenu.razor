@@ -1,6 +1,8 @@
-﻿<div class="top-row ps-3 navbar navbar-dark">
+﻿@using Microsoft.AspNetCore.Components.Authorization
+
+<div class="top-row ps-3 navbar navbar-dark">
     <div class="container-fluid">
-        <a class="navbar-brand" href="">Blazor WebAssembly Project</a>
+        <a class="navbar-brand" href="">Equipment Manager</a>
         <button title="Navigation menu" class="navbar-toggler" @onclick="ToggleNavMenu">
             <span class="navbar-toggler-icon"></span>
         </button>
@@ -8,22 +10,86 @@
 </div>
 
 <div class="@NavMenuCssClass nav-scrollable" @onclick="ToggleNavMenu">
-    <nav class="nav flex-column">
-        <div class="nav-item px-3">
-            <NavLink class="nav-link" href="" Match="NavLinkMatch.All">
-                <span class="bi bi-house-door-fill-nav-menu" aria-hidden="true"></span> Home
-            </NavLink>
-        </div>
-        <div class="nav-item px-3">
-            <NavLink class="nav-link" href="counter">
-                <span class="bi bi-plus-square-fill-nav-menu" aria-hidden="true"></span> Counter
-            </NavLink>
-        </div>
-        <div class="nav-item px-3">
-            <NavLink class="nav-link" href="weather">
-                <span class="bi bi-list-nested-nav-menu" aria-hidden="true"></span> Weather
-            </NavLink>
-        </div>
+    <nav class="flex-column">
+        <AuthorizeView Context="MainNavAuth">
+            <Authorized Context="MainNavAuthContext">
+                <div class="nav-item px-3">
+                    <NavLink class="nav-link" href="" Match="NavLinkMatch.All">
+                        <span class="bi bi-house" aria-hidden="true"></span> Home
+                    </NavLink>
+                </div>
+
+                <div class="nav-item px-3">
+                    <NavLink class="nav-link" href="EquipmentInventory">
+                        <span class="bi bi-list" aria-hidden="true"></span> Equipment Inventory
+                    </NavLink>
+                </div>
+
+                <div class="nav-item px-3">
+                    <NavLink class="nav-link" href="EquipmentRequestList">
+                        <span class="bi bi-basket" aria-hidden="true"></span> Equipment Requests
+                    </NavLink>
+                </div>
+
+                <div class="nav-item px-3">
+                    <NavLink class="nav-link" href="EquipmentReturn">
+                        <span class="bi bi-arrow-return-left" aria-hidden="true"></span> Equipment Returns
+                    </NavLink>
+                </div>
+
+                <div class="nav-item px-3">
+                    <NavLink class="nav-link" href="EquipmentCheckout">
+                        <span class="bi bi-cart" aria-hidden="true"></span> Equipment Checkout
+                    </NavLink>
+                </div>
+
+                <AuthorizeView Roles="Admin,Manager" Context="AdminAuth">
+                    <Authorized Context="AdminAuthContext">
+                        <div class="nav-item px-3">
+                            <NavLink class="nav-link" href="Reports">
+                                <span class="bi bi-bar-chart" aria-hidden="true"></span> Reports
+                            </NavLink>
+                        </div>
+
+                        <div class="nav-item px-3">
+                            <NavLink class="nav-link" href="TeamList">
+                                <span class="bi bi-people" aria-hidden="true"></span> Team Management
+                            </NavLink>
+                        </div>
+
+                        <div class="nav-item px-3">
+                            <NavLink class="nav-link" href="UserManagement">
+                                <span class="bi bi-person" aria-hidden="true"></span> User Management
+                            </NavLink>
+                        </div>
+
+                        <div class="nav-item px-3">
+                            <NavLink class="nav-link" href="EquipmentCategoriesManagement">
+                                <span class="bi bi-tag" aria-hidden="true"></span> Categories
+                            </NavLink>
+                        </div>
+
+                        <div class="nav-item px-3">
+                            <NavLink class="nav-link" href="AuditLog">
+                                <span class="bi bi-clock" aria-hidden="true"></span> Audit Log
+                            </NavLink>
+                        </div>
+                    </Authorized>
+                </AuthorizeView>
+            </Authorized>
+            <NotAuthorized Context="NotAuthContext">
+                <div class="nav-item px-3">
+                    <NavLink class="nav-link" href="Login">
+                        <span class="bi bi-box-arrow-in-right" aria-hidden="true"></span> Login
+                    </NavLink>
+                </div>
+                <div class="nav-item px-3">
+                    <NavLink class="nav-link" href="Register">
+                        <span class="bi bi-person-plus" aria-hidden="true"></span> Register
+                    </NavLink>
+                </div>
+            </NotAuthorized>
+        </AuthorizeView>
     </nav>
 </div>
 
@@ -37,3 +103,71 @@
         collapseNavMenu = !collapseNavMenu;
     }
 }
+
+<style>
+    .navbar-toggler {
+        background-color: rgba(255, 255, 255, 0.1);
+    }
+
+    .top-row {
+        height: 3.5rem;
+        background-color: rgba(0,0,0,0.8);
+    }
+
+    .navbar-brand {
+        font-size: 1.1rem;
+    }
+
+    .bi {
+        width: 2rem;
+        font-size: 1.1rem;
+        vertical-align: text-top;
+        top: -2px;
+    }
+
+    .nav-item {
+        font-size: 0.9rem;
+        padding-bottom: 0.5rem;
+    }
+
+        .nav-item:first-of-type {
+            padding-top: 1rem;
+        }
+
+        .nav-item:last-of-type {
+            padding-bottom: 1rem;
+        }
+
+    .nav-link {
+        height: 3rem;
+        display: flex;
+        align-items: center;
+        line-height: 3rem;
+    }
+
+        .nav-link.active {
+            background-color: rgba(0,0,0,0.25);
+            color: white;
+        }
+
+        .nav-link:hover {
+            background-color: rgba(0,0,0,0.1);
+        }
+
+    @@media (min-width: 641px) {
+        .navbar-toggler {
+            display: none;
+        }
+
+        .collapse {
+            /* Never collapse the sidebar for wide screens */
+            display: block;
+        }
+
+        .nav-scrollable {
+            /* Allow sidebar to scroll for tall menus */
+            height: calc(100vh - 3.5rem);
+            overflow-y: auto;
+        }
+    }
+</style>

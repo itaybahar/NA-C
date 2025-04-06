@@ -1,0 +1,703 @@
+﻿@page "/equipment/requests"
+@using Blazor_WebAssembly.Models
+@inject NavigationManager NavigationManager
+@inject HttpClient Http
+
+<div class="container mt-4">
+    <div class="row mb-4">
+        <div class="col">
+            <h2>Equipment Requests</h2>
+            <nav aria-label="breadcrumb">
+                <ol class="breadcrumb">
+                    <li class="breadcrumb-item"><a href="/">Home</a></li>
+                    <li class="breadcrumb-item active" aria-current="page">Equipment Requests</li>
+                </ol>
+            </nav>
+        </div>
+        <div class="col-auto">
+            <button class="btn btn-primary" @onclick="NavigateToCreateRequest">
+                <i class="fas fa-plus me-1"></i> New Request
+            </button>
+        </div>
+    </div>
+
+    <div class="row mb-4">
+        <div class="col-md-8">
+            <div class="card shadow-sm">
+                <div class="card-header bg-light">
+                    <div class="d-flex justify-content-between align-items-center">
+                        <h5 class="mb-0">Filters</h5>
+                        <button class="btn btn-sm btn-outline-secondary" @onclick="ClearFilters">
+                            <i class="fas fa-times me-1"></i> Clear
+                        </button>
+                    </div>
+                </div>
+                <div class="card-body">
+                    <div class="row">
+                        <div class="col-md-5">
+                            <div class="input-group mb-3">
+                                <input type="text" class="form-control" placeholder="Search..."
+                                       @bind="searchQuery" @bind:event="oninput" @onkeypress="HandleKeyPress" />
+                                <button class="btn btn-outline-secondary" type="button" @onclick="SearchRequests">
+                                    <i class="fas fa-search"></i>
+                                </button>
+                            </div>
+                        </div>
+                        <div class="col-md-3">
+                            <select class="form-select mb-3" @bind="statusFilter">
+                                <option value="">All Statuses</option>
+                                <option value="Pending">Pending</option>
+                                <option value="Approved">Approved</option>
+                                <option value="Rejected">Rejected</option>
+                                <option value="Ordered">Ordered</option>
+                                <option value="Received">Received</option>
+                            </select>
+                        </div>
+                        <div class="col-md-4">
+                            <div class="input-group mb-3">
+                                <span class="input-group-text">From</span>
+                                <input type="date" class="form-control" @bind="dateFrom" />
+                                <span class="input-group-text">To</span>
+                                <input type="date" class="form-control" @bind="dateTo" />
+                            </div>
+                        </div>
+                    </div>
+                    <div class="d-flex justify-content-between align-items-center">
+                        <div>
+                            <div class="form-check form-check-inline">
+                                <input class="form-check-input" type="checkbox" id="showMyRequestsOnly" @bind="myRequestsOnly" />
+                                <label class="form-check-label" for="showMyRequestsOnly">My Requests Only</label>
+                            </div>
+                            <div class="form-check form-check-inline">
+                                <input class="form-check-input" type="checkbox" id="showUrgentOnly" @bind="urgentOnly" />
+                                <label class="form-check-label" for="showUrgentOnly">Urgent Only</label>
+                            </div>
+                        </div>
+                        <div>
+                            <select class="form-select form-select-sm" @bind="sortBy">
+                                <option value="Date">Sort by Date</option>
+                                <option value="Status">Sort by Status</option>
+                                <option value="Priority">Sort by Priority</option>
+                                <option value="Quantity">Sort by Quantity</option>
+                            </select>
+                        </div>
+                    </div>
+                </div>
+            </div>
+        </div>
+        <div class="col-md-4">
+            <div class="card shadow-sm">
+                <div class="card-header bg-light">
+                    <h5 class="mb-0">Request Summary</h5>
+                </div>
+                <div class="card-body">
+                    <div class="row text-center">
+                        <div class="col-4">
+                            <div class="mb-1">
+                                <i class="fas fa-clock text-warning fa-2x"></i>
+                            </div>
+                            <h4 class="mb-0">@pendingCount</h4>
+                            <small class="text-muted">Pending</small>
+                        </div>
+                        <div class="col-4">
+                            <div class="mb-1">
+                                <i class="fas fa-check-circle text-success fa-2x"></i>
+                            </div>
+                            <h4 class="mb-0">@approvedCount</h4>
+                            <small class="text-muted">Approved</small>
+                        </div>
+                        <div class="col-4">
+                            <div class="mb-1">
+                                <i class="fas fa-times-circle text-danger fa-2x"></i>
+                            </div>
+                            <h4 class="mb-0">@rejectedCount</h4>
+                            <small class="text-muted">Rejected</small>
+                        </div>
+                    </div>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    @if (isLoading)
+    {
+        <div class="card shadow-sm">
+            <div class="card-body text-center py-5">
+                <div class="spinner-border text-primary" role="status">
+                    <span class="visually-hidden">Loading...</span>
+                </div>
+                <p class="mt-2">Loading equipment requests...</p>
+            </div>
+        </div>
+    }
+    else if (filteredRequests != null && filteredRequests.Any())
+    {
+        <div class="card shadow-sm">
+            <div class="card-header bg-light">
+                <div class="d-flex justify-content-between align-items-center">
+                    <h5 class="mb-0">Equipment Requests</h5>
+                    <span class="badge bg-primary">@filteredRequests.Count Requests</span>
+                </div>
+            </div>
+            <div class="card-body p-0">
+                <div class="table-responsive">
+                    <table class="table table-hover mb-0">
+                        <thead class="table-light">
+                            <tr>
+                                <th>Request #</th>
+                                <th>Equipment</th>
+                                <th>Quantity</th>
+                                <th>Requested By</th>
+                                <th>Date</th>
+                                <th>Status</th>
+                                <th>Priority</th>
+                                <th>Actions</th>
+                            </tr>
+                        </thead>
+                        <tbody>
+                            @foreach (var request in filteredRequests)
+                            {
+                                <tr>
+                                    <td>REQ-@request.Id.ToString("D4")</td>
+                                    <td>@request.EquipmentName</td>
+                                    <td>@request.Quantity</td>
+                                    <td>@request.RequestedBy</td>
+                                    <td>@request.RequestDate.ToShortDateString()</td>
+                                    <td>
+                                        <span class="badge @GetStatusBadgeClass(request.Status)">
+                                            @request.Status
+                                        </span>
+                                    </td>
+                                    <td>
+                                        @if (request.IsUrgent)
+                                        {
+                                            <span class="badge bg-danger">Urgent</span>
+                                        }
+                                        else
+                                        {
+                                            <span class="badge bg-secondary">Normal</span>
+                                        }
+                                    </td>
+                                    <td>
+                                        <div class="btn-group">
+                                            <button class="btn btn-sm btn-outline-primary" @onclick="() => NavigateToRequestDetails(request.Id)">
+                                                <i class="fas fa-eye"></i>
+                                            </button>
+                                            @if (request.Status == "Pending" && IsCurrentUser(request.RequestedBy))
+                                            {
+                                                <button class="btn btn-sm btn-outline-secondary" @onclick="() => NavigateToEditRequest(request.Id)">
+                                                    <i class="fas fa-edit"></i>
+                                                </button>
+                                                <button class="btn btn-sm btn-outline-danger" @onclick="() => ShowCancelConfirmation(request)">
+                                                    <i class="fas fa-times"></i>
+                                                </button>
+                                            }
+                                            @if (IsManager && request.Status == "Pending")
+                                            {
+                                                <button class="btn btn-sm btn-outline-success" @onclick="() => ShowApproveModal(request)">
+                                                    <i class="fas fa-check"></i>
+                                                </button>
+                                                <button class="btn btn-sm btn-outline-danger" @onclick="() => ShowRejectModal(request)">
+                                                    <i class="fas fa-ban"></i>
+                                                </button>
+                                            }
+                                        </div>
+                                    </td>
+                                </tr>
+                            }
+                        </tbody>
+                    </table>
+                </div>
+            </div>
+            <div class="card-footer bg-white">
+                <div class="d-flex justify-content-between align-items-center">
+                    <span>Showing @filteredRequests.Count of @allRequests.Count requests</span>
+                    <nav aria-label="Request pagination">
+                        <ul class="pagination pagination-sm mb-0">
+                            <li class="page-item @(currentPage == 1 ? "disabled" : "")">
+                                <button class="page-link" @onclick="() => ChangePage(currentPage - 1)" disabled="@(currentPage == 1)">
+                                    <i class="fas fa-chevron-left"></i>
+                                </button>
+                            </li>
+                            @for (int i = 1; i <= totalPages; i++)
+                            {
+                                var pageNumber = i;
+                                <li class="page-item @(pageNumber == currentPage ? "active" : "")">
+                                    <button class="page-link" @onclick="() => ChangePage(pageNumber)">@i</button>
+                                </li>
+                            }
+                            <li class="page-item @(currentPage == totalPages ? "disabled" : "")">
+                                <button class="page-link" @onclick="() => ChangePage(currentPage + 1)" disabled="@(currentPage == totalPages)">
+                                    <i class="fas fa-chevron-right"></i>
+                                </button>
+                            </li>
+                        </ul>
+                    </nav>
+                </div>
+            </div>
+        </div>
+    }
+    else
+    {
+        <div class="card shadow-sm">
+            <div class="card-body text-center py-5">
+                @if (!string.IsNullOrEmpty(searchQuery) || !string.IsNullOrEmpty(statusFilter) ||
+                            dateFrom != null || dateTo != null || myRequestsOnly || urgentOnly)
+                {
+                    <i class="fas fa-search fa-3x mb-3 text-muted"></i>
+                    <h5>No equipment requests found matching your criteria.</h5>
+                    <button class="btn btn-outline-secondary mt-3" @onclick="ClearFilters">
+                        <i class="fas fa-times me-1"></i> Clear Filters
+                    </button>
+                }
+                else
+                {
+                    <i class="fas fa-clipboard-list fa-3x mb-3 text-muted"></i>
+                    <h5>No equipment requests found.</h5>
+                    <button class="btn btn-primary mt-3" @onclick="NavigateToCreateRequest">
+                        <i class="fas fa-plus me-1"></i> Create New Request
+                    </button>
+                }
+            </div>
+        </div>
+    }
+
+    @if (showApproveModal)
+    {
+        <div class="modal fade show" style="display: block;" tabindex="-1">
+            <div class="modal-dialog">
+                <div class="modal-content">
+                    <div class="modal-header">
+                        <h5 class="modal-title">Approve Request</h5>
+                        <button type="button" class="btn-close" @onclick="CloseApproveModal"></button>
+                    </div>
+                    <div class="modal-body">
+                        <p>
+                            Are you sure you want to approve the request for @selectedRequest?.Quantity
+                            units of @selectedRequest?.EquipmentName?
+                        </p>
+
+                        <div class="mb-3">
+                            <label for="approvalNotes" class="form-label">Notes (Optional)</label>
+                            <textarea id="approvalNotes" class="form-control" rows="3" @bind="approvalNotes"></textarea>
+                        </div>
+
+                        <div class="form-check mb-3">
+                            <input class="form-check-input" type="checkbox" id="markAsOrdered" @bind="markAsOrdered" />
+                            <label class="form-check-label" for="markAsOrdered">
+                                Mark as Ordered
+                            </label>
+                        </div>
+                    </div>
+                    <div class="modal-footer">
+                        <button type="button" class="btn btn-secondary" @onclick="CloseApproveModal">Cancel</button>
+                        <button type="button" class="btn btn-success" @onclick="ApproveRequest">
+                            Approve
+                        </button>
+                    </div>
+                </div>
+            </div>
+        </div>
+        <div class="modal-backdrop fade show"></div>
+    }
+
+    @if (showRejectModal)
+    {
+        <div class="modal fade show" style="display: block;" tabindex="-1">
+            <div class="modal-dialog">
+                <div class="modal-content">
+                    <div class="modal-header">
+                        <h5 class="modal-title">Reject Request</h5>
+                        <button type="button" class="btn-close" @onclick="CloseRejectModal"></button>
+                    </div>
+                    <div class="modal-body">
+                        <p>
+                            Are you sure you want to reject the request for @selectedRequest?.Quantity
+                            units of @selectedRequest?.EquipmentName?
+                        </p>
+
+                        <div class="mb-3">
+                            <label for="rejectionReason" class="form-label">Reason for Rejection <span class="text-danger">*</span></label>
+                            <textarea id="rejectionReason" class="form-control" rows="3" @bind="rejectionReason"></textarea>
+                            @if (reasonError)
+                            {
+                                <div class="text-danger mt-1">Reason for rejection is required</div>
+                            }
+                        </div>
+                    </div>
+                    <div class="modal-footer">
+                        <button type="button" class="btn btn-secondary" @onclick="CloseRejectModal">Cancel</button>
+                        <button type="button" class="btn btn-danger" @onclick="RejectRequest">
+                            Reject
+                        </button>
+                    </div>
+                </div>
+            </div>
+        </div>
+        <div class="modal-backdrop fade show"></div>
+    }
+
+    @if (showCancelModal)
+    {
+        <div class="modal fade show" style="display: block;" tabindex="-1">
+            <div class="modal-dialog">
+                <div class="modal-content">
+                    <div class="modal-header">
+                        <h5 class="modal-title">Cancel Request</h5>
+                        <button type="button" class="btn-close" @onclick="CloseCancelModal"></button>
+                    </div>
+                    <div class="modal-body">
+                        <p>
+                            Are you sure you want to cancel your request for @selectedRequest?.Quantity
+                            units of @selectedRequest?.EquipmentName?
+                        </p>
+                        <p class="text-danger">This action cannot be undone.</p>
+                    </div>
+                    <div class="modal-footer">
+                        <button type="button" class="btn btn-secondary" @onclick="CloseCancelModal">Go Back</button>
+                        <button type="button" class="btn btn-danger" @onclick="CancelRequest">
+                            Cancel Request
+                        </button>
+                    </div>
+                </div>
+            </div>
+        </div>
+        <div class="modal-backdrop fade show"></div>
+    }
+</div>
+
+@code {
+    private List<EquipmentRequestDto> allRequests = new List<EquipmentRequestDto>();
+    private List<EquipmentRequestDto> filteredRequests = new List<EquipmentRequestDto>();
+    private bool isLoading = true;
+
+    // Pagination
+    private int currentPage = 1;
+    private int pageSize = 10;
+    private int totalPages => (int)Math.Ceiling(filteredRequests.Count / (double)pageSize);
+
+    // Filters
+    private string searchQuery = "";
+    private string statusFilter = "";
+    private DateTime? dateFrom = null;
+    private DateTime? dateTo = null;
+    private bool myRequestsOnly = false;
+    private bool urgentOnly = false;
+    private string sortBy = "Date";
+
+    // Summary counts
+    private int pendingCount = 0;
+    private int approvedCount = 0;
+    private int rejectedCount = 0;
+
+    // Role check - would be retrieved from auth service in a real app
+    private bool IsManager = true;
+
+    // Modals
+    private bool showApproveModal = false;
+    private bool showRejectModal = false;
+    private bool showCancelModal = false;
+    private EquipmentRequestDto selectedRequest;
+    private string approvalNotes = "";
+    private string rejectionReason = "";
+    private bool reasonError = false;
+    private bool markAsOrdered = false;
+
+    protected override async Task OnInitializedAsync()
+    {
+        await LoadData();
+    }
+
+    private async Task LoadData()
+    {
+        try
+        {
+            isLoading = true;
+
+            // Get equipment requests
+            allRequests = await Http.GetFromJsonAsync<List<EquipmentRequestDto>>("api/equipment/requests");
+
+            // Calculate summary counts
+            pendingCount = allRequests.Count(r => r.Status == "Pending");
+            approvedCount = allRequests.Count(r => r.Status == "Approved" || r.Status == "Ordered" || r.Status == "Received");
+            rejectedCount = allRequests.Count(r => r.Status == "Rejected");
+
+            // Apply filters to get displayed requests
+            ApplyFilters();
+        }
+        catch (Exception)
+        {
+            // Error handling would go here
+        }
+        finally
+        {
+            isLoading = false;
+        }
+    }
+
+    private void NavigateToCreateRequest()
+    {
+        NavigationManager.NavigateTo("/equipment/requests/new");
+    }
+
+    private void NavigateToRequestDetails(int requestId)
+    {
+        NavigationManager.NavigateTo($"/equipment/requests/{requestId}");
+    }
+
+    private void NavigateToEditRequest(int requestId)
+    {
+        NavigationManager.NavigateTo($"/equipment/requests/edit/{requestId}");
+    }
+
+    private void HandleKeyPress(KeyboardEventArgs e)
+    {
+        if (e.Key == "Enter")
+        {
+            SearchRequests();
+        }
+    }
+
+    private void SearchRequests()
+    {
+        ApplyFilters();
+    }
+
+    private void ClearFilters()
+    {
+        searchQuery = "";
+        statusFilter = "";
+        dateFrom = null;
+        dateTo = null;
+        myRequestsOnly = false;
+        urgentOnly = false;
+        sortBy = "Date";
+        ApplyFilters();
+    }
+
+    private void ApplyFilters()
+    {
+        if (allRequests == null)
+            return;
+
+        var query = allRequests.AsEnumerable();
+
+        // Apply search
+        if (!string.IsNullOrWhiteSpace(searchQuery))
+        {
+            query = query.Where(r =>
+                r.EquipmentName.Contains(searchQuery, StringComparison.OrdinalIgnoreCase) ||
+                r.RequestedBy.Contains(searchQuery, StringComparison.OrdinalIgnoreCase) ||
+                r.Notes.Contains(searchQuery, StringComparison.OrdinalIgnoreCase));
+        }
+
+        // Apply status filter
+        if (!string.IsNullOrWhiteSpace(statusFilter))
+        {
+            query = query.Where(r => r.Status == statusFilter);
+        }
+
+        // Apply date range filter
+        if (dateFrom.HasValue)
+        {
+            query = query.Where(r => r.RequestDate.Date >= dateFrom.Value.Date);
+        }
+
+        if (dateTo.HasValue)
+        {
+            query = query.Where(r => r.RequestDate.Date <= dateTo.Value.Date);
+        }
+
+        // Apply user filter
+        if (myRequestsOnly)
+        {
+            query = query.Where(r => IsCurrentUser(r.RequestedBy));
+        }
+
+        // Apply urgency filter
+        if (urgentOnly)
+        {
+            query = query.Where(r => r.IsUrgent);
+        }
+
+        // Apply sorting
+        query = sortBy switch
+        {
+            "Status" => query.OrderBy(r => GetStatusSortOrder(r.Status)).ThenByDescending(r => r.RequestDate),
+            "Priority" => query.OrderByDescending(r => r.IsUrgent).ThenByDescending(r => r.RequestDate),
+            "Quantity" => query.OrderByDescending(r => r.Quantity),
+            _ => query.OrderByDescending(r => r.RequestDate) // "Date" is default
+        };
+
+        filteredRequests = query.ToList();
+
+        // Reset to first page when filtering
+        currentPage = 1;
+    }
+
+    private int GetStatusSortOrder(string status)
+    {
+        return status switch
+        {
+            "Pending" => 1,
+            "Approved" => 2,
+            "Ordered" => 3,
+            "Received" => 4,
+            "Rejected" => 5,
+            _ => 99
+        };
+    }
+
+    private void ChangePage(int page)
+    {
+        if (page >= 1 && page <= totalPages)
+        {
+            currentPage = page;
+        }
+    }
+
+    private bool IsCurrentUser(string userName)
+    {
+        // In a real app, this would check against the current user's identity
+        // For demo, we'll assume any user with "manager" in the name is the current user
+        return userName.Contains("Manager", StringComparison.OrdinalIgnoreCase);
+    }
+
+    private string GetStatusBadgeClass(string status)
+    {
+        return status switch
+        {
+            "Pending" => "bg-warning",
+            "Approved" => "bg-success",
+            "Ordered" => "bg-info",
+            "Received" => "bg-primary",
+            "Rejected" => "bg-danger",
+            _ => "bg-secondary"
+        };
+    }
+
+    private void ShowApproveModal(EquipmentRequestDto request)
+    {
+        selectedRequest = request;
+        approvalNotes = "";
+        markAsOrdered = false;
+        showApproveModal = true;
+    }
+
+    private void CloseApproveModal()
+    {
+        showApproveModal = false;
+    }
+
+    private async Task ApproveRequest()
+    {
+        try
+        {
+            if (selectedRequest != null)
+            {
+                // Call API to approve request
+                await Http.PostAsJsonAsync($"api/equipment/requests/{selectedRequest.Id}/approve",
+                    new { Notes = approvalNotes, MarkAsOrdered = markAsOrdered });
+
+                // Refresh data
+                await LoadData();
+            }
+        }
+        catch (Exception)
+        {
+            // Error handling would go here
+        }
+        finally
+        {
+            showApproveModal = false;
+        }
+    }
+
+    private void ShowRejectModal(EquipmentRequestDto request)
+    {
+        selectedRequest = request;
+        rejectionReason = "";
+        reasonError = false;
+        showRejectModal = true;
+    }
+
+    private void CloseRejectModal()
+    {
+        showRejectModal = false;
+    }
+
+    private async Task RejectRequest()
+    {
+        reasonError = string.IsNullOrWhiteSpace(rejectionReason);
+
+        if (reasonError)
+            return;
+
+        try
+        {
+            if (selectedRequest != null)
+            {
+                // Call API to reject request
+                await Http.PostAsJsonAsync($"api/equipment/requests/{selectedRequest.Id}/reject",
+                    new { Reason = rejectionReason });
+
+                // Refresh data
+                await LoadData();
+            }
+        }
+        catch (Exception)
+        {
+            // Error handling would go here
+        }
+        finally
+        {
+            showRejectModal = false;
+        }
+    }
+
+    private void ShowCancelConfirmation(EquipmentRequestDto request)
+    {
+        selectedRequest = request;
+        showCancelModal = true;
+    }
+
+    private void CloseCancelModal()
+    {
+        showCancelModal = false;
+    }
+
+    private async Task CancelRequest()
+    {
+        try
+        {
+            if (selectedRequest != null)
+            {
+                // Call API to cancel request
+                await Http.DeleteAsync($"api/equipment/requests/{selectedRequest.Id}");
+
+                // Refresh data
+                await LoadData();
+            }
+        }
+        catch (Exception)
+        {
+            // Error handling would go here
+        }
+        finally
+        {
+            showCancelModal = false;
+        }
+    }
+
+    public class EquipmentRequestDto
+    {
+        public int Id { get; set; }
+        public string EquipmentName { get; set; }
+        public int Quantity { get; set; }
+        public string RequestedBy { get; set; }
+        public DateTime RequestDate { get; set; }
+        public string Status { get; set; }
+        public bool IsUrgent { get; set; }
+        public string Notes { get; set; }
+    }
+}

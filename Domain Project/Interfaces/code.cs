@@ -1,4 +1,5 @@
-﻿using Domain_Project.Models;
+﻿using Domain_Project.DTOs;
+using Domain_Project.Models;
 using System;
 using System.Collections.Generic;
 using System.Linq.Expressions;
@@ -52,5 +53,10 @@ namespace Domain_Project.Interfaces
     {
         Task<Blacklist> GetActiveBlacklistForTeamAsync(int teamId);
         Task<IEnumerable<Blacklist>> GetAllActiveBlacklistsAsync();
+    }
+    public interface IAuthenticationService
+    {
+        Task<AuthenticationResponseDto> AuthenticateAsync(UserLoginDto loginDto);
+        Task<UserDto> RegisterUserAsync(UserDto userDto, string password);
     }
 }
