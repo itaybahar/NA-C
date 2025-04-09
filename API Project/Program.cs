@@ -9,12 +9,15 @@ using Microsoft.AspNetCore.Authentication;
 using Microsoft.AspNetCore.Authentication.Cookies;
 using Microsoft.AspNetCore.Authentication.Google;
 using Microsoft.AspNetCore.Authentication.JwtBearer;
+using Microsoft.AspNetCore.CookiePolicy;
+using Microsoft.AspNetCore.RateLimiting;
 using Microsoft.EntityFrameworkCore;
 using Microsoft.Extensions.Diagnostics.HealthChecks;
 using Microsoft.IdentityModel.Tokens;
 using Microsoft.OpenApi.Models;
 using System.Security.Cryptography.X509Certificates;
 using System.Text.Json.Serialization;
+using System.Threading.RateLimiting;
 
 namespace API_Project
 {
@@ -27,7 +30,6 @@ namespace API_Project
             {
                 options.ConfigureHttpsDefaults(httpsOptions =>
                 {
-                    // Use X509Certificate2.CreateFromPemFile instead of constructor
                     var certPath = "./localhost.pem";
                     var keyPath = "./localhost-key.pem";
                     httpsOptions.ServerCertificate = X509Certificate2.CreateFromPemFile(certPath, keyPath);
@@ -46,7 +48,6 @@ namespace API_Project
 
         private static void ConfigureServices(WebApplicationBuilder builder)
         {
-            // Add JSON options to handle cycles and maintain reference integrity
             builder.Services.AddControllers()
                 .AddJsonOptions(options =>
                 {
@@ -54,53 +55,60 @@ namespace API_Project
                     options.JsonSerializerOptions.DefaultIgnoreCondition = JsonIgnoreCondition.WhenWritingNull;
                 });
 
-            // Configure DbContext with improved connection resilience
             builder.Services.AddDbContext<EquipmentManagementContext>(options =>
                 options.UseMySql(
                     builder.Configuration.GetConnectionString("DefaultConnection"),
                     new MySqlServerVersion(new Version(8, 0, 21)),
-                    mySqlOptions => mySqlOptions
-                        .EnableRetryOnFailure(
-                            maxRetryCount: 5,
-                            maxRetryDelay: TimeSpan.FromSeconds(30),
-                            errorNumbersToAdd: null)
-                )
+                    mySqlOptions => mySqlOptions.EnableRetryOnFailure(5, TimeSpan.FromSeconds(30), null))
             );
 
-            // Register HttpClient for Google authentication
             builder.Services.AddHttpClient();
 
-            // Configure Authentication Settings
             var authSettings = builder.Configuration.GetSection("Authentication").Get<AuthenticationSettings>()
                 ?? throw new ArgumentNullException("AuthenticationSettings");
             builder.Services.AddSingleton(authSettings);
 
-            // Configure Repositories
             builder.Services.AddScoped(typeof(IGenericRepository<>), typeof(GenericRepository<>));
             builder.Services.AddScoped<IUserRepository, UserRepository>();
             builder.Services.AddScoped<IRoleChangeRequestRepository, RoleChangeRequestRepository>();
-
-            // Register the AuthenticationService first
             builder.Services.AddScoped<Services.AuthenticationService>();
-
-            // Configure Authentication Service
             builder.Services.AddScoped<Domain_Project.Interfaces.IAuthenticationService, AuthenticationServiceAdapter>();
-
-            // Register Role Services - Use API project's implementation, not the Blazor WebAssembly one
             builder.Services.AddScoped<IRoleRequestService, RoleRequestService>();
-
-            // Remove this line or replace with server-side implementation
-            // builder.Services.AddScoped<Blazor_WebAssembly.Services.Interfaces.IRoleService, Blazor_WebAssembly.Services.RoleService>();
-
-            // Register IEmailService
             builder.Services.AddScoped<IEmailService, EmailService>();
 
-            // Add memory caching for performance
             builder.Services.AddMemoryCache();
 
-            // Add health checks with database check
-            string connectionString = builder.Configuration.GetConnectionString("DefaultConnection") ??
-                throw new InvalidOperationException("Connection string 'DefaultConnection' not found.");
+            // Add rate limiting
+            builder.Services.AddRateLimiter(options =>
+            {
+                options.GlobalLimiter = PartitionedRateLimiter.Create<HttpContext, string>(context =>
+                {
+                    return RateLimitPartition.GetFixedWindowLimiter("GlobalLimiter",
+                        _ => new FixedWindowRateLimiterOptions
+                        {
+                            AutoReplenishment = true,
+                            PermitLimit = 100,
+                            Window = TimeSpan.FromMinutes(1)
+                        });
+                });
+
+                options.AddPolicy("AuthEndpoints", context =>
+                {
+                    return RateLimitPartition.GetFixedWindowLimiter("AuthLimiter",
+                        _ => new FixedWindowRateLimiterOptions
+                        {
+                            AutoReplenishment = true,
+                            PermitLimit = 10,
+                            Window = TimeSpan.FromMinutes(1)
+                        });
+                });
+
+                options.OnRejected = async (context, token) =>
+                {
+                    context.HttpContext.Response.StatusCode = 429; // Too Many Requests
+                    await context.HttpContext.Response.WriteAsync("Too many requests. Please try again later.", token);
+                };
+            });
 
             builder.Services.AddHealthChecks()
                 .AddCheck(
@@ -109,14 +117,10 @@ namespace API_Project
                     {
                         try
                         {
-                            // Create a scope to resolve the DbContext
                             using var serviceScope = builder.Services.BuildServiceProvider().CreateScope();
                             var dbContext = serviceScope.ServiceProvider.GetRequiredService<EquipmentManagementContext>();
-
-                            // Try to connect to the database
                             dbContext.Database.OpenConnection();
                             dbContext.Database.CloseConnection();
-
                             return HealthCheckResult.Healthy("Database connection is healthy");
                         }
                         catch (Exception ex)
@@ -128,7 +132,6 @@ namespace API_Project
                     timeout: TimeSpan.FromSeconds(30)
                 );
 
-            // Add Swagger
             builder.Services.AddEndpointsApiExplorer();
             builder.Services.AddSwaggerGen(c =>
             {
@@ -137,13 +140,9 @@ namespace API_Project
                     Title = "Equipment Management API",
                     Version = "v1",
                     Description = "API for Equipment Management System",
-                    Contact = new OpenApiContact
-                    {
-                        Name = "API Support"
-                    }
+                    Contact = new OpenApiContact { Name = "API Support" }
                 });
 
-                // Add JWT Authentication support in Swagger UI
                 c.AddSecurityDefinition("Bearer", new OpenApiSecurityScheme
                 {
                     Description = "JWT Authorization header using the Bearer scheme. Example: \"Authorization: Bearer {token}\"",
@@ -168,13 +167,11 @@ namespace API_Project
                     }
                 });
 
-                // Add this to resolve ambiguous type references
                 c.CustomSchemaIds(type => type.FullName);
             });
 
-            // CORS - Updated to allow credentials and configured origins
             var allowedOrigins = builder.Configuration.GetSection("AllowedOrigins").Get<string[]>() ??
-                new[] { "https://localhost:7176" }; // Blazor WASM origin
+                new[] { "https://localhost:7176" };
 
             builder.Services.AddCors(options =>
             {
@@ -187,18 +184,41 @@ namespace API_Project
                 });
             });
 
-            // Google + JWT Authentication
             builder.Services.AddAuthentication(options =>
             {
                 options.DefaultScheme = CookieAuthenticationDefaults.AuthenticationScheme;
                 options.DefaultChallengeScheme = GoogleDefaults.AuthenticationScheme;
-                options.DefaultAuthenticateScheme = JwtBearerDefaults.AuthenticationScheme;
+                options.DefaultAuthenticateScheme = CookieAuthenticationDefaults.AuthenticationScheme;
             })
             .AddCookie(options =>
             {
                 options.Cookie.HttpOnly = true;
                 options.Cookie.SecurePolicy = CookieSecurePolicy.Always;
-                options.Cookie.SameSite = SameSiteMode.None; // Required for CORS
+                options.Cookie.SameSite = SameSiteMode.None;
+                options.Cookie.Name = "EquipmentMgmt.Auth";
+                options.LoginPath = "/login";
+                options.ExpireTimeSpan = TimeSpan.FromMinutes(60);
+                options.SlidingExpiration = true;
+
+                // Add CSRF protection
+                options.Cookie.IsEssential = true;
+
+                // Add event handlers for authentication events
+                options.Events = new CookieAuthenticationEvents
+                {
+                    OnRedirectToLogin = context =>
+                    {
+                        // For API requests, return 401 instead of redirect
+                        if (context.Request.Path.StartsWithSegments("/api") ||
+                            context.Request.Headers["X-Requested-With"] == "XMLHttpRequest")
+                        {
+                            context.Response.StatusCode = 401;
+                            return Task.CompletedTask;
+                        }
+                        context.Response.Redirect(context.RedirectUri);
+                        return Task.CompletedTask;
+                    }
+                };
             })
             .AddGoogle(options =>
             {
@@ -208,6 +228,22 @@ namespace API_Project
                     ?? throw new ArgumentNullException("GoogleClientSecret");
                 options.CallbackPath = "/auth/google-callback";
                 options.SaveTokens = true;
+                options.AccessType = "offline"; // Request a refresh token
+
+                options.Events.OnRemoteFailure = context =>
+                {
+                    Console.WriteLine("Google Login Failed: " + context.Failure?.Message);
+                    context.Response.Redirect("/login?error=google");
+                    context.HandleResponse();
+                    return Task.CompletedTask;
+                };
+
+                options.Events.OnTicketReceived = context =>
+                {
+                    // Log successful authentications
+                    Console.WriteLine($"User {context.Principal?.Identity?.Name} authenticated successfully with Google");
+                    return Task.CompletedTask;
+                };
             })
             .AddJwtBearer(JwtBearerDefaults.AuthenticationScheme, options =>
             {
@@ -220,14 +256,16 @@ namespace API_Project
                     ValidIssuer = authSettings.Issuer,
                     ValidAudience = authSettings.Audience,
                     IssuerSigningKey = authSettings.GetSymmetricSecurityKey(),
-                    ClockSkew = TimeSpan.Zero // Reduce the default 5 minute tolerance for token expiration
+                    ClockSkew = TimeSpan.Zero,
+                    NameClaimType = "name",
+                    RoleClaimType = "role"
                 };
 
-                // Enable using JWT tokens in WebSocket connections
                 options.Events = new JwtBearerEvents
                 {
                     OnMessageReceived = context =>
                     {
+                        // Extract token from query string for SignalR or WebSockets
                         var accessToken = context.Request.Query["access_token"];
                         if (!string.IsNullOrEmpty(accessToken))
                         {
@@ -237,16 +275,40 @@ namespace API_Project
                     },
                     OnAuthenticationFailed = context =>
                     {
-                        if (context.Exception.GetType() == typeof(SecurityTokenExpiredException))
+                        if (context.Exception is SecurityTokenExpiredException)
                         {
                             context.Response.Headers.Append("Token-Expired", "true");
+                        }
+                        Console.WriteLine($"JWT authentication failed: {context.Exception?.Message}");
+                        return Task.CompletedTask;
+                    },
+                    OnTokenValidated = context =>
+                    {
+                        Console.WriteLine($"JWT token validated successfully for {context.Principal?.Identity?.Name}");
+                        return Task.CompletedTask;
+                    },
+                    OnChallenge = context =>
+                    {
+                        // Add more descriptive error responses
+                        if (context.AuthenticateFailure != null)
+                        {
+                            context.HandleResponse();
+                            context.Response.StatusCode = 401;
+                            context.Response.ContentType = "application/json";
+                            var message = context.AuthenticateFailure is SecurityTokenExpiredException
+                                ? "The token has expired"
+                                : "Invalid authentication";
+                            return context.Response.WriteAsync(
+                                System.Text.Json.JsonSerializer.Serialize(new { error = message }));
                         }
                         return Task.CompletedTask;
                     }
                 };
+
+                options.SaveToken = true; // Store the token in the authentication properties
+                options.RequireHttpsMetadata = true; // Require HTTPS for all requests
             });
 
-            // Add custom authorization policies
             builder.Services.AddAuthorization(options =>
             {
                 options.AddPolicy("AdminOnly", policy => policy.RequireRole("Admin"));
@@ -254,6 +316,9 @@ namespace API_Project
                     policy.RequireRole("Admin", "WarehouseManager", "WarehouseOperator"));
                 options.AddPolicy("AdminOrWarehouseManager", policy =>
                     policy.RequireRole("Admin", "WarehouseManager"));
+
+                // Add a fallback policy for all endpoints
+                options.FallbackPolicy = options.DefaultPolicy;
             });
         }
 
@@ -262,8 +327,6 @@ namespace API_Project
             if (app.Environment.IsDevelopment())
             {
                 app.UseDeveloperExceptionPage();
-
-                // Enable Swagger only in development
                 app.UseSwagger();
                 app.UseSwaggerUI(c =>
                 {
@@ -274,90 +337,57 @@ namespace API_Project
             }
             else
             {
-                // Add production error handling
                 app.UseExceptionHandler("/Error");
-                app.UseHsts(); // HTTP Strict Transport Security
+                app.UseHsts();
             }
 
-            // Add health check endpoint
             app.MapHealthChecks("/health");
 
             app.UseHttpsRedirection();
             app.UseCors();
 
-            // Add security headers
+            // Add rate limiting middleware
+            app.UseRateLimiter();
+
+            app.UseCookiePolicy(new CookiePolicyOptions
+            {
+                MinimumSameSitePolicy = SameSiteMode.None,
+                Secure = CookieSecurePolicy.Always,
+                HttpOnly = HttpOnlyPolicy.Always
+            });
+
+            // Add security headers middleware
             app.Use(async (context, next) =>
             {
+                // Basic security headers
                 context.Response.Headers.Append("X-Content-Type-Options", "nosniff");
                 context.Response.Headers.Append("X-Frame-Options", "DENY");
                 context.Response.Headers.Append("X-XSS-Protection", "1; mode=block");
+
+                // Enhanced security headers
+                context.Response.Headers.Append("Referrer-Policy", "strict-origin-when-cross-origin");
+                context.Response.Headers.Append("Permissions-Policy", "camera=(), microphone=(), geolocation=()");
+
+                // Content Security Policy
+                context.Response.Headers.Append(
+                    "Content-Security-Policy",
+                    "default-src 'self'; " +
+                    "script-src 'self' 'unsafe-inline' https://apis.google.com; " +
+                    "style-src 'self' 'unsafe-inline'; " +
+                    "img-src 'self' data: https:; " +
+                    "font-src 'self'; " +
+                    "connect-src 'self' https://apis.google.com; " +
+                    "frame-src 'self' https://accounts.google.com; " +
+                    "object-src 'none'");
+
                 await next();
             });
 
             app.UseAuthentication();
             app.UseAuthorization();
-            app.MapControllers();
-        }
-    }
 
-    /// <summary>
-    /// Adapter that bridges between API_Project's AuthenticationService and Domain_Project's IAuthenticationService
-    /// </summary>
-    public class AuthenticationServiceAdapter : Domain_Project.Interfaces.IAuthenticationService
-    {
-        private readonly Services.AuthenticationService _authService;
-        private readonly IUserRepository _userRepository;
-
-        public AuthenticationServiceAdapter(Services.AuthenticationService authService, IUserRepository userRepository)
-        {
-            _authService = authService ?? throw new ArgumentNullException(nameof(authService));
-            _userRepository = userRepository ?? throw new ArgumentNullException(nameof(userRepository));
-        }
-
-        public string GenerateJwtToken(User user)
-        {
-            return _authService.GenerateJwtToken(user);
-        }
-
-        public async Task RegisterUserAsync(UserDto userDto, string password)
-        {
-            await _authService.RegisterUserAsync(userDto, password);
-        }
-
-        public async Task<Domain_Project.DTOs.AuthenticationResponseDto> AuthenticateAsync(UserLoginDto loginDto)
-        {
-            var result = await _authService.AuthenticateAsync(loginDto);
-            return ConvertToAuthResponseDto(result);
-        }
-
-        public async Task<Domain_Project.DTOs.AuthenticationResponseDto> AuthenticateWithGoogleAsync(string googleToken)
-        {
-            var result = await _authService.AuthenticateWithGoogleAsync(googleToken);
-            return ConvertToAuthResponseDto(result);
-        }
-
-        public async Task SendPasswordResetEmailAsync(string email)
-        {
-            await _authService.SendPasswordResetEmailAsync(email);
-        }
-
-        public async Task<bool> ResetPasswordAsync(string token, string newPassword)
-        {
-            return await _authService.ResetPasswordAsync(token, newPassword);
-        }
-
-        private static Domain_Project.DTOs.AuthenticationResponseDto ConvertToAuthResponseDto(API_Project.Services.AuthenticationResponseDto source)
-        {
-            return new Domain_Project.DTOs.AuthenticationResponseDto
-            {
-                Token = source.Token,
-                User = source.User
-            };
-        }
-
-        public bool ValidatePassword(User user, string password)
-        {
-            return _userRepository.ValidateUserCredentialsAsync(user.Username, password).GetAwaiter().GetResult();
+            // Apply rate limiting specifically to auth endpoints
+            app.MapControllers().RequireRateLimiting("AuthEndpoints");
         }
     }
 }

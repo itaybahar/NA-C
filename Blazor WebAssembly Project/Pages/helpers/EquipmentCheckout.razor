@@ -1,0 +1,58 @@
+﻿@using Blazor_WebAssembly.Services.Interfaces  
+@using Domain_Project.DTOs  
+@using Blazor_WebAssembly.Models  
+@using Blazor_WebAssembly.Models.Equipment // Updated namespace for EquipmentModel  
+@inject ITeamService TeamService  
+@inject IEquipmentService EquipmentService  
+@inject ICheckoutService CheckoutService  
+
+<h2 class="text-xl font-bold mb-4">הוצאת ציוד לצוות</h2>  
+
+<select @bind="SelectedTeamId" class="mb-4 w-full bg-zinc-800 text-white p-2 rounded-xl">  
+  <option value="">בחר צוות</option>  
+  @foreach (var team in EligibleTeams)  
+  {  
+      <option value="@team.TeamID">@team.TeamName</option>  
+  }  
+</select>  
+
+<select @bind="SelectedEquipmentId" class="mb-4 w-full bg-zinc-800 text-white p-2 rounded-xl">  
+  <option value="">בחר ציוד</option>  
+  @foreach (var item in Equipment)  
+  {  
+      <option value="@item.EquipmentID">@item.Name (@item.Status)</option> <!-- Fixed property names -->  
+  }  
+</select>  
+
+<button class="bg-red-700 text-white px-4 py-2 rounded-xl" @onclick="CheckoutItem">  
+  הוצא ציוד  
+</button>  
+
+@if (!string.IsNullOrEmpty(Message))  
+{  
+  <p class="text-green-400 mt-2">@Message</p>  
+}  
+
+@code {  
+  private List<TeamDto> EligibleTeams = new();  
+  private List<EquipmentModel> Equipment = new(); // Updated to match the correct type  
+  private int? SelectedTeamId; // Changed to int? to match TeamID type  
+  private int? SelectedEquipmentId; // Changed to int? to match EquipmentID type  
+  private string? Message;  
+
+  protected override async Task OnInitializedAsync()  
+  {  
+      EligibleTeams = await TeamService.GetTeamsAsync(); // Updated to match the correct method name  
+      Equipment = await EquipmentService.GetAvailableEquipmentAsync(); // Updated type and method  
+  }  
+
+  private async Task CheckoutItem()  
+  {  
+      if (SelectedTeamId.HasValue && SelectedEquipmentId.HasValue)  
+      {  
+          await CheckoutService.CheckoutEquipmentAsync(SelectedTeamId.Value, SelectedEquipmentId.Value); // Updated to match the correct method name  
+          Message = "הציוד נרשם כהוצאה!";  
+          Equipment = await EquipmentService.GetAvailableEquipmentAsync(); // Updated type and method  
+      }  
+  }  
+}

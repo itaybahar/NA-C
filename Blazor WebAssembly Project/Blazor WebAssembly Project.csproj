@@ -17,4 +17,7 @@
 		<PackageReference Include="System.IdentityModel.Tokens.Jwt" Version="7.4.0" />
 		<PackageReference Include="System.Net.Http.Json" Version="9.0.3" />
 	</ItemGroup>
+	<ItemGroup>
+	  <ProjectReference Include="..\Domain Project\Domain Project.csproj" />
+	</ItemGroup>
 </Project>

@@ -1,4 +1,5 @@
 ﻿using Domain_Project.Models;
+using Domain_Project.Models.Domain_Project.Models;
 using Microsoft.EntityFrameworkCore;
 
 namespace API_Project.Data

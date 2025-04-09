@@ -1,0 +1,28 @@
+﻿@inject IEquipmentService EquipmentService
+
+<h2 class="text-xl font-bold mb-4">רשימת ציוד לפי מיקום אחסון</h2>
+
+@foreach (var group in EquipmentByStorage)
+{
+    <div class="mb-6">
+        <h3 class="text-red-400 font-semibold">@group.Key</h3>
+        <ul class="list-disc list-inside ml-4">
+            @foreach (var item in group.Value)
+            {
+                <li>@item.Name (@item.Quantity)</li>
+            }
+        </ul>
+    </div>
+}
+
+@code {
+    private Dictionary<string, List<Equipment>> EquipmentByStorage = new();
+
+    protected override async Task OnInitializedAsync()
+    {
+        var items = await EquipmentService.GetAllAsync();
+        EquipmentByStorage = items
+            .GroupBy(i => i.StorageLocation)
+            .ToDictionary(g => g.Key, g => g.ToList());
+    }
+}

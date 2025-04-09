@@ -1,4 +1,5 @@
-﻿using System;
+﻿using Domain_Project.Models.Domain_Project.Models;
+using System;
 using System.Collections.Generic;
 using System.ComponentModel.DataAnnotations;
 using System.ComponentModel.DataAnnotations.Schema;
@@ -78,39 +79,23 @@ namespace Domain_Project.Models
 
         public bool IsActive { get; set; } = true;
         public DateTime CreatedDate { get; set; } = DateTime.Now;
+        public bool IsBlacklisted { get; set; }
     }
 
-    public class Equipment
+    namespace Domain_Project.Models
     {
-        [Key]
-        public int EquipmentID { get; set; }
+        public class Equipment
+        {
+            public string Id { get; set; } = Guid.NewGuid().ToString();
+            public string Name { get; set; }
+            public int Quantity { get; set; }
+            public string StorageLocation { get; set; }
 
-        [Required]
-        public int CategoryID { get; set; }
-
-        [Required]
-        [MaxLength(100)]
-        public string Name { get; set; }
-
-        [MaxLength(200)]
-        public string Description { get; set; }
-
-        [MaxLength(50)]
-        public string SerialNumber { get; set; }
-
-        public DateTime? PurchaseDate { get; set; }
-        public decimal? Value { get; set; }
-
-        [Required]
-        [MaxLength(20)]
-        public string Status { get; set; } = "Available";
-
-        public string Notes { get; set; }
-
-        [Required]
-        public int LastUpdatedBy { get; set; }
-        public DateTime LastUpdatedDate { get; set; } = DateTime.Now;
+            public ICollection<CheckoutRecord> CheckoutRecords { get; set; }
+            public object Status { get; set; }
+        }
     }
+
 
     public class EquipmentCheckout
     {
@@ -357,4 +342,17 @@ namespace Domain_Project.Models
             };
         }
     }
+    public class CheckoutRecord
+    {
+        public string Id { get; set; } = Guid.NewGuid().ToString();
+        public string EquipmentId { get; set; }
+        public Equipment Equipment { get; set; }
+
+        public string TeamId { get; set; }
+        public Team Team { get; set; }
+
+        public DateTime CheckedOutAt { get; set; } = DateTime.UtcNow;
+        public DateTime? ReturnedAt { get; set; }
+    }
 }
+

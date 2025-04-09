@@ -32,15 +32,16 @@ namespace Domain_Project.DTOs
         public bool IsActive { get; set; }
     }
 
-    public class EquipmentDto
+    namespace Domain_Project.DTOs
     {
-        public int EquipmentID { get; set; }
-        public string Name { get; set; }
-        public string Description { get; set; }
-        public string SerialNumber { get; set; }
-        public string Status { get; set; }
-        public decimal? Value { get; set; }
+        public class EquipmentDto
+        {
+            public string Name { get; set; }
+            public int Quantity { get; set; }
+            public string StorageLocation { get; set; }
+        }
     }
+
 
     public class EquipmentCheckoutDto
     {

@@ -9,324 +9,235 @@
 <div class="login-container">
     <div class="login-card">
         <div class="login-header">
-            <img src="images/logo_png.png.jpg" alt="מחסן הנשיא" class="logo" />
-            <h1 class="login-title">ברוכים הבאים למחסן הנשיא</h1>
-            <p class="login-subtitle">אנא התחבר כדי להמשיך</p>
+            <img src="images/logo_png.png" alt="לוגו השבט" class="logo" />
+            <h1>מחסן שבט הנשיא</h1>
+            <p>אנא התחבר כדי להמשיך</p>
         </div>
 
         @if (!string.IsNullOrEmpty(errorMessage))
         {
-            <div class="alert alert-danger" role="alert">
-                <i class="fas fa-exclamation-circle me-2"></i>
-                @errorMessage
-            </div>
+            <div class="alert alert-danger">@errorMessage</div>
         }
 
         @if (!string.IsNullOrEmpty(successMessage))
         {
-            <div class="alert alert-success" role="alert">
-                <i class="fas fa-check-circle me-2"></i>
-                @successMessage
+            <div class="alert alert-success">@successMessage</div>
+        }
+
+        <div class="login-tabs">
+            <button class="tab @(activeTab == "regular" ? "active" : "")" @onclick="@(() => activeTab = "regular")">משתמש</button>
+            <button class="tab @(activeTab == "google" ? "active" : "")" @onclick="@(() => activeTab = "google")">Gmail</button>
+        </div>
+
+        @if (activeTab == "regular")
+        {
+            <EditForm Model="loginModel" OnValidSubmit="HandleLogin">
+                <DataAnnotationsValidator />
+                <div class="form-group">
+                    <InputText @bind-Value="loginModel.Username" placeholder="שם משתמש" class="form-control" />
+                    <ValidationMessage For="@(() => loginModel.Username)" />
+                </div>
+
+                <div class="form-group">
+                    <InputText @bind-Value="loginModel.Password" type="password" placeholder="סיסמה" class="form-control" />
+                    <ValidationMessage For="@(() => loginModel.Password)" />
+                </div>
+
+                <div class="form-options">
+                    <label><input type="checkbox" @bind="rememberMe" /> זכור אותי</label>
+                    <a href="/forgot-password">שכחת סיסמה?</a>
+                </div>
+
+                <button type="submit" class="btn-submit" disabled="@isSubmitting">
+                    @(isSubmitting ? "מתחבר..." : "התחבר")
+                </button>
+            </EditForm>
+        }
+        else
+        {
+            <div class="google-login">
+                <p>התחבר עם חשבון גוגל:</p>
+                <button class="btn-google" @onclick="HandleGoogleLogin">
+                    <img src="images/google-logo.png" alt="Google" />
+                    התחבר עם Gmail
+                </button>
             </div>
         }
 
-        <div class="login-options">
-            <i class="fas fa-user"></i>
-            <span>התחבר עם משתמש</span>
-            <i class="fab fa-google"></i>
-            <span>התחבר עם Gmail</span>
-        </div>
-
-        <div class="login-forms">
-            @if (activeTab == "regular")
-            {
-                <EditForm Model="loginModel" OnValidSubmit="HandleLogin" class="standard-form">
-                    <DataAnnotationsValidator />
-
-                    <div class="form-floating mb-3">
-                        <InputText id="username" class="form-control" @bind-Value="loginModel.Username" placeholder="שם משתמש" />
-                        <label for="username">שם משתמש</label>
-                        <ValidationMessage For="@(() => loginModel.Username)" class="validation-message" />
-                    </div>
-
-                    <div class="form-floating mb-3">
-                        <InputText id="password" class="form-control" @bind-Value="loginModel.Password" type="password" placeholder="סיסמה" />
-                        <label for="password">סיסמה</label>
-                        <ValidationMessage For="@(() => loginModel.Password)" class="validation-message" />
-                    </div>
-
-                    <div class="d-flex justify-content-between align-items-center mb-3">
-                        <div class="form-check">
-                            <input class="form-check-input" type="checkbox" id="rememberMe" @bind="rememberMe" />
-                            <label class="form-check-label" for="rememberMe">זכור אותי</label>
-                        </div>
-                        <a href="/forgot-password" class="forgot-link">שכחתי סיסמה</a>
-                    </div>
-
-                    <button type="submit" class="btn btn-primary w-100" disabled="@isSubmitting">
-                        @if (isSubmitting)
-                        {
-                            <span class="spinner-border spinner-border-sm me-2" role="status" aria-hidden="true"></span>
-                            <span>מתחבר...</span>
-                        }
-                        else
-                        {
-                            <span>התחבר</span>
-                        }
-                    </button>
-                </EditForm>
-            }
-            else
-            {
-                <div class="google-login-container">
-                    <p class="text-center mb-4">לחץ על הכפתור למטה כדי להתחבר באמצעות חשבון ה-Gmail שלך</p>
-                    <button @onclick="HandleGoogleLogin" class="btn btn-google">
-                        <img src="images/google-logo.png.png" alt="Google Logo" />
-                        <span>התחבר עם Google</span>
-                    </button>
-                </div>
-            }
-        </div>
-
         <div class="login-footer">
-            <p>עדיין אין לך חשבון? <a href="/register" class="register-link">הירשם עכשיו</a></p>
+            <p>אין לך חשבון? <a href="/register">הרשמה</a></p>
         </div>
     </div>
 </div>
 
 <style>
-    /* Global Styles */
     :root {
-        --primary-color: #2c3e50;
-        --secondary-color: #3498db;
-        --accent-color: #e74c3c;
-        --text-color: #333;
-        --light-bg: #f8f9fa;
-        --card-bg: #ffffff;
-        --input-bg: #f1f3f4;
-        --shadow: 0 10px 20px rgba(0, 0, 0, 0.1);
+        --background: #1a1a1a;
+        --primary-red: #d32f2f;
+        --white: #ffffff;
+        --grey: #cccccc;
     }
 
-    /* Container Setup */
     .login-container {
+        background: var(--background);
+        min-height: 100vh;
         display: flex;
         justify-content: center;
         align-items: center;
-        min-height: 100vh;
-        background: linear-gradient(135deg, var(--primary-color), #34495e);
         padding: 20px;
         direction: rtl;
+        color: var(--white);
+        font-family: 'Segoe UI', sans-serif;
     }
 
-    /* Card Styling */
     .login-card {
+        background-color: #2a2a2a;
+        padding: 30px;
+        border-radius: 12px;
         width: 100%;
-        max-width: 450px;
-        background-color: var(--card-bg);
-        border-radius: 10px;
-        box-shadow: var(--shadow);
-        overflow: hidden;
+        max-width: 400px;
+        box-shadow: 0 0 15px rgba(0,0,0,0.5);
     }
 
-    /* Header Section */
     .login-header {
-        padding: 2rem;
         text-align: center;
-        background: linear-gradient(to right, #f8f9fa, #e9ecef);
+        margin-bottom: 25px;
     }
 
     .logo {
         width: 90px;
         height: 90px;
+        margin-bottom: 10px;
         object-fit: contain;
-        margin-bottom: 1rem;
     }
 
-    .login-title {
-        color: var(--primary-color);
-        font-size: 1.75rem;
-        margin-bottom: 0.5rem;
-        font-weight: 600;
+    .login-header h1 {
+        color: var(--primary-red);
+        margin: 0;
+        font-size: 24px;
     }
 
-    .login-subtitle {
-        color: #6c757d;
-        font-size: 1rem;
+    .login-header p {
+        color: var(--grey);
+        font-size: 14px;
     }
 
-    /* Alert Messages */
-    .alert {
-        margin: 0 1.5rem;
-        border-radius: 8px;
-        padding: 0.75rem;
-        margin-bottom: 1rem;
-        display: flex;
-        align-items: center;
-    }
-
-    /* Login Options Tabs */
-    .login-options {
-        display: flex;
-        justify-content: center;
-        margin: 1.5rem;
-        border-radius: 10px;
-        background-color: var(--input-bg);
-        overflow: hidden;
-    }
-
-    .login-option {
-        padding: 1rem;
-        flex: 1;
-        text-align: center;
-        cursor: pointer;
-        transition: all 0.3s ease;
-        font-weight: 500;
-    }
-
-        .login-option.active {
-            background-color: var(--secondary-color);
-            color: white;
-        }
-
-        .login-option i {
-            margin-left: 8px;
-        }
-
-    /* Form Container */
-    .login-forms {
-        padding: 0 1.5rem 1.5rem 1.5rem;
-    }
-
-    /* Form Elements */
-    .form-floating label {
-        right: 1rem;
-        left: auto;
-        transform-origin: right top;
-    }
-
-    .form-floating > .form-control:focus ~ label,
-    .form-floating > .form-control:not(:placeholder-shown) ~ label {
-        transform: scale(0.85) translateY(-0.5rem) translateX(0.15rem);
-    }
-
-    .form-floating > .form-control {
-        height: calc(3.5rem + 2px);
-        padding: 1rem 0.75rem;
+    .form-group {
+        margin-bottom: 15px;
     }
 
     .form-control {
-        background-color: var(--input-bg);
+        width: 100%;
+        padding: 10px;
+        border-radius: 6px;
         border: none;
-        border-radius: 8px;
+        background-color: #444;
+        color: var(--white);
     }
 
         .form-control:focus {
-            box-shadow: 0 0 0 0.25rem rgba(52, 152, 219, 0.25);
-            border-color: var(--secondary-color);
+            outline: 2px solid var(--primary-red);
         }
 
-    .validation-message {
-        color: var(--accent-color);
-        font-size: 0.75rem;
-        margin-top: 0.25rem;
+    .form-options {
+        display: flex;
+        justify-content: space-between;
+        font-size: 14px;
+        margin-bottom: 15px;
     }
 
-    .forgot-link {
-        color: var(--secondary-color);
-        text-decoration: none;
-        font-size: 0.875rem;
-    }
-
-        .forgot-link:hover {
-            text-decoration: underline;
+        .form-options a {
+            color: var(--primary-red);
+            text-decoration: none;
         }
 
-    /* Buttons */
-    .btn-primary {
-        background-color: var(--secondary-color);
+    .btn-submit {
+        background-color: var(--primary-red);
+        color: var(--white);
+        width: 100%;
+        padding: 10px;
         border: none;
-        padding: 0.75rem;
-        border-radius: 8px;
-        font-weight: 500;
-        transition: all 0.3s ease;
+        border-radius: 6px;
+        font-weight: bold;
+        cursor: pointer;
     }
 
-        .btn-primary:hover {
-            background-color: #2980b9;
-            transform: translateY(-2px);
+        .btn-submit:disabled {
+            opacity: 0.6;
+            cursor: not-allowed;
         }
 
-        .btn-primary:disabled {
-            background-color: #95a5a6;
+    .login-tabs {
+        display: flex;
+        margin-bottom: 20px;
+        border-bottom: 2px solid #444;
+    }
+
+    .tab {
+        flex: 1;
+        padding: 10px;
+        background: none;
+        border: none;
+        color: var(--white);
+        cursor: pointer;
+        font-weight: bold;
+        transition: 0.3s;
+    }
+
+        .tab.active {
+            border-bottom: 3px solid var(--primary-red);
+            color: var(--primary-red);
         }
+
+    .google-login {
+        text-align: center;
+    }
 
     .btn-google {
+        margin-top: 10px;
         background-color: white;
         color: #333;
-        border: 1px solid #ddd;
-        padding: 0.75rem;
-        border-radius: 8px;
+        border: none;
+        border-radius: 6px;
+        padding: 10px 15px;
         display: flex;
         align-items: center;
         justify-content: center;
+        gap: 10px;
         width: 100%;
-        transition: all 0.3s ease;
+        font-weight: bold;
+        cursor: pointer;
     }
-
-        .btn-google:hover {
-            background-color: #f8f9fa;
-            transform: translateY(-2px);
-            box-shadow: 0 4px 8px rgba(0,0,0,0.1);
-        }
 
         .btn-google img {
             width: 20px;
-            margin-left: 12px;
+            height: 20px;
         }
 
-    /* Google Login Container */
-    .google-login-container {
-        display: flex;
-        flex-direction: column;
-        align-items: center;
-        padding: 1.5rem 0;
-    }
-
-    /* Footer */
     .login-footer {
         text-align: center;
-        padding: 1.5rem;
-        border-top: 1px solid #eee;
+        margin-top: 20px;
+        font-size: 14px;
     }
 
-    .register-link {
-        color: var(--secondary-color);
-        font-weight: 500;
-        text-decoration: none;
-    }
-
-        .register-link:hover {
-            text-decoration: underline;
+        .login-footer a {
+            color: var(--primary-red);
+            text-decoration: none;
+            font-weight: bold;
         }
 
-    /* Responsive Adjustments */
-    media (max-width: 576px) {
-        .login-card
-
-    {
-        border-radius: 0;
-        box-shadow: none;
-    }
-
-    .login-container {
-        padding: 0;
-    }
-
+    .alert {
+        background-color: #ffdddd;
+        color: #990000;
+        padding: 10px;
+        border-radius: 5px;
+        margin-bottom: 15px;
+        text-align: center;
     }
 </style>
 
 @code {
-    private Blazor_WebAssembly.Models.Auth.LoginModel loginModel = new();
+    private LoginModel loginModel = new();
     private string errorMessage = string.Empty;
     private string successMessage = string.Empty;
     private bool isSubmitting = false;
@@ -363,7 +274,6 @@
             var result = await AuthService.LoginAsync(loginModel);
             if (result != null && !string.IsNullOrEmpty(result.Token))
             {
-                // Store remember me preference if needed
                 if (rememberMe)
                 {
                     await LocalStorage.SetItemAsync("rememberedUser", loginModel.Username);
@@ -386,7 +296,6 @@
 
     private async Task HandleRedirectAfterLogin()
     {
-        // Get user from localStorage
         var user = await LocalStorage.GetItemAsync<UserDto>("user");
 
         if (user == null)
@@ -395,7 +304,6 @@
             return;
         }
 
-        // Redirect based on user role
         switch (user.Role?.ToLower())
         {
             case "admin":
@@ -415,6 +323,8 @@
 
     private void HandleGoogleLogin()
     {
-        Navigation.NavigateTo("https://localhost:7176/auth/login-google", true);
+        Navigation.NavigateTo("https://localhost:5191/auth/login-google", true);
     }
+
+
 }

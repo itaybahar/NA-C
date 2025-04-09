@@ -5,153 +5,221 @@
 @inject IAuthService AuthService
 @inject NavigationManager Navigation
 
-<style>
-    .container-center {
-        display: flex;
-        justify-content: center;
-        align-items: center;
-        min-height: 100vh;
-        background-color: #1e1e2f;
-        direction: rtl;
-    }
-
-    .card-dark {
-        background-color: #1e1e1e;
-        padding: 2rem;
-        border-radius: 8px;
-        width: 100%;
-        max-width: 500px;
-        box-shadow: 0 0 16px rgba(0, 0, 0, 0.6);
-        color: white;
-        text-align: center;
-    }
-
-        .card-dark img.logo {
-            width: 100px;
-            margin-bottom: 1rem;
-        }
-
-    h4 {
-        margin-bottom: 1rem;
-        color: #dc3545;
-    }
-
-    label {
-        margin-bottom: 0.5rem;
-        display: block;
-        font-weight: 500;
-        text-align: right;
-    }
-
-    .form-control {
-        background-color: #2a2a2a;
-        border: 1px solid #444;
-        color: white;
-        border-radius: 5px;
-        padding: 0.5rem;
-    }
-
-        .form-control:focus {
-            border-color: #dc3545;
-            outline: none;
-        }
-
-    .btn-danger {
-        background-color: #dc3545;
-        border: none;
-        width: 100%;
-        padding: 0.5rem;
-        margin-top: 1rem;
-    }
-
-        .btn-danger:disabled {
-            opacity: 0.6;
-        }
-
-    .alert-danger {
-        background-color: #dc3545;
-        color: white;
-        margin-top: 1rem;
-        padding: 0.75rem;
-        border-radius: 6px;
-    }
-
-    .validation-message {
-        color: #dc3545;
-        font-size: 0.8rem;
-        text-align: right;
-        margin-top: 0.25rem;
-    }
-
-    .bottom-link {
-        text-align: center;
-        margin-top: 1rem;
-    }
-
-        .bottom-link a {
-            color: #0d6efd;
-            text-decoration: none;
-        }
-
-            .bottom-link a:hover {
-                text-decoration: underline;
-            }
-</style>
-
-<div class="container-center">
-    <div class="card-dark">
-        <img src="images/logo_png.png.jpg" alt="Logo" class="logo" />
-        <h4>הרשמה לאתר מחסן הנשיא</h4>
+<div class="login-container">
+    <div class="login-card">
+        <div class="login-header">
+            <img src="images/logo_png.png" alt="Logo" class="logo" />
+            <h1>הרשמה למחסן הנשיא</h1>
+            <p>מלא את הפרטים שלך כדי להירשם</p>
+        </div>
 
         @if (!string.IsNullOrEmpty(errorMessage))
         {
-            <div class="alert-danger">@errorMessage</div>
+            <div class="alert alert-danger">@errorMessage</div>
         }
 
-        <EditForm Model="registerModel" OnValidSubmit="HandleRegistration">
-            <DataAnnotationsValidator />
+        <div class="login-tabs">
+            <button class="tab @(activeTab == "regular" ? "active" : "")" @onclick="@(() => activeTab = "regular")">משתמש רגיל</button>
+            <button class="tab @(activeTab == "google" ? "active" : "")" @onclick="@(() => activeTab = "google")">Gmail</button>
+        </div>
 
-            <div class="form-group mb-3 text-start">
-                <label for="username">שם משתמש</label>
-                <InputText id="username" class="form-control" @bind-Value="registerModel.Username" />
-                <ValidationMessage For="@(() => registerModel.Username)" class="validation-message" />
+        @if (activeTab == "regular")
+        {
+            <EditForm Model="registerModel" OnValidSubmit="HandleRegistration">
+                <DataAnnotationsValidator />
+
+                <div class="form-group">
+                    <InputText @bind-Value="registerModel.Username" placeholder="שם משתמש" class="form-control" />
+                    <ValidationMessage For="@(() => registerModel.Username)" class="validation-message" />
+                </div>
+
+                <div class="form-group">
+                    <InputText @bind-Value="registerModel.Email" placeholder="אימייל" type="email" class="form-control" />
+                    <ValidationMessage For="@(() => registerModel.Email)" class="validation-message" />
+                </div>
+
+                <div class="form-group">
+                    <InputText @bind-Value="registerModel.Password" placeholder="סיסמה" type="password" class="form-control" />
+                    <ValidationMessage For="@(() => registerModel.Password)" class="validation-message" />
+                </div>
+
+                <div class="form-group">
+                    <InputText @bind-Value="registerModel.ConfirmPassword" placeholder="אימות סיסמה" type="password" class="form-control" />
+                    <ValidationMessage For="@(() => registerModel.ConfirmPassword)" class="validation-message" />
+                </div>
+
+                <button type="submit" class="btn-submit" disabled="@isSubmitting">
+                    @(isSubmitting ? "נרשם..." : "הירשם")
+                </button>
+            </EditForm>
+        }
+        else
+        {
+            <div class="google-login">
+                <p>לחץ על הכפתור למטה כדי להירשם עם חשבון Google:</p>
+                <button class="btn-google" @onclick="HandleGoogleRegister">
+                    <img src="images/google-logo.png" alt="Google" />
+                    הירשם עם Gmail
+                </button>
             </div>
+        }
 
-            <div class="form-group mb-3 text-start">
-                <label for="email">כתובת דוא"ל</label>
-                <InputText id="email" class="form-control" @bind-Value="registerModel.Email" type="email" />
-                <ValidationMessage For="@(() => registerModel.Email)" class="validation-message" />
-            </div>
-
-            <div class="form-group mb-3 text-start">
-                <label for="password">סיסמה</label>
-                <InputText id="password" class="form-control" @bind-Value="registerModel.Password" type="password" />
-                <ValidationMessage For="@(() => registerModel.Password)" class="validation-message" />
-            </div>
-
-            <div class="form-group mb-4 text-start">
-                <label for="confirmPassword">אימות סיסמה</label>
-                <InputText id="confirmPassword" class="form-control" @bind-Value="registerModel.ConfirmPassword" type="password" />
-                <ValidationMessage For="@(() => registerModel.ConfirmPassword)" class="validation-message" />
-            </div>
-
-            <button type="submit" class="btn btn-danger" disabled="@isSubmitting">
-                @if (isSubmitting)
-                {
-                    <span>נרשם...</span>
-                }
-                else
-                {
-                    <span>הירשם</span>
-                }
-            </button>
-        </EditForm>
-
-        <div class="bottom-link">
-            יש לך משתמש קיים? <a href="/login">התחבר</a>
+        <div class="login-footer">
+            <p>כבר רשום? <a href="/login">התחבר עכשיו</a></p>
         </div>
     </div>
 </div>
+
+<style>
+    :root {
+        --background: #1a1a1a;
+        --primary-red: #d32f2f;
+        --white: #ffffff;
+        --grey: #cccccc;
+    }
+
+    .login-container {
+        background: var(--background);
+        min-height: 100vh;
+        display: flex;
+        justify-content: center;
+        align-items: center;
+        padding: 20px;
+        direction: rtl;
+        color: var(--white);
+        font-family: 'Segoe UI', sans-serif;
+    }
+
+    .login-card {
+        background-color: #2a2a2a;
+        padding: 30px;
+        border-radius: 12px;
+        width: 100%;
+        max-width: 400px;
+        box-shadow: 0 0 15px rgba(0,0,0,0.5);
+    }
+
+    .login-header {
+        text-align: center;
+        margin-bottom: 25px;
+    }
+
+    .logo {
+        width: 90px;
+        height: 90px;
+        margin-bottom: 10px;
+        object-fit: contain;
+    }
+
+    .login-header h1 {
+        color: var(--primary-red);
+        margin: 0;
+        font-size: 24px;
+    }
+
+    .login-header p {
+        color: var(--grey);
+        font-size: 14px;
+    }
+
+    .form-group {
+        margin-bottom: 15px;
+    }
+
+    .form-control {
+        width: 100%;
+        padding: 10px;
+        border-radius: 6px;
+        border: none;
+        background-color: #444;
+        color: var(--white);
+    }
+
+        .form-control:focus {
+            outline: 2px solid var(--primary-red);
+        }
+
+    .validation-message {
+        color: var(--primary-red);
+        font-size: 0.8rem;
+        margin-top: 0.25rem;
+    }
+
+    .btn-submit {
+        background-color: var(--primary-red);
+        color: var(--white);
+        width: 100%;
+        padding: 10px;
+        border: none;
+        border-radius: 6px;
+        font-weight: bold;
+        cursor: pointer;
+    }
+
+        .btn-submit:disabled {
+            opacity: 0.6;
+            cursor: not-allowed;
+        }
+
+    .login-tabs {
+        display: flex;
+        margin-bottom: 20px;
+        border-bottom: 2px solid #444;
+    }
+
+    .tab {
+        flex: 1;
+        padding: 10px;
+        background: none;
+        border: none;
+        color: var(--white);
+        cursor: pointer;
+        font-weight: bold;
+        transition: 0.3s;
+    }
+
+        .tab.active {
+            border-bottom: 3px solid var(--primary-red);
+            color: var(--primary-red);
+        }
+
+    .google-login {
+        text-align: center;
+    }
+
+    .btn-google {
+        margin-top: 10px;
+        background-color: white;
+        color: #333;
+        border: none;
+        border-radius: 6px;
+        padding: 10px 15px;
+        display: flex;
+        align-items: center;
+        justify-content: center;
+        gap: 10px;
+        width: 100%;
+        font-weight: bold;
+        cursor: pointer;
+    }
+
+        .btn-google img {
+            width: 20px;
+            height: 20px;
+        }
+
+    .login-footer {
+        text-align: center;
+        margin-top: 20px;
+        font-size: 14px;
+    }
+
+        .login-footer a {
+            color: var(--primary-red);
+            text-decoration: none;
+            font-weight: bold;
+        }
+</style>
 
 @code {
     private RegisterModel registerModel = new()
@@ -160,11 +228,12 @@
         Email = "",
         Password = "",
         ConfirmPassword = "",
-        Role = "User" // Default role
+        Role = "User"
     };
 
     private string errorMessage = string.Empty;
     private bool isSubmitting = false;
+    private string activeTab = "regular";
 
     private async Task HandleRegistration()
     {
@@ -176,23 +245,22 @@
             var result = await AuthService.RegisterAsync(registerModel);
             if (result)
             {
-                // Redirect to login page with success message
                 Navigation.NavigateTo("/login?registered=true");
             }
             else
             {
-                errorMessage = "חלה שגיאה בתהליך ההרשמה. אנא נסה שוב מאוחר יותר.";
+                errorMessage = "חלה שגיאה בתהליך ההרשמה. נסה שוב מאוחר יותר.";
             }
         }
         catch (Exception ex)
         {
             if (ex.Message.Contains("Username is already taken") || ex.Message.Contains("Username already exists"))
             {
-                errorMessage = "שם המשתמש הזה כבר בשימוש. אנא בחר שם משתמש אחר.";
+                errorMessage = "שם המשתמש כבר תפוס. אנא בחר שם אחר.";
             }
             else if (ex.Message.Contains("Email is already in use"))
             {
-                errorMessage = "כתובת הדוא״ל הזו כבר בשימוש. אנא נסה להשתמש בכתובת אחרת.";
+                errorMessage = "כתובת המייל כבר בשימוש.";
             }
             else
             {
@@ -201,5 +269,10 @@
         }
 
         isSubmitting = false;
+    }
+
+    private void HandleGoogleRegister()
+    {
+        Navigation.NavigateTo("https://localhost:5191/auth/login-google", true);
     }
 }

@@ -1,0 +1,47 @@
+﻿@page "/warehouse/manager/dashboard"
+@attribute [Authorize(Roles = "WarehouseManager,Admin")]
+
+<PageTitle>Dashboard - מנהל מחסן</PageTitle>
+
+<div class="max-w-6xl mx-auto mt-10 p-6 rounded-2xl bg-zinc-900 shadow-lg text-white">
+    <h1 class="text-3xl font-bold mb-6 text-red-500">ממשק ניהול מחסן</h1>
+
+    <div class="flex space-x-4 mb-6">
+        <button class="@GetTabClass("equipment")" @onclick="() => ActiveTab = "equipment"">רשימת ציוד</button>
+        <button class="@GetTabClass("blacklist")" @onclick="() => ActiveTab = "blacklist"">רשימה שחורה</button>
+        <button class="@GetTabClass("request")" @onclick="() => ActiveTab = "request"">שלח בקשה</button>
+        <button class="@GetTabClass("checkout")" @onclick="() => ActiveTab = "checkout"">הוצאת ציוד</button>
+        <button class="@GetTabClass("add")" @onclick="() => ActiveTab = "add"">➕ הוספת ציוד</button>
+    </div>
+
+    <div class="bg-zinc-800 p-6 rounded-xl">
+        @switch (ActiveTab)
+        {
+            case "equipment":
+                <EquipmentList />
+                break;
+            case "blacklist":
+                <BlacklistView />
+                break;
+            case "request":
+                <RequestAdminForm />
+                break;
+            case "checkout":
+                <EquipmentCheckout />
+                break;
+            case "add":
+                <AddEquipmentForm />
+                break;
+        }
+    </div>
+</div>
+
+@code {
+    private string ActiveTab = "equipment";
+
+    private string GetTabClass(string tab) =>
+        $"px-4 py-2 rounded-xl text-sm font-semibold " +
+        (ActiveTab == tab
+            ? "bg-red-700 text-white shadow"
+            : "bg-zinc-700 hover:bg-red-600 text-gray-300");
+}

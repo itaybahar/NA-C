@@ -1,6 +1,7 @@
 ﻿using System.Net.Http.Json;
 using Blazor_WebAssembly.Models.Team;
 using Blazor_WebAssembly.Services.Interfaces;
+using Blazor_WebAssembly_Project.Pages;
 
 namespace Blazor_WebAssembly.Services.Implementations
 {
@@ -121,6 +122,11 @@ namespace Blazor_WebAssembly.Services.Implementations
                 // Log the exception
                 return false;
             }
+        }
+
+        public Task<List<TeamDetails.TeamDto>> GetBlacklistedTeamsAsync()
+        {
+            throw new NotImplementedException();
         }
     }
 }

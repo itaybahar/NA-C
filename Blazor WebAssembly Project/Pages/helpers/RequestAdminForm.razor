@@ -1,0 +1,26 @@
+﻿@inject IEquipmentRequestService RequestService
+
+<h2 class="text-xl font-bold mb-4">שלח בקשה למנהל</h2>
+
+<textarea @bind="Message" class="w-full h-32 p-2 rounded-xl bg-zinc-700 text-white" placeholder="כתוב כאן..."></textarea>
+
+<button class="mt-4 px-4 py-2 bg-red-700 rounded-xl text-white" @onclick="SendRequest">
+    שלח בקשה
+</button>
+
+@if (Sent)
+{
+    <p class="text-green-400 mt-2">הבקשה נשלחה בהצלחה</p>
+}
+
+@code {
+    private string Message = string.Empty;
+    private bool Sent = false;
+
+    private async Task SendRequest()
+    {
+        await RequestService.SendRequestToAdminAsync(Message);
+        Message = "";
+        Sent = true;
+    }
+}

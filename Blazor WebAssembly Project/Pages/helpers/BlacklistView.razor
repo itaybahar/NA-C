@@ -1,0 +1,37 @@
+﻿@using Blazor_WebAssembly.Models
+@using Domain_Project.DTOs
+@using Blazor_WebAssembly.Services.Interfaces
+@using static Blazor_WebAssembly_Project.Pages.TeamDetails
+@inject ITeamService TeamService
+
+<h2 class="text-xl font-bold mb-4">רשימה שחורה</h2>
+
+@if (BlacklistedTeams.Count == 0)
+{
+    <p>אין צוותים ברשימה</p>
+}
+else
+{
+    <ul class="list-disc ml-6">
+        @foreach (var team in BlacklistedTeams)
+        {
+            <li>@team.TeamName (ID: @team.TeamID)</li>
+        }
+    </ul>
+}
+
+@code {
+    private List<Domain_Project.DTOs.TeamDto> BlacklistedTeams = new();
+
+    protected override async Task OnInitializedAsync()
+    {
+        var teams = await TeamService.GetBlacklistedTeamsAsync();
+        BlacklistedTeams = teams.Select(t => new Domain_Project.DTOs.TeamDto
+        {
+            TeamID = t.Id,
+            TeamName = t.Name,
+            Description = t.Description,
+            IsActive = t.IsActive
+        }).ToList();
+    }
+}

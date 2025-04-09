@@ -26,12 +26,6 @@ namespace API_Project.Controllers
             _authService = authService;
         }
 
-        private async Task<Services.AuthenticationResponseDto> GetAuthenticateResultAsync()
-        {
-            var authenticateResult = await HttpContext.AuthenticateAsync(CookieAuthenticationDefaults.AuthenticationScheme);
-            return await ConvertToAuthResponseDto(authenticateResult);
-        }
-
         private async Task<Services.AuthenticationResponseDto> ConvertToAuthResponseDto(AuthenticateResult result)
         {
             if (!result.Succeeded)
@@ -45,7 +39,6 @@ namespace API_Project.Controllers
             if (user == null)
                 return new Services.AuthenticationResponseDto { Token = string.Empty, User = new UserDto() };
 
-            // Generate JWT token using your authentication service
             var token = _authService.GenerateJwtToken(user);
 
             return new Services.AuthenticationResponseDto
@@ -58,23 +51,8 @@ namespace API_Project.Controllers
                     Email = user.Email,
                     FirstName = user.FirstName ?? string.Empty,
                     LastName = user.LastName ?? string.Empty
-                    // Role, IsActive, and CreatedDate properties have been removed
-                    // as they don't exist in UserDto class
                 }
             };
-        }
-
-        private string GenerateJwtToken(User user)
-        {
-            // Here you would use your actual token generation logic
-            // This would typically come from your authentication service
-            return _authService.GenerateJwtToken(user);
-        }
-
-        // Fixed: Make this method private to avoid Swagger ambiguity
-        private Domain_Project.Interfaces.IAuthenticationService Get_authService()
-        {
-            return _authService;
         }
 
         [HttpPost("login")]
@@ -84,16 +62,11 @@ namespace API_Project.Controllers
             {
                 var user = await _userRepository.GetUserByUsernameAsync(loginDto.Username);
                 if (user == null)
-                {
                     return Unauthorized("Invalid username or password.");
-                }
 
-                // Change this line - use ValidateUserCredentialsAsync from IUserRepository instead
                 var isValid = await _userRepository.ValidateUserCredentialsAsync(user.Username, loginDto.Password);
                 if (!isValid)
-                {
                     return Unauthorized("Invalid username or password.");
-                }
 
                 var token = _authService.GenerateJwtToken(user);
 
@@ -111,18 +84,12 @@ namespace API_Project.Controllers
                     }
                 });
             }
-            catch (UnauthorizedAccessException ex)
-            {
-                return Unauthorized($"Invalid email or password. {ex.Message}");
-            }
             catch (Exception ex)
             {
                 return StatusCode(500, $"Authentication error: {ex.Message}");
             }
         }
 
-
-        // ✅ Login with Google
         [HttpGet("login-google")]
         public IActionResult LoginWithGoogle()
         {
@@ -147,26 +114,32 @@ namespace API_Project.Controllers
                 return Redirect("https://localhost:7176/login?error=missing-user-info");
 
             var user = await _userRepository.GetUserByEmailAsync(email);
+            bool isNew = false;
+
             if (user == null)
             {
                 user = new User
                 {
                     Email = email,
                     Username = name,
-                    Role = "User" // Default role
+                    Role = "User"
                 };
+
                 await _userRepository.AddAsync(user);
+                isNew = true;
             }
 
-            // Convert to our auth response DTO
             var authResponse = await ConvertToAuthResponseDto(result);
             if (authResponse == null || string.IsNullOrEmpty(authResponse.Token))
                 return Redirect("https://localhost:7176/login?error=token-generation-failed");
 
-            return Redirect($"https://localhost:7176/login?token={authResponse.Token}");
+            var redirectUrl = $"https://localhost:7176/login?token={authResponse.Token}";
+            if (isNew)
+                redirectUrl += "&new=true";
+
+            return Redirect(redirectUrl);
         }
 
-        // ✅ Register new user without FirstName and LastName
         [HttpPost("register")]
         public async Task<IActionResult> Register([FromBody] RegisterRequest request)
         {
@@ -179,7 +152,6 @@ namespace API_Project.Controllers
                 {
                     Username = request.Username,
                     Email = request.Email,
-                    // Removed FirstName and LastName as requested
                     Role = string.IsNullOrEmpty(request.Role) ? "User" : request.Role
                 };
 
@@ -195,13 +167,8 @@ namespace API_Project.Controllers
         [HttpGet("logout")]
         public async Task<IActionResult> Logout()
         {
-            // Sign out of cookie authentication used for Google login
             await HttpContext.SignOutAsync(CookieAuthenticationDefaults.AuthenticationScheme);
 
-            // For API clients using JWT tokens, the client should discard the token
-            // Server-side doesn't need to do anything special for JWT invalidation
-
-            // Fixed: StringValues comparison issue
             bool isJsonRequest = false;
             if (Request.Headers.TryGetValue("Accept", out StringValues acceptValues))
             {
@@ -209,11 +176,8 @@ namespace API_Project.Controllers
             }
 
             if (isJsonRequest)
-            {
                 return Ok(new { message = "Logged out successfully" });
-            }
 
-            // For browser clients, redirect to login page
             return Redirect("https://localhost:7176/login");
         }
     }

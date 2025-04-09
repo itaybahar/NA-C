@@ -1,17 +1,13 @@
-﻿using System.Threading.Tasks;
-using Blazor_WebAssembly.Models.Team;
+﻿
+using static Blazor_WebAssembly_Project.Pages.TeamDetails;
 
 namespace Blazor_WebAssembly.Services.Interfaces
 {
     public interface ITeamService
     {
-        Task<List<TeamModel>> GetAllTeamsAsync();
-        Task<TeamModel> GetTeamByIdAsync(int id);
-        Task<bool> CreateTeamAsync(TeamModel team);
-        Task<bool> UpdateTeamAsync(TeamModel team);
-        Task<bool> DeleteTeamAsync(int id);
-        Task<List<TeamMemberModel>> GetTeamMembersAsync(int teamId);
-        Task<bool> AddTeamMemberAsync(TeamMemberModel teamMember);
-        Task<bool> RemoveTeamMemberAsync(int teamId, int userId);
+        // Add the missing method
+        Task<List<TeamDto>> GetBlacklistedTeamsAsync();
+
+        // Your existing interface methods would be here
     }
 }
