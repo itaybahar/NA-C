@@ -1,4 +1,5 @@
 ﻿@using Microsoft.AspNetCore.Components.Authorization
+@using Microsoft.AspNetCore.Components.Routing
 @using Microsoft.AspNetCore.Components.WebAssembly.Authentication
 
 <CascadingAuthenticationState>
@@ -6,8 +7,14 @@
         <Found Context="routeData">
             <AuthorizeRouteView RouteData="@routeData" DefaultLayout="@typeof(MainLayout)">
                 <NotAuthorized>
-                    @* If the user is not authenticated – redirect to login *@
-                    <RedirectToLogin />
+                    @if (context.User.Identity?.IsAuthenticated != true)
+                    {
+                        <RedirectToLogin />
+                    }
+                    else
+                    {
+                        <p class="text-center p-4">You are not authorized to access this resource.</p>
+                    }
                 </NotAuthorized>
                 <Authorizing>
                     <p>Loading authorization...</p>
@@ -21,3 +28,17 @@
         </NotFound>
     </Router>
 </CascadingAuthenticationState>
+
+@code {
+    // Made RedirectToLogin public to be accessible as a component
+    public class RedirectToLogin : ComponentBase
+    {
+        [Inject]
+        required public NavigationManager Navigation { get; set; }
+
+        protected override void OnInitialized()
+        {
+            Navigation.NavigateTo($"/login?returnUrl={Uri.EscapeDataString(Navigation.Uri)}");
+        }
+    }
+}

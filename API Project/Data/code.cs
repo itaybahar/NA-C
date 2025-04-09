@@ -1,5 +1,5 @@
-﻿using Microsoft.EntityFrameworkCore;
-using Domain_Project.Models;
+﻿using Domain_Project.Models;
+using Microsoft.EntityFrameworkCore;
 
 namespace API_Project.Data
 {
@@ -68,6 +68,7 @@ namespace API_Project.Data
                 entity.Property(er => er.Urgency)
                     .HasDefaultValue("Normal");
             });
+
             modelBuilder.Entity<UserRoleAssignment>(entity =>
             {
                 // Composite primary key
@@ -87,7 +88,6 @@ namespace API_Project.Data
                     .HasDefaultValueSql("CURRENT_TIMESTAMP");
             });
 
-
             // Seed initial data
             SeedInitialData(modelBuilder);
         }
@@ -101,15 +101,7 @@ namespace API_Project.Data
                 new UserRole { RoleID = 3, RoleName = "WarehouseManager", Description = "Warehouse manager who can manage equipment inventory" },
                 new UserRole { RoleID = 4, RoleName = "CentralManager", Description = "Central manager of the nest" }
             );
-            // Seed initial user roles (existing code)
-            modelBuilder.Entity<UserRole>().HasData(
-                new UserRole { RoleID = 1, RoleName = "TeamMember", Description = "Regular team member" },
-                new UserRole { RoleID = 2, RoleName = "WarehouseOperative", Description = "Warehouse staff who can issue equipment" },
-                new UserRole { RoleID = 3, RoleName = "WarehouseManager", Description = "Warehouse manager who can manage equipment inventory" },
-                new UserRole { RoleID = 4, RoleName = "CentralManager", Description = "Central manager of the nest" }
-            );
-
         }
-
     }
 }
+

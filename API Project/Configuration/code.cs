@@ -6,9 +6,9 @@ namespace API_Project.Configuration
 {
     public class AuthenticationSettings
     {
-        public string SecretKey { get; set; }
-        public string Issuer { get; set; }
-        public string Audience { get; set; }
+        public required string SecretKey { get; set; }
+        public required string Issuer { get; set; }
+        public required string Audience { get; set; }
         public int ExpirationInMinutes { get; set; } = 60;
 
         public SymmetricSecurityKey GetSymmetricSecurityKey()
@@ -35,6 +35,5 @@ namespace API_Project.Configuration
                 ClockSkew = TimeSpan.Zero
             };
         }
-
     }
 }

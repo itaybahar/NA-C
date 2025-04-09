@@ -1,40 +1,55 @@
 ﻿using System;
+using System.Collections.Generic;
 using System.ComponentModel.DataAnnotations;
 using System.ComponentModel.DataAnnotations.Schema;
-using System.Text;
 
 namespace Domain_Project.Models
 {
+    public class AppUser
+    {
+        public string Email { get; set; }
+        public string Username { get; set; }
+        public string Role { get; set; }
+    }
     public class User
     {
-        [Key]
         public int UserID { get; set; }
 
-        [Required]
-        [MaxLength(50)]
-        public string Username { get; set; }
-        public string UserName { get; set; }
-        [Required]
-        [MaxLength(128)]
-        public string PasswordHash { get; set; }
+        public string Email { get; set; } = string.Empty;
+        public string Username { get; set; } = string.Empty;
+        public string PasswordHash { get; set; } = string.Empty;
 
-        [Required]
-        [EmailAddress]
-        [MaxLength(100)]
-        public string Email { get; set; }
+        public string? ResetToken { get; set; }
+        public DateTime? LastLoginDate { get; set; }
 
-        [Required]
-        [MaxLength(50)]
-        public string FirstName { get; set; }
-
-        [Required]
-        [MaxLength(50)]
-        public string LastName { get; set; }
+        public string FirstName { get; set; } = string.Empty;
+        public string LastName { get; set; } = string.Empty;
 
         public bool IsActive { get; set; } = true;
-        public DateTime CreatedDate { get; set; } = DateTime.Now;
-        public DateTime? LastLoginDate { get; set; }
+        public DateTime? CreatedDate { get; set; }
+
+        public string? PasswordResetToken { get; set; }
+        public DateTime? PasswordResetExpiration { get; set; }
+
+        public string? Role { get; set; }
+
+        public static implicit operator User(AppUser v)
+        {
+            if (v is null)
+            {
+                throw new ArgumentNullException(nameof(v));
+            }
+
+            return new User
+            {
+                Email = v.Email,
+                Username = v.Username,
+                Role = v.Role,
+                // ניתן להשלים את שאר המיפויים בהתאם לצורך
+            };
+        }
     }
+
 
     public class UserRole
     {
@@ -185,6 +200,7 @@ namespace Domain_Project.Models
 
         public string Notes { get; set; }
     }
+
     public class UserRoleAssignment
     {
         [Required]
@@ -202,6 +218,7 @@ namespace Domain_Project.Models
         [ForeignKey(nameof(RoleID))]
         public UserRole UserRole { get; set; }
     }
+
     public class EquipmentCategory
     {
         [Key]
@@ -232,6 +249,7 @@ namespace Domain_Project.Models
                    && CategoryName.Length <= 100;
         }
     }
+
     public class AuditLog
     {
         [Key]
@@ -280,8 +298,8 @@ namespace Domain_Project.Models
             int userId,
             string action,
             string details,
-            string ipAddress = null,
-            string entityName = null,
+            string? ipAddress = null,
+            string? entityName = null,
             int? entityId = null)
         {
             return new AuditLog
@@ -295,6 +313,7 @@ namespace Domain_Project.Models
             };
         }
     }
+
     public class TeamMember
     {
         [Required]
@@ -328,7 +347,7 @@ namespace Domain_Project.Models
         }
 
         // Method to create a team member assignment
-        public static TeamMember Create(int teamId, int userId, string assignedRole = null)
+        public static TeamMember Create(int teamId, int userId, string? assignedRole = null)
         {
             return new TeamMember
             {

@@ -9,7 +9,7 @@ namespace API_Project.Controllers
     [Authorize(Roles = "WarehouseManager")]
     public class EquipmentCategoriesController : BaseController<EquipmentCategory, IGenericRepository<EquipmentCategory>>
     {
-        public EquipmentCategoriesController(IGenericRepository<EquipmentCategory> repository) : base(repository) { }
+        public EquipmentCategoriesController(IGenericRepository<EquipmentCategory> repository, IUnitOfWork unitOfWork) : base(repository, unitOfWork) { }
 
         protected override int GetEntityId(EquipmentCategory entity) => entity.CategoryID;
 

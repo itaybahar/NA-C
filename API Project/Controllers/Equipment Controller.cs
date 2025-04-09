@@ -9,7 +9,7 @@ namespace API_Project.Controllers
     [Authorize(Roles = "WarehouseManager,WarehouseOperative")]
     public class EquipmentController : BaseController<Equipment, IGenericRepository<Equipment>>
     {
-        public EquipmentController(IGenericRepository<Equipment> repository) : base(repository) { }
+        public EquipmentController(IGenericRepository<Equipment> repository, IUnitOfWork unitOfWork) : base(repository, unitOfWork) { }
 
         protected override int GetEntityId(Equipment entity) => entity.EquipmentID;
 
@@ -39,7 +39,7 @@ namespace API_Project.Controllers
 
             equipment.Status = newStatus;
             await _repository.UpdateAsync(equipment);
-            await _repository.SaveChangesAsync();
+            await _repository.SaveChangesAsync(equipment);
 
             return Ok(equipment);
         }

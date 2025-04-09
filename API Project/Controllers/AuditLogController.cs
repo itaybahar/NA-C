@@ -11,7 +11,7 @@ namespace API_Project.Controllers
     [Authorize(Roles = "CentralManager")]
     public class AuditLogController : BaseController<AuditLog, IGenericRepository<AuditLog>>
     {
-        public AuditLogController(IGenericRepository<AuditLog> repository) : base(repository) { }
+        public AuditLogController(IGenericRepository<AuditLog> repository, IUnitOfWork unitOfWork) : base(repository, unitOfWork) { }
 
         protected override int GetEntityId(AuditLog entity) => entity.LogID;
 

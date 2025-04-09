@@ -1,122 +1,205 @@
 ﻿@page "/register"
-@using Blazor_WebAssembly_Project.Models.Auth
+@using System.ComponentModel.DataAnnotations
 @using Blazor_WebAssembly.Services.Interfaces
+@using Blazor_WebAssembly_Project.Models.Auth
 @inject IAuthService AuthService
 @inject NavigationManager Navigation
-@inject IJSRuntime JS
 
-<h3 class="text-center mt-4 text-danger">יצירת משתמש חדש</h3>
+<style>
+    .container-center {
+        display: flex;
+        justify-content: center;
+        align-items: center;
+        min-height: 100vh;
+        background-color: #1e1e2f;
+        direction: rtl;
+    }
 
-<div class="row justify-content-center">
-    <div class="col-md-6">
-        <div class="card shadow mt-3 register-card text-white bg-dark" dir="rtl">
-            <div class="card-body">
+    .card-dark {
+        background-color: #1e1e1e;
+        padding: 2rem;
+        border-radius: 8px;
+        width: 100%;
+        max-width: 500px;
+        box-shadow: 0 0 16px rgba(0, 0, 0, 0.6);
+        color: white;
+        text-align: center;
+    }
 
-                @if (!string.IsNullOrEmpty(errorMessage))
-                {
-                    <div class="alert alert-danger text-center">@errorMessage</div>
-                }
+        .card-dark img.logo {
+            width: 100px;
+            margin-bottom: 1rem;
+        }
 
-                <EditForm Model="@registerModel" OnValidSubmit="@HandleRegister">
-                    <DataAnnotationsValidator />
-                    <ValidationSummary />
+    h4 {
+        margin-bottom: 1rem;
+        color: #dc3545;
+    }
 
-                    <div class="mb-3">
-                        <label for="username" class="form-label">שם משתמש</label>
-                        <InputText @bind-Value="registerModel.Username" id="username" class="form-control input-dark" />
-                        <ValidationMessage For="@(() => registerModel.Username)" />
-                    </div>
+    label {
+        margin-bottom: 0.5rem;
+        display: block;
+        font-weight: 500;
+        text-align: right;
+    }
 
-                    <div class="mb-3">
-                        <label for="email" class="form-label">אימייל</label>
-                        <InputText @bind-Value="registerModel.Email" id="email" type="email" class="form-control input-dark" />
-                        <ValidationMessage For="@(() => registerModel.Email)" />
-                    </div>
+    .form-control {
+        background-color: #2a2a2a;
+        border: 1px solid #444;
+        color: white;
+        border-radius: 5px;
+        padding: 0.5rem;
+    }
 
-                    <div class="mb-3">
-                        <label for="password" class="form-label">סיסמה</label>
-                        <InputText @bind-Value="registerModel.Password" id="password" type="password" class="form-control input-dark" />
-                        <ValidationMessage For="@(() => registerModel.Password)" />
-                    </div>
+        .form-control:focus {
+            border-color: #dc3545;
+            outline: none;
+        }
 
-                    <div class="mb-3">
-                        <label for="confirmPassword" class="form-label">אימות סיסמה</label>
-                        <InputText @bind-Value="registerModel.ConfirmPassword" id="confirmPassword" type="password" class="form-control input-dark" />
-                        <ValidationMessage For="@(() => registerModel.ConfirmPassword)" />
-                    </div>
+    .btn-danger {
+        background-color: #dc3545;
+        border: none;
+        width: 100%;
+        padding: 0.5rem;
+        margin-top: 1rem;
+    }
 
-                    <div class="mb-3">
-                        <label for="role" class="form-label">תפקיד</label>
-                        <InputSelect @bind-Value="registerModel.Role" id="role" class="form-select input-dark">
-                            <option value="">בחר תפקיד</option>
-                            <option value="User">משתמש</option>
-                            <option value="Admin">מנהל</option>
-                            <option value="WarehouseOperator">מפעיל מחסן</option>
-                            <option value="WarehouseManager">מנהל מחסן</option>
-                        </InputSelect>
-                        <ValidationMessage For="@(() => registerModel.Role)" />
-                    </div>
+        .btn-danger:disabled {
+            opacity: 0.6;
+        }
 
-                    <div class="d-grid">
-                        <button class="btn btn-danger" type="submit" disabled="@isProcessing">
-                            @if (isProcessing)
-                            {
-                                <span class="spinner-border spinner-border-sm" role="status" aria-hidden="true"></span>
-                                <span class="ms-2">רושם...</span>
-                            }
-                            else
-                            {
-                                <span>הרשמה</span>
-                            }
-                        </button>
-                    </div>
+    .alert-danger {
+        background-color: #dc3545;
+        color: white;
+        margin-top: 1rem;
+        padding: 0.75rem;
+        border-radius: 6px;
+    }
 
-                    <div class="mt-3 text-center">
-                        כבר יש לך משתמש? <a href="/login" class="text-light">התחבר</a>
-                    </div>
-                </EditForm>
+    .validation-message {
+        color: #dc3545;
+        font-size: 0.8rem;
+        text-align: right;
+        margin-top: 0.25rem;
+    }
+
+    .bottom-link {
+        text-align: center;
+        margin-top: 1rem;
+    }
+
+        .bottom-link a {
+            color: #0d6efd;
+            text-decoration: none;
+        }
+
+            .bottom-link a:hover {
+                text-decoration: underline;
+            }
+</style>
+
+<div class="container-center">
+    <div class="card-dark">
+        <img src="images/logo_png.png.jpg" alt="Logo" class="logo" />
+        <h4>הרשמה לאתר מחסן הנשיא</h4>
+
+        @if (!string.IsNullOrEmpty(errorMessage))
+        {
+            <div class="alert-danger">@errorMessage</div>
+        }
+
+        <EditForm Model="registerModel" OnValidSubmit="HandleRegistration">
+            <DataAnnotationsValidator />
+
+            <div class="form-group mb-3 text-start">
+                <label for="username">שם משתמש</label>
+                <InputText id="username" class="form-control" @bind-Value="registerModel.Username" />
+                <ValidationMessage For="@(() => registerModel.Username)" class="validation-message" />
             </div>
+
+            <div class="form-group mb-3 text-start">
+                <label for="email">כתובת דוא"ל</label>
+                <InputText id="email" class="form-control" @bind-Value="registerModel.Email" type="email" />
+                <ValidationMessage For="@(() => registerModel.Email)" class="validation-message" />
+            </div>
+
+            <div class="form-group mb-3 text-start">
+                <label for="password">סיסמה</label>
+                <InputText id="password" class="form-control" @bind-Value="registerModel.Password" type="password" />
+                <ValidationMessage For="@(() => registerModel.Password)" class="validation-message" />
+            </div>
+
+            <div class="form-group mb-4 text-start">
+                <label for="confirmPassword">אימות סיסמה</label>
+                <InputText id="confirmPassword" class="form-control" @bind-Value="registerModel.ConfirmPassword" type="password" />
+                <ValidationMessage For="@(() => registerModel.ConfirmPassword)" class="validation-message" />
+            </div>
+
+            <button type="submit" class="btn btn-danger" disabled="@isSubmitting">
+                @if (isSubmitting)
+                {
+                    <span>נרשם...</span>
+                }
+                else
+                {
+                    <span>הירשם</span>
+                }
+            </button>
+        </EditForm>
+
+        <div class="bottom-link">
+            יש לך משתמש קיים? <a href="/login">התחבר</a>
         </div>
     </div>
 </div>
 
 @code {
-    private RegisterModel registerModel = new();
-    private bool isProcessing = false;
-    private string? errorMessage;
-
-    private async Task HandleRegister()
+    private RegisterModel registerModel = new()
     {
-        isProcessing = true;
-        errorMessage = null;
+        Username = "",
+        Email = "",
+        Password = "",
+        ConfirmPassword = "",
+        Role = "User" // Default role
+    };
 
-        if (registerModel.Password != registerModel.ConfirmPassword)
-        {
-            errorMessage = "הסיסמאות אינן תואמות.";
-            isProcessing = false;
-            return;
-        }
+    private string errorMessage = string.Empty;
+    private bool isSubmitting = false;
+
+    private async Task HandleRegistration()
+    {
+        isSubmitting = true;
+        errorMessage = string.Empty;
 
         try
         {
             var result = await AuthService.RegisterAsync(registerModel);
-
             if (result)
             {
+                // Redirect to login page with success message
                 Navigation.NavigateTo("/login?registered=true");
             }
             else
             {
-                errorMessage = "הרשמה נכשלה. נסה שוב.";
+                errorMessage = "חלה שגיאה בתהליך ההרשמה. אנא נסה שוב מאוחר יותר.";
             }
         }
         catch (Exception ex)
         {
-            errorMessage = ex.Message;
+            if (ex.Message.Contains("Username is already taken") || ex.Message.Contains("Username already exists"))
+            {
+                errorMessage = "שם המשתמש הזה כבר בשימוש. אנא בחר שם משתמש אחר.";
+            }
+            else if (ex.Message.Contains("Email is already in use"))
+            {
+                errorMessage = "כתובת הדוא״ל הזו כבר בשימוש. אנא נסה להשתמש בכתובת אחרת.";
+            }
+            else
+            {
+                errorMessage = $"שגיאה: {ex.Message}";
+            }
         }
-        finally
-        {
-            isProcessing = false;
-        }
+
+        isSubmitting = false;
     }
 }

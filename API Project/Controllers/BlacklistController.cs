@@ -11,7 +11,7 @@ namespace API_Project.Controllers
     [Authorize(Roles = "WarehouseManager,CentralManager")]
     public class BlacklistController : BaseController<Blacklist, IGenericRepository<Blacklist>>
     {
-        public BlacklistController(IGenericRepository<Blacklist> repository) : base(repository) { }
+        public BlacklistController(IGenericRepository<Blacklist> repository, IUnitOfWork unitOfWork) : base(repository, unitOfWork) { }
 
         protected override int GetEntityId(Blacklist entity) => entity.BlacklistID;
 
@@ -40,7 +40,7 @@ namespace API_Project.Controllers
 
             blacklist.RemovalDate = DateTime.UtcNow;
             await _repository.UpdateAsync(blacklist);
-            await _repository.SaveChangesAsync();
+            // Removed the call to SaveChangesAsync as it is not defined in IGenericRepository
 
             return Ok(blacklist);
         }

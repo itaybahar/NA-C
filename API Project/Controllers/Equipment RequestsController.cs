@@ -9,7 +9,8 @@ namespace API_Project.Controllers
     [Authorize]
     public class EquipmentRequestsController : BaseController<EquipmentRequest, IGenericRepository<EquipmentRequest>>
     {
-        public EquipmentRequestsController(IGenericRepository<EquipmentRequest> repository) : base(repository) { }
+        public EquipmentRequestsController(IGenericRepository<EquipmentRequest> repository, IUnitOfWork unitOfWork)
+            : base(repository, unitOfWork) { }
 
         protected override int GetEntityId(EquipmentRequest entity) => entity.RequestID;
 
@@ -35,7 +36,7 @@ namespace API_Project.Controllers
             request.ApprovalDate = DateTime.UtcNow;
 
             await _repository.UpdateAsync(request);
-            await _repository.SaveChangesAsync();
+            // Removed SaveChangesAsync call
 
             return Ok(request);
         }
@@ -54,7 +55,7 @@ namespace API_Project.Controllers
             request.Notes = reason;
 
             await _repository.UpdateAsync(request);
-            await _repository.SaveChangesAsync();
+            // Removed SaveChangesAsync call
 
             return Ok(request);
         }

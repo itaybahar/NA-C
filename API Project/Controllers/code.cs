@@ -2,7 +2,6 @@
 using Domain_Project.Models;
 using Microsoft.AspNetCore.Authorization;
 using Microsoft.AspNetCore.Mvc;
-using System.Threading.Tasks;
 
 namespace API_Project.Controllers
 {
@@ -12,10 +11,12 @@ namespace API_Project.Controllers
         where TRepository : IGenericRepository<TEntity>
     {
         protected readonly TRepository _repository;
+        private readonly IUnitOfWork _unitOfWork;
 
-        protected BaseController(TRepository repository)
+        protected BaseController(TRepository repository, IUnitOfWork unitOfWork)
         {
             _repository = repository;
+            _unitOfWork = unitOfWork;
         }
 
         [HttpGet]
@@ -40,7 +41,7 @@ namespace API_Project.Controllers
         public virtual async Task<IActionResult> Create([FromBody] TEntity entity)
         {
             await _repository.AddAsync(entity);
-            await _repository.SaveChangesAsync();
+            await _unitOfWork.CompleteAsync();
             return CreatedAtAction(nameof(GetById), new { id = GetEntityId(entity) }, entity);
         }
 
@@ -53,56 +54,102 @@ namespace API_Project.Controllers
             }
 
             await _repository.UpdateAsync(entity);
-            await _repository.SaveChangesAsync();
+            await _unitOfWork.CompleteAsync();
             return NoContent();
         }
 
         [HttpDelete("{id}")]
         public virtual async Task<IActionResult> Delete(int id)
         {
-            await _repository.DeleteAsync(id);
-            await _repository.SaveChangesAsync();
+            var entity = await _repository.GetByIdAsync(id);
+            if (entity == null)
+            {
+                return NotFound();
+            }
+
+            await _repository.DeleteAsync(entity);
+            await _unitOfWork.CompleteAsync();
             return NoContent();
         }
 
-        [Route("api/[controller]")]
-        [Authorize(Roles = "WarehouseManager,CentralManager")]
-        public class UsersController : BaseController<User, IGenericRepository<User>>
+        protected abstract int GetEntityId(TEntity entity);
+    }
+
+    [Route("api/[controller]")]
+    [Authorize(Roles = "WarehouseManager,CentralManager")]
+    public class UsersController : BaseController<User, IGenericRepository<User>>
+    {
+        public UsersController(IGenericRepository<User> repository, IUnitOfWork unitOfWork)
+            : base(repository, unitOfWork) { }
+
+        protected override int GetEntityId(User entity) => entity.Username.GetHashCode();
+
+        [HttpGet("profile")]
+        [Authorize]
+        public async Task<IActionResult> GetCurrentUserProfile()
         {
-            public UsersController(IGenericRepository<User> repository) : base(repository) { }
-
-            protected override int GetEntityId(User entity) => entity.UserID;
-
-            [HttpGet("profile")]
-            [Authorize]
-            public async Task<IActionResult> GetCurrentUserProfile()
+            var username = User.Identity?.Name;
+            if (string.IsNullOrEmpty(username))
             {
-                var username = User.Identity?.Name;
-                if (string.IsNullOrEmpty(username))
-                {
-                    return Unauthorized();
-                }
-
-                var user = await _repository.FindAsync(u => u.Username == username);
-                var userProfile = user.FirstOrDefault();
-
-                if (userProfile == null)
-                {
-                    return NotFound();
-                }
-
-                return Ok(userProfile);
+                return Unauthorized();
             }
 
-            [HttpGet("roles")]
-            [Authorize(Roles = "WarehouseManager")]
-            public async Task<IActionResult> GetUserRoles(int userId)
+            var users = await _repository.FindAsync(u => u.Username == username);
+            var userProfile = users.FirstOrDefault();
+
+            if (userProfile == null)
             {
-                var userRoles = await _repository.FindAsync(u => u.UserID == userId);
-                return Ok(userRoles);
+                return NotFound();
             }
+
+            return Ok(userProfile);
         }
 
-        protected abstract int GetEntityId(TEntity entity);
+        [HttpGet("user-roles/{userId}")]
+        [Authorize(Roles = "WarehouseManager")]
+        public async Task<IActionResult> GetUserRoles(int userId)
+        {
+            var userRoles = await _repository.FindAsync(u => u.Username.GetHashCode() == userId);
+            return Ok(userRoles);
+        }
+    }
+
+    [Route("api/user-profiles")]
+    [Authorize(Roles = "WarehouseManager,CentralManager")]
+    public class UserProfilesController : BaseController<User, IGenericRepository<User>>
+    {
+        public UserProfilesController(IGenericRepository<User> repository, IUnitOfWork unitOfWork)
+            : base(repository, unitOfWork) { }
+
+        protected override int GetEntityId(User entity) => entity.Username.GetHashCode();
+
+        [HttpGet("profile")]
+        [Authorize]
+        public async Task<IActionResult> GetCurrentUserProfile()
+        {
+            var username = User.Identity?.Name;
+            if (string.IsNullOrEmpty(username))
+            {
+                return Unauthorized();
+            }
+
+            var users = await _repository.FindAsync(u => u.Username == username);
+            var userProfile = users.FirstOrDefault();
+
+            if (userProfile == null)
+            {
+                return NotFound();
+            }
+
+            return Ok(userProfile);
+        }
+
+        [HttpGet("user-roles/{userId}")]
+        [Authorize(Roles = "WarehouseManager")]
+        public async Task<IActionResult> GetUserRoles(int userId)
+        {
+            var userRoles = await _repository.FindAsync(u => u.Username.GetHashCode() == userId);
+            return Ok(userRoles);
+        }
     }
 }

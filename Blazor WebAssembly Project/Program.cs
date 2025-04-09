@@ -16,23 +16,36 @@ namespace Blazor_WebAssembly_Project
         {
             var builder = WebAssemblyHostBuilder.CreateDefault(args);
 
-            // Root components
+            // Configure root components
+            ConfigureRootComponents(builder);
+
+            // Configure services
+            ConfigureServices(builder);
+
+            await builder.Build().RunAsync();
+        }
+
+        private static void ConfigureRootComponents(WebAssemblyHostBuilder builder)
+        {
             builder.RootComponents.Add<App>("#app");
             builder.RootComponents.Add<HeadOutlet>("head::after");
+        }
 
-            // Configure HttpClient with API base address
+        private static void ConfigureServices(WebAssemblyHostBuilder builder)
+        {
+            // HTTP Client
             builder.Services.AddScoped(sp => new HttpClient
             {
-                BaseAddress = new Uri("https://localhost:5191/") // Change to your API address as needed
+                BaseAddress = new Uri("https://localhost:7176/") // Update to match your API base address
             });
 
-            // Local storage (required for authentication)
+            // Local storage
             builder.Services.AddBlazoredLocalStorage();
 
             // JS interop
             builder.Services.AddScoped<IJSRuntimeService, JSRuntimeService>();
 
-            // Authentication services
+            // Authentication
             builder.Services.AddScoped<AuthenticationStateProvider, CustomAuthStateProvider>();
             builder.Services.AddAuthorizationCore();
 
@@ -42,8 +55,6 @@ namespace Blazor_WebAssembly_Project
             builder.Services.AddScoped<ITeamService, TeamService>();
             builder.Services.AddScoped<IEquipmentRequestService, EquipmentRequestService>();
             builder.Services.AddScoped<ICheckoutService, CheckoutService>();
-
-            await builder.Build().RunAsync();
         }
     }
 }

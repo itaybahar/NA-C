@@ -9,7 +9,7 @@ namespace API_Project.Controllers
     [Authorize]
     public class TeamsController : BaseController<Team, IGenericRepository<Team>>
     {
-        public TeamsController(IGenericRepository<Team> repository) : base(repository) { }
+        public TeamsController(IGenericRepository<Team> repository, IUnitOfWork unitOfWork) : base(repository, unitOfWork) { }
 
         protected override int GetEntityId(Team entity) => entity.TeamID;
 

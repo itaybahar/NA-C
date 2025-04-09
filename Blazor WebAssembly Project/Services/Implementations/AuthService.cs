@@ -17,7 +17,7 @@ namespace Blazor_WebAssembly.Services.Implementations
             _localStorage = localStorage;
 
             // ודא שזה תואם לכתובת של ה־API שלך בפועל:
-            _httpClient.BaseAddress = new Uri("https://localhost:5191/api/");
+            _httpClient.BaseAddress = new Uri("https://localhost:5191/");
         }
 
         // ✅ התחברות עם מודל מלא
@@ -36,7 +36,7 @@ namespace Blazor_WebAssembly.Services.Implementations
                 }
             }
 
-            return null;
+            return new AuthenticationResponse { Token = string.Empty, User = null! };
         }
 
         // ✅ התחברות עם שם משתמש וסיסמה
@@ -66,10 +66,19 @@ namespace Blazor_WebAssembly.Services.Implementations
             {
                 Username = username,
                 Email = email,
-                Password = password
+                Password = password,
+                ConfirmPassword = password,
+                Role = "User"
             };
 
             return await RegisterAsync(registerModel);
+        }
+
+        // ✅ שליחת קישור לאיפוס סיסמה
+        public async Task<bool> SendPasswordResetEmail(string email)
+        {
+            var response = await _httpClient.PostAsJsonAsync("auth/send-reset-email", new { Email = email });
+            return response.IsSuccessStatusCode;
         }
 
         // ✅ התנתקות מלאה

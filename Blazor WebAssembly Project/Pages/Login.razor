@@ -1,118 +1,420 @@
 ﻿@page "/login"
+@using System.ComponentModel.DataAnnotations
+@using Blazor_WebAssembly.Services.Interfaces
+@using Blazor_WebAssembly.Models.Auth
+@inject IAuthService AuthService
+@inject NavigationManager Navigation
+@inject Blazored.LocalStorage.ILocalStorageService LocalStorage
+
+<div class="login-container">
+    <div class="login-card">
+        <div class="login-header">
+            <img src="images/logo_png.png.jpg" alt="מחסן הנשיא" class="logo" />
+            <h1 class="login-title">ברוכים הבאים למחסן הנשיא</h1>
+            <p class="login-subtitle">אנא התחבר כדי להמשיך</p>
+        </div>
+
+        @if (!string.IsNullOrEmpty(errorMessage))
+        {
+            <div class="alert alert-danger" role="alert">
+                <i class="fas fa-exclamation-circle me-2"></i>
+                @errorMessage
+            </div>
+        }
+
+        @if (!string.IsNullOrEmpty(successMessage))
+        {
+            <div class="alert alert-success" role="alert">
+                <i class="fas fa-check-circle me-2"></i>
+                @successMessage
+            </div>
+        }
+
+        <div class="login-options">
+            <i class="fas fa-user"></i>
+            <span>התחבר עם משתמש</span>
+            <i class="fab fa-google"></i>
+            <span>התחבר עם Gmail</span>
+        </div>
+
+        <div class="login-forms">
+            @if (activeTab == "regular")
+            {
+                <EditForm Model="loginModel" OnValidSubmit="HandleLogin" class="standard-form">
+                    <DataAnnotationsValidator />
+
+                    <div class="form-floating mb-3">
+                        <InputText id="username" class="form-control" @bind-Value="loginModel.Username" placeholder="שם משתמש" />
+                        <label for="username">שם משתמש</label>
+                        <ValidationMessage For="@(() => loginModel.Username)" class="validation-message" />
+                    </div>
+
+                    <div class="form-floating mb-3">
+                        <InputText id="password" class="form-control" @bind-Value="loginModel.Password" type="password" placeholder="סיסמה" />
+                        <label for="password">סיסמה</label>
+                        <ValidationMessage For="@(() => loginModel.Password)" class="validation-message" />
+                    </div>
+
+                    <div class="d-flex justify-content-between align-items-center mb-3">
+                        <div class="form-check">
+                            <input class="form-check-input" type="checkbox" id="rememberMe" @bind="rememberMe" />
+                            <label class="form-check-label" for="rememberMe">זכור אותי</label>
+                        </div>
+                        <a href="/forgot-password" class="forgot-link">שכחתי סיסמה</a>
+                    </div>
+
+                    <button type="submit" class="btn btn-primary w-100" disabled="@isSubmitting">
+                        @if (isSubmitting)
+                        {
+                            <span class="spinner-border spinner-border-sm me-2" role="status" aria-hidden="true"></span>
+                            <span>מתחבר...</span>
+                        }
+                        else
+                        {
+                            <span>התחבר</span>
+                        }
+                    </button>
+                </EditForm>
+            }
+            else
+            {
+                <div class="google-login-container">
+                    <p class="text-center mb-4">לחץ על הכפתור למטה כדי להתחבר באמצעות חשבון ה-Gmail שלך</p>
+                    <button @onclick="HandleGoogleLogin" class="btn btn-google">
+                        <img src="images/google-logo.png.png" alt="Google Logo" />
+                        <span>התחבר עם Google</span>
+                    </button>
+                </div>
+            }
+        </div>
+
+        <div class="login-footer">
+            <p>עדיין אין לך חשבון? <a href="/register" class="register-link">הירשם עכשיו</a></p>
+        </div>
+    </div>
+</div>
 
 <style>
-    body, html {
-        margin: 0;
-        padding: 0;
-        font-family: 'Arial', sans-serif;
-        background: url('/image.png') no-repeat center center fixed;
-        background-size: cover;
+    /* Global Styles */
+    :root {
+        --primary-color: #2c3e50;
+        --secondary-color: #3498db;
+        --accent-color: #e74c3c;
+        --text-color: #333;
+        --light-bg: #f8f9fa;
+        --card-bg: #ffffff;
+        --input-bg: #f1f3f4;
+        --shadow: 0 10px 20px rgba(0, 0, 0, 0.1);
+    }
+
+    /* Container Setup */
+    .login-container {
+        display: flex;
+        justify-content: center;
+        align-items: center;
+        min-height: 100vh;
+        background: linear-gradient(135deg, var(--primary-color), #34495e);
+        padding: 20px;
         direction: rtl;
     }
 
-    .login-container {
-        width: 350px;
-        margin: 80px auto;
-        background-color: rgba(255, 255, 255, 0.95);
-        padding: 30px;
-        border-radius: 15px;
-        box-shadow: 0 0 15px rgba(0, 0, 0, 0.3);
+    /* Card Styling */
+    .login-card {
+        width: 100%;
+        max-width: 450px;
+        background-color: var(--card-bg);
+        border-radius: 10px;
+        box-shadow: var(--shadow);
+        overflow: hidden;
+    }
+
+    /* Header Section */
+    .login-header {
+        padding: 2rem;
         text-align: center;
+        background: linear-gradient(to right, #f8f9fa, #e9ecef);
     }
 
-        .login-container img.logo {
-            width: 120px;
-            margin-bottom: 20px;
-        }
-
-    h2 {
-        margin-bottom: 5px;
-        color: #a30000;
-        font-size: 24px;
+    .logo {
+        width: 90px;
+        height: 90px;
+        object-fit: contain;
+        margin-bottom: 1rem;
     }
 
-    h4 {
-        margin-bottom: 25px;
-        color: #333;
+    .login-title {
+        color: var(--primary-color);
+        font-size: 1.75rem;
+        margin-bottom: 0.5rem;
+        font-weight: 600;
     }
 
-    input[type="text"],
-    input[type="password"] {
-        width: 100%;
-        padding: 10px;
-        margin: 8px 0;
-        border: 1px solid #ccc;
+    .login-subtitle {
+        color: #6c757d;
+        font-size: 1rem;
+    }
+
+    /* Alert Messages */
+    .alert {
+        margin: 0 1.5rem;
         border-radius: 8px;
+        padding: 0.75rem;
+        margin-bottom: 1rem;
+        display: flex;
+        align-items: center;
     }
 
-    .remember-me {
-        text-align: right;
-        margin-bottom: 10px;
+    /* Login Options Tabs */
+    .login-options {
+        display: flex;
+        justify-content: center;
+        margin: 1.5rem;
+        border-radius: 10px;
+        background-color: var(--input-bg);
+        overflow: hidden;
     }
 
-    .btn-login {
-        width: 100%;
-        background-color: #a30000;
-        color: white;
-        border: none;
-        padding: 10px;
-        font-weight: bold;
-        border-radius: 8px;
+    .login-option {
+        padding: 1rem;
+        flex: 1;
+        text-align: center;
         cursor: pointer;
+        transition: all 0.3s ease;
+        font-weight: 500;
     }
 
-        .btn-login:hover {
-            background-color: #850000;
+        .login-option.active {
+            background-color: var(--secondary-color);
+            color: white;
         }
 
-    .extra-links {
-        margin-top: 15px;
-        font-size: 0.9em;
+        .login-option i {
+            margin-left: 8px;
+        }
+
+    /* Form Container */
+    .login-forms {
+        padding: 0 1.5rem 1.5rem 1.5rem;
     }
 
-        .extra-links a {
-            color: #a30000;
-            text-decoration: none;
-            display: block;
-            margin: 5px 0;
+    /* Form Elements */
+    .form-floating label {
+        right: 1rem;
+        left: auto;
+        transform-origin: right top;
+    }
+
+    .form-floating > .form-control:focus ~ label,
+    .form-floating > .form-control:not(:placeholder-shown) ~ label {
+        transform: scale(0.85) translateY(-0.5rem) translateX(0.15rem);
+    }
+
+    .form-floating > .form-control {
+        height: calc(3.5rem + 2px);
+        padding: 1rem 0.75rem;
+    }
+
+    .form-control {
+        background-color: var(--input-bg);
+        border: none;
+        border-radius: 8px;
+    }
+
+        .form-control:focus {
+            box-shadow: 0 0 0 0.25rem rgba(52, 152, 219, 0.25);
+            border-color: var(--secondary-color);
         }
 
-            .extra-links a:hover {
-                text-decoration: underline;
-            }
+    .validation-message {
+        color: var(--accent-color);
+        font-size: 0.75rem;
+        margin-top: 0.25rem;
+    }
 
-    .footer {
+    .forgot-link {
+        color: var(--secondary-color);
+        text-decoration: none;
+        font-size: 0.875rem;
+    }
+
+        .forgot-link:hover {
+            text-decoration: underline;
+        }
+
+    /* Buttons */
+    .btn-primary {
+        background-color: var(--secondary-color);
+        border: none;
+        padding: 0.75rem;
+        border-radius: 8px;
+        font-weight: 500;
+        transition: all 0.3s ease;
+    }
+
+        .btn-primary:hover {
+            background-color: #2980b9;
+            transform: translateY(-2px);
+        }
+
+        .btn-primary:disabled {
+            background-color: #95a5a6;
+        }
+
+    .btn-google {
+        background-color: white;
+        color: #333;
+        border: 1px solid #ddd;
+        padding: 0.75rem;
+        border-radius: 8px;
+        display: flex;
+        align-items: center;
+        justify-content: center;
+        width: 100%;
+        transition: all 0.3s ease;
+    }
+
+        .btn-google:hover {
+            background-color: #f8f9fa;
+            transform: translateY(-2px);
+            box-shadow: 0 4px 8px rgba(0,0,0,0.1);
+        }
+
+        .btn-google img {
+            width: 20px;
+            margin-left: 12px;
+        }
+
+    /* Google Login Container */
+    .google-login-container {
+        display: flex;
+        flex-direction: column;
+        align-items: center;
+        padding: 1.5rem 0;
+    }
+
+    /* Footer */
+    .login-footer {
         text-align: center;
-        margin-top: 30px;
-        font-size: 0.8em;
-        color: #888;
+        padding: 1.5rem;
+        border-top: 1px solid #eee;
+    }
+
+    .register-link {
+        color: var(--secondary-color);
+        font-weight: 500;
+        text-decoration: none;
+    }
+
+        .register-link:hover {
+            text-decoration: underline;
+        }
+
+    /* Responsive Adjustments */
+    media (max-width: 576px) {
+        .login-card
+
+    {
+        border-radius: 0;
+        box-shadow: none;
+    }
+
+    .login-container {
+        padding: 0;
+    }
+
     }
 </style>
 
-<div class="login-container">
-    <img class="logo" src="/unnamed.jpg" alt="לוגו שבט הנשיא" />
-    <h2>עמוד כניסה</h2>
-    <h4>מחסן שבט הנשיא</h4>
+@code {
+    private Blazor_WebAssembly.Models.Auth.LoginModel loginModel = new();
+    private string errorMessage = string.Empty;
+    private string successMessage = string.Empty;
+    private bool isSubmitting = false;
+    private bool rememberMe = false;
+    private string activeTab = "regular";
 
-    <input type="text" placeholder="שם משתמש" />
-    <input type="password" placeholder="סיסמה" />
+    protected override async Task OnInitializedAsync()
+    {
+        var uri = new Uri(Navigation.Uri);
+        var query = System.Web.HttpUtility.ParseQueryString(uri.Query);
+        var token = query.Get("token");
+        var registered = query.Get("registered");
 
-    <div class="remember-me">
-        <input type="checkbox" id="rememberMe" />
-        <label for="rememberMe">זכור אותי</label>
-    </div>
+        if (!string.IsNullOrEmpty(token))
+        {
+            await LocalStorage.SetItemAsync("authToken", token);
+            await HandleRedirectAfterLogin();
+        }
 
-    <button class="btn-login">התחבר</button>
+        if (!string.IsNullOrEmpty(registered) && registered == "true")
+        {
+            successMessage = "הרשמתך נקלטה בהצלחה! אנא התחבר כדי להמשיך.";
+        }
+    }
 
-    <div class="extra-links">
-        <a href="#">שכחת סיסמה?</a>
-        <a href="#">צריך עזרה?</a>
-        <a href="/register" style="font-weight: bold; color: #0066cc;">
-            אין לך חשבון? לחץ כאן להרשמה
-        </a>
-    </div>
+    private async Task HandleLogin()
+    {
+        isSubmitting = true;
+        errorMessage = string.Empty;
+        successMessage = string.Empty;
 
-    <div class="footer">
-        © 2025 מחסן שבט הנשיא | כל הזכויות שמורות
-    </div>
-</div>
+        try
+        {
+            var result = await AuthService.LoginAsync(loginModel);
+            if (result != null && !string.IsNullOrEmpty(result.Token))
+            {
+                // Store remember me preference if needed
+                if (rememberMe)
+                {
+                    await LocalStorage.SetItemAsync("rememberedUser", loginModel.Username);
+                }
+
+                await HandleRedirectAfterLogin();
+            }
+            else
+            {
+                errorMessage = "שם המשתמש או הסיסמה שגויים.";
+            }
+        }
+        catch (Exception ex)
+        {
+            errorMessage = $"שגיאה: {ex.Message}";
+        }
+
+        isSubmitting = false;
+    }
+
+    private async Task HandleRedirectAfterLogin()
+    {
+        // Get user from localStorage
+        var user = await LocalStorage.GetItemAsync<UserDto>("user");
+
+        if (user == null)
+        {
+            Navigation.NavigateTo("/");
+            return;
+        }
+
+        // Redirect based on user role
+        switch (user.Role?.ToLower())
+        {
+            case "admin":
+                Navigation.NavigateTo("/admin/dashboard");
+                break;
+            case "warehousemanager":
+                Navigation.NavigateTo("/warehouse/manager/dashboard");
+                break;
+            case "warehouseoperator":
+                Navigation.NavigateTo("/warehouse/operator/dashboard");
+                break;
+            default:
+                Navigation.NavigateTo("/user/dashboard");
+                break;
+        }
+    }
+
+    private void HandleGoogleLogin()
+    {
+        Navigation.NavigateTo("https://localhost:7176/auth/login-google", true);
+    }
+}

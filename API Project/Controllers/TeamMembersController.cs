@@ -10,7 +10,7 @@ namespace API_Project.Controllers
     [Authorize(Roles = "WarehouseManager")]
     public class TeamMembersController : BaseController<TeamMember, IGenericRepository<TeamMember>>
     {
-        public TeamMembersController(IGenericRepository<TeamMember> repository) : base(repository) { }
+        public TeamMembersController(IGenericRepository<TeamMember> repository, IUnitOfWork unitOfWork) : base(repository, unitOfWork) { }
 
         protected override int GetEntityId(TeamMember entity) => entity.TeamID; // Assuming composite key
 

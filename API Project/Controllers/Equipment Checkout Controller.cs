@@ -3,14 +3,14 @@ using Microsoft.AspNetCore.Authorization;
 using Domain_Project.Interfaces;
 using Domain_Project.Models;
 
+
 namespace API_Project.Controllers
 {
     [Route("api/[controller]")]
     [Authorize(Roles = "WarehouseOperative,WarehouseManager")]
     public class EquipmentCheckoutController : BaseController<EquipmentCheckout, IGenericRepository<EquipmentCheckout>>
     {
-        public EquipmentCheckoutController(IGenericRepository<EquipmentCheckout> repository) : base(repository) { }
-
+        public EquipmentCheckoutController(IGenericRepository<EquipmentCheckout> repository, IUnitOfWork unitOfWork) : base(repository, unitOfWork) {}
         protected override int GetEntityId(EquipmentCheckout entity) => entity.CheckoutID;
 
         [HttpGet("active")]
@@ -41,9 +41,9 @@ namespace API_Project.Controllers
             checkout.ActualReturnDate = DateTime.UtcNow;
 
             await _repository.UpdateAsync(checkout);
-            await _repository.SaveChangesAsync();
+            await _repository.SaveChangesAsync(checkout);
 
             return Ok(checkout);
-        }
+        }            
     }
 }

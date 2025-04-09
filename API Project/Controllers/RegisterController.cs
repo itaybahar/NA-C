@@ -37,10 +37,10 @@ namespace API_Project.Controllers
 
             var user = new User
             {
-                UserName = model.Username,
+                Username = model.Username, // Corrected property name
                 Email = model.Email
             };
-
+            
             var result = await _userManager.CreateAsync(user, model.Password);
             if (!result.Succeeded)
                 return BadRequest(result.Errors);

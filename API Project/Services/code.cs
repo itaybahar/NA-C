@@ -1,69 +1,155 @@
-﻿using System;
-using System.IdentityModel.Tokens.Jwt;
-using System.Security.Claims;
-using System.Security.Cryptography;
-using System.Text;
-using System.Threading.Tasks;
-using Microsoft.EntityFrameworkCore;
-using Microsoft.IdentityModel.Tokens;
-
-// Project-specific namespaces
+﻿using Domain_Project.DTOs;
 using Domain_Project.Interfaces;
 using Domain_Project.Models;
-using Domain_Project.DTOs;
-using API_Project.Data;
+using Microsoft.AspNetCore.Authentication;
+using Microsoft.IdentityModel.Tokens;
+using System.IdentityModel.Tokens.Jwt;
+using System.Net.Http;
+using System.Net.Http.Json;
+using System.Security.Claims;
+using System.Security.Cryptography;
+using System.Text.Json;
 
 namespace API_Project.Services
 {
-    public interface IAuthenticationService
+    public class GoogleUserInfo
     {
-        Task<AuthenticationResponseDto> AuthenticateAsync(UserLoginDto loginDto);
-        Task<UserDto> RegisterUserAsync(UserDto userDto, string password);
+        public string Id { get; set; } = string.Empty;
+        public string Email { get; set; } = string.Empty;
+        public bool VerifiedEmail { get; set; }
+        public string Name { get; set; } = string.Empty;
+        public string GivenName { get; set; } = string.Empty;
+        public string FamilyName { get; set; } = string.Empty;
+        public string Picture { get; set; } = string.Empty;
     }
 
-    public class AuthenticationService : IAuthenticationService
+    public class AuthenticationResponseDto
+    {
+        public required string Token { get; set; }
+        public required UserDto User { get; set; }
+    }
+
+    public class AuthenticationService : Domain_Project.Interfaces.IAuthenticationService
     {
         private readonly IUserRepository _userRepository;
-        private readonly AuthenticationSettings _authSettings;
-        private Configuration.AuthenticationSettings authSettings;
+        private readonly Configuration.AuthenticationSettings _authSettings;
+        private readonly IEmailService _emailService;
+        private readonly IHttpClientFactory _httpClientFactory;
 
-        public AuthenticationService(
-            IUserRepository userRepository,
-            AuthenticationSettings authSettings)
+        public AuthenticationService(IUserRepository userRepository,
+                                     Configuration.AuthenticationSettings authSettings,
+                                     IEmailService emailService,
+                                     IHttpClientFactory httpClientFactory)
         {
             _userRepository = userRepository;
             _authSettings = authSettings;
+            _emailService = emailService;
+            _httpClientFactory = httpClientFactory;
         }
 
-        public AuthenticationService(IUserRepository userRepository, Configuration.AuthenticationSettings authSettings)
+        public async Task<AuthenticationResponseDto> AuthenticateAsync(string email, UserLoginDto loginDto)
         {
-            _userRepository = userRepository;
-            this.authSettings = authSettings;
+            var user = await _userRepository.GetUserByEmailAsync(email);
+            if (user == null)
+                throw new UnauthorizedAccessException("Email not found");
+
+            return await AuthenticateInternalAsync(user, loginDto.Password);
         }
 
         public async Task<AuthenticationResponseDto> AuthenticateAsync(UserLoginDto loginDto)
         {
-            // Validate credentials
-            var isValidUser = await _userRepository.ValidateUserCredentialsAsync(
-                loginDto.Username,
-                loginDto.Password
-            );
+            var user = await _userRepository.GetUserByUsernameAsync(loginDto.Username);
+            if (user == null)
+                throw new UnauthorizedAccessException("Username not found");
 
-            if (!isValidUser)
+            return await AuthenticateInternalAsync(user, loginDto.Password);
+        }
+
+        public async Task<AuthenticationResponseDto> AuthenticateWithGoogleAsync(string googleToken)
+        {
+            // Verify the Google token and get user info
+            var googleUserInfo = await VerifyGoogleTokenAsync(googleToken);
+            if (googleUserInfo == null)
+                throw new UnauthorizedAccessException("Invalid Google token");
+
+            // Check if user exists by email
+            var user = await _userRepository.GetUserByEmailAsync(googleUserInfo.Email);
+
+            // If user doesn't exist, create a new one
+            if (user == null)
             {
-                throw new UnauthorizedAccessException("Invalid username or password");
+                user = new User
+                {
+                    Email = googleUserInfo.Email,
+                    Username = googleUserInfo.Email, // Use email as username initially
+                    FirstName = googleUserInfo.GivenName,
+                    LastName = googleUserInfo.FamilyName,
+                    CreatedDate = DateTime.UtcNow,
+                    IsActive = true,
+                    // Set a random password since user will login via Google
+                    PasswordHash = Convert.ToBase64String(RandomNumberGenerator.GetBytes(32)),
+                    Role = "User" // Default role
+                };
+
+                user = await _userRepository.AddAsync(user);
+                await _userRepository.SaveChangesAsync();
             }
 
-            // Get user details
-            var user = await _userRepository.GetUserByUsernameAsync(loginDto.Username);
+            // Update login timestamp
+            user.LastLoginDate = DateTime.UtcNow;
+            await _userRepository.UpdateAsync(user);
+            await _userRepository.SaveChangesAsync();
 
-            // Get user roles
+            // Generate token and return response
             var userRoles = await _userRepository.GetUserRolesAsync(user.UserID);
-
-            // Generate token
             var token = GenerateJwtToken(user, userRoles);
 
-            // Update last login date
+            return new AuthenticationResponseDto
+            {
+                Token = token,
+                User = new UserDto
+                {
+                    UserID = user.UserID,
+                    Username = user.Username,
+                    Email = user.Email,
+                    FirstName = user.FirstName,
+                    LastName = user.LastName,
+                    Role = user.Role ?? string.Empty
+                }
+            };
+        }
+
+        private async Task<GoogleUserInfo?> VerifyGoogleTokenAsync(string token)
+        {
+            try
+            {
+                var httpClient = _httpClientFactory.CreateClient();
+                var response = await httpClient.GetAsync($"https://www.googleapis.com/oauth2/v3/tokeninfo?id_token={token}");
+
+                if (!response.IsSuccessStatusCode)
+                    return null;
+
+                var userInfo = await response.Content.ReadFromJsonAsync<GoogleUserInfo>();
+                if (userInfo == null || string.IsNullOrEmpty(userInfo.Email) || !userInfo.VerifiedEmail)
+                    return null;
+
+                return userInfo;
+            }
+            catch
+            {
+                return null;
+            }
+        }
+
+        private async Task<AuthenticationResponseDto> AuthenticateInternalAsync(User user, string password)
+        {
+            var isValid = await _userRepository.ValidateUserCredentialsAsync(user.Username, password);
+            if (!isValid)
+                throw new UnauthorizedAccessException("Invalid password");
+
+            var userRoles = await _userRepository.GetUserRolesAsync(user.UserID);
+            var token = GenerateJwtToken(user, userRoles);
+
             user.LastLoginDate = DateTime.UtcNow;
             await _userRepository.UpdateAsync(user);
             await _userRepository.SaveChangesAsync();
@@ -77,45 +163,76 @@ namespace API_Project.Services
                     Username = user.Username,
                     Email = user.Email,
                     FirstName = user.FirstName,
-                    LastName = user.LastName
+                    LastName = user.LastName,
+                    Role = user.Role ?? string.Empty
                 }
             };
         }
 
-        public async Task<UserDto> RegisterUserAsync(UserDto userDto, string password)
+        public async Task RegisterUserAsync(UserDto userDto, string password)
         {
-            // Check if username already exists
-            var existingUser = await _userRepository.GetUserByUsernameAsync(userDto.Username);
-            if (existingUser != null)
-            {
-                throw new InvalidOperationException("Username already exists");
-            }
+            if (await _userRepository.GetUserByEmailAsync(userDto.Email) != null)
+                throw new InvalidOperationException("Email is already in use");
 
-            // Create new user
+            if (await _userRepository.GetUserByUsernameAsync(userDto.Username) != null)
+                throw new InvalidOperationException("Username is already taken");
+
             var newUser = new User
             {
                 Username = userDto.Username,
                 Email = userDto.Email,
-                FirstName = userDto.FirstName,
-                LastName = userDto.LastName,
-                PasswordHash = HashPassword(password), // Hash the password
+                FirstName = string.Empty,
+                LastName = string.Empty,
+                CreatedDate = DateTime.UtcNow,
                 IsActive = true,
-                CreatedDate = DateTime.UtcNow
+                PasswordHash = password, // Will be hashed by repo
+                Role = "User" // Force "User" role regardless of what was sent in the DTO
             };
 
-            // Save user
-            await _userRepository.AddAsync(newUser);
+            var createdUser = await _userRepository.AddAsync(newUser);
+            await _userRepository.SaveChangesAsync();
+        }
+
+
+        public async Task SendPasswordResetEmailAsync(string email)
+        {
+            var user = await _userRepository.GetUserByEmailAsync(email);
+            if (user == null)
+                return;
+
+            var token = Convert.ToBase64String(RandomNumberGenerator.GetBytes(64));
+            user.PasswordResetToken = token;
+            user.PasswordResetExpiration = DateTime.UtcNow.AddHours(24);
+
+            await _userRepository.UpdateAsync(user);
             await _userRepository.SaveChangesAsync();
 
-            // Return DTO
-            return new UserDto
-            {
-                UserID = newUser.UserID,
-                Username = newUser.Username,
-                Email = newUser.Email,
-                FirstName = newUser.FirstName,
-                LastName = newUser.LastName
-            };
+            var subject = "Password Reset Request";
+            var body = $"Please use the following token to reset your password: {token}";
+
+            await _emailService.SendEmailAsync(user.Email, subject, body);
+        }
+
+        public async Task<bool> ResetPasswordAsync(string token, string newPassword)
+        {
+            var user = await _userRepository.GetUserByResetTokenAsync(token);
+            if (user == null || user.PasswordResetExpiration < DateTime.UtcNow)
+                return false;
+
+            user.PasswordHash = newPassword;
+            user.PasswordResetToken = null;
+            user.PasswordResetExpiration = DateTime.MinValue;
+
+            await _userRepository.UpdateAsync(user);
+            await _userRepository.SaveChangesAsync();
+
+            return true;
+        }
+
+        public string GenerateJwtToken(User user)
+        {
+            var roles = _userRepository.GetUserRolesAsync(user.UserID).Result;
+            return GenerateJwtToken(user, roles);
         }
 
         private string GenerateJwtToken(User user, IEnumerable<UserRole> roles)
@@ -127,11 +244,14 @@ namespace API_Project.Services
                 new Claim(JwtRegisteredClaimNames.Email, user.Email)
             };
 
-            // Add roles as claims
-            foreach (var role in roles)
+            // Add Role claim from user.Role if it exists
+            if (!string.IsNullOrEmpty(user.Role))
             {
-                claims.Add(new Claim(ClaimTypes.Role, role.RoleName));
+                claims.Add(new Claim(ClaimTypes.Role, user.Role));
             }
+
+            // Add any additional roles from the roles collection
+            claims.AddRange(roles.Select(role => new Claim(ClaimTypes.Role, role.RoleName)));
 
             var credentials = new SigningCredentials(
                 _authSettings.GetSymmetricSecurityKey(),
@@ -149,44 +269,9 @@ namespace API_Project.Services
             return new JwtSecurityTokenHandler().WriteToken(token);
         }
 
-        // Password hashing utility methods
-        private string HashPassword(string password)
+        public bool ValidatePassword(User user, string password)
         {
-            using (var sha256 = SHA256.Create())
-            {
-                var hashedBytes = sha256.ComputeHash(Encoding.UTF8.GetBytes(password));
-                return Convert.ToBase64String(hashedBytes);
-            }
-        }
-
-        private bool VerifyPasswordHash(string inputPassword, string storedHash)
-        {
-            var inputHash = HashPassword(inputPassword);
-            return inputHash == storedHash;
-        }
-    }
-
-    // Additional DTOs for authentication
-    public class AuthenticationResponseDto
-    {
-        public string Token { get; set; }
-        public UserDto User { get; set; }
-    }
-
-    // Remove the duplicate AuthenticationService class
-    // The second implementation was redundant and should be deleted
-
-    // Authentication settings class
-    public class AuthenticationSettings
-    {
-        public string SecretKey { get; set; }
-        public string Issuer { get; set; }
-        public string Audience { get; set; }
-        public int ExpirationInMinutes { get; set; }
-
-        public SymmetricSecurityKey GetSymmetricSecurityKey()
-        {
-            return new SymmetricSecurityKey(Encoding.UTF8.GetBytes(SecretKey));
+            throw new NotImplementedException();
         }
     }
 }
