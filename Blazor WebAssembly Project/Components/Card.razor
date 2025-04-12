@@ -1,0 +1,56 @@
+﻿@namespace Blazor_WebAssembly_Project.Components
+
+<div class="card @CssClass">
+    @if (HasHeader)
+    {
+        <div class="card-header">
+            @CardHeader
+        </div>
+    }
+
+    <div class="card-body">
+        @if (!string.IsNullOrEmpty(Title))
+        {
+            <h5 class="card-title">@Title</h5>
+        }
+
+        @if (!string.IsNullOrEmpty(Subtitle))
+        {
+            <h6 class="card-subtitle mb-2 text-muted">@Subtitle</h6>
+        }
+
+        <div class="card-text">
+            @ChildContent
+        </div>
+    </div>
+
+    @if (HasFooter)
+    {
+        <div class="card-footer">
+            @CardFooter
+        </div>
+    }
+</div>
+
+@code {
+    [Parameter]
+    public string? Title { get; set; }
+
+    [Parameter]
+    public string? Subtitle { get; set; }
+
+    [Parameter]
+    public string CssClass { get; set; } = "";
+
+    [Parameter]
+    public RenderFragment? CardHeader { get; set; }
+
+    [Parameter]
+    public RenderFragment? CardFooter { get; set; }
+
+    [Parameter]
+    public RenderFragment? ChildContent { get; set; }
+
+    private bool HasHeader => CardHeader != null;
+    private bool HasFooter => CardFooter != null;
+}

@@ -2,12 +2,6 @@
 using System.Net;
 using System.Net.Mail;
 
-using Domain_Project.Interfaces;
-using Microsoft.Extensions.Configuration;
-using System.Net;
-using System.Net.Mail;
-using System.Threading.Tasks;
-
 namespace API_Project.Services
 {
     public class EmailService : IEmailService
@@ -22,10 +16,22 @@ namespace API_Project.Services
         public async Task SendEmailAsync(string toEmail, string subject, string body)
         {
             var smtpHost = _configuration["Email:Smtp:Host"];
-            var smtpPort = int.Parse(_configuration["Email:Smtp:Port"]);
+            var smtpPortString = _configuration["Email:Smtp:Port"];
             var smtpUser = _configuration["Email:Smtp:Username"];
             var smtpPass = _configuration["Email:Smtp:Password"];
             var fromEmail = _configuration["Email:From"];
+
+            if (string.IsNullOrEmpty(smtpHost) || string.IsNullOrEmpty(smtpPortString) ||
+                string.IsNullOrEmpty(smtpUser) || string.IsNullOrEmpty(smtpPass) ||
+                string.IsNullOrEmpty(fromEmail))
+            {
+                throw new InvalidOperationException("Email configuration is missing or invalid.");
+            }
+
+            if (!int.TryParse(smtpPortString, out var smtpPort))
+            {
+                throw new InvalidOperationException("SMTP port configuration is invalid.");
+            }
 
             using (var client = new SmtpClient(smtpHost, smtpPort))
             {

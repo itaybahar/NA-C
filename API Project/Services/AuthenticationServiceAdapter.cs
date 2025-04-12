@@ -1,4 +1,4 @@
-﻿// Complete implementation of AuthenticationServiceAdapter with conversion between DTO types
+﻿using API_Project.Services;
 using Domain_Project.DTOs;
 using Domain_Project.Interfaces;
 using Domain_Project.Models;
@@ -24,17 +24,56 @@ public class AuthenticationServiceAdapter : Domain_Project.Interfaces.IAuthentic
         await _authService.RegisterUserAsync(userDto, password);
     }
 
-    // Properly implemented with correct parameter handling
     public async Task<Domain_Project.DTOs.AuthenticationResponseDto> AuthenticateAsync(UserLoginDto loginDto)
     {
-        var result = await _authService.AuthenticateAsync(loginDto);
-        return ConvertToAuthResponseDto(result);
+        // Get the user
+        var user = await _userRepository.GetUserByUsernameAsync(loginDto.Username);
+
+        // Check if user exists
+        if (user == null)
+        {
+            return Domain_Project.DTOs.AuthenticationResponseDto.CreateFailedResponse();
+        }
+
+        // Validate credentials
+        var isValid = await _userRepository.ValidateUserCredentialsAsync(user.Username, loginDto.Password);
+        if (!isValid)
+        {
+            return Domain_Project.DTOs.AuthenticationResponseDto.CreateFailedResponse();
+        }
+
+        // Continue with authentication
+        var roles = await _userRepository.GetUserRolesAsync(user.UserID);
+        var token = _authService.GenerateJwtToken(user);
+
+        // Update last login date
+        user.LastLoginDate = DateTime.UtcNow;
+        await _userRepository.UpdateAsync(user);
+        await _userRepository.SaveChangesAsync();
+
+        // Create API layer DTO
+        var apiResponse = new API_Project.Services.AuthenticationResponseDto
+        {
+            Token = token,
+            User = new UserDto
+            {
+                UserID = user.UserID,
+                Username = user.Username,
+                Email = user.Email,
+                FirstName = user.FirstName,
+                LastName = user.LastName,
+                Role = user.Role ?? "User" // Default to "User" if role is null
+            }
+        };
+
+        // Convert to Domain layer DTO
+        return Domain_Project.DTOs.AuthenticationResponseDto.FromApiDto(apiResponse);
     }
 
     public async Task<Domain_Project.DTOs.AuthenticationResponseDto> AuthenticateWithGoogleAsync(string googleToken)
     {
         var result = await _authService.AuthenticateWithGoogleAsync(googleToken);
-        return ConvertToAuthResponseDto(result);
+        return Domain_Project.DTOs.AuthenticationResponseDto.FromApiDto(result);
     }
 
     public async Task SendPasswordResetEmailAsync(string email)
@@ -51,13 +90,9 @@ public class AuthenticationServiceAdapter : Domain_Project.Interfaces.IAuthentic
     private static Domain_Project.DTOs.AuthenticationResponseDto ConvertToAuthResponseDto(API_Project.Services.AuthenticationResponseDto source)
     {
         if (source == null)
-            return null;
+            throw new ArgumentNullException(nameof(source));
 
-        return new Domain_Project.DTOs.AuthenticationResponseDto
-        {
-            Token = source.Token,
-            User = source.User
-        };
+        return Domain_Project.DTOs.AuthenticationResponseDto.FromApiDto(source);
     }
 
     // Implement ValidatePassword method using the UserRepository

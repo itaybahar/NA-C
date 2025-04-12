@@ -14,29 +14,34 @@ namespace Blazor_WebAssembly.Services
         {
             _jsRuntime = jsRuntime;
         }
-
         public override async Task<AuthenticationState> GetAuthenticationStateAsync()
         {
+            string savedToken = string.Empty;
             try
             {
                 Console.WriteLine("🔍 Checking token in local storage...");
-                var savedToken = await _jsRuntime.GetItemFromLocalStorage(TokenStorageKey);
+                savedToken = await _jsRuntime.GetItemFromLocalStorage(TokenStorageKey);
 
                 if (string.IsNullOrWhiteSpace(savedToken))
                 {
                     Console.WriteLine("❌ Token not found in local storage.");
-                    return new AuthenticationState(new ClaimsPrincipal(new ClaimsIdentity()));
+                    var anonymousPrincipal = new ClaimsPrincipal(new ClaimsIdentity());
+                    return new AuthenticationState(anonymousPrincipal);
                 }
 
                 Console.WriteLine("✅ Token found, parsing claims...");
-                return new AuthenticationState(new ClaimsPrincipal(new ClaimsIdentity(ParseClaimsFromJwt(savedToken), "jwt")));
+                var claimsPrincipal = new ClaimsPrincipal(new ClaimsIdentity(ParseClaimsFromJwt(savedToken), "jwt"));
+                Console.WriteLine("User roles: " + string.Join(", ", claimsPrincipal.Claims.Where(c => c.Type == ClaimTypes.Role).Select(c => c.Value)));
+                return new AuthenticationState(claimsPrincipal);
             }
             catch (Exception ex)
             {
                 Console.WriteLine("⚠️ Error loading authentication state: " + ex.Message);
-                return new AuthenticationState(new ClaimsPrincipal(new ClaimsIdentity()));
+                var anonymousPrincipal = new ClaimsPrincipal(new ClaimsIdentity());
+                return new AuthenticationState(anonymousPrincipal);
             }
         }
+
 
         public async Task MarkUserAsAuthenticated(string token)
         {
@@ -52,7 +57,6 @@ namespace Blazor_WebAssembly.Services
             await _jsRuntime.RemoveItemFromLocalStorage(TokenStorageKey);
             NotifyAuthenticationStateChanged(Task.FromResult(new AuthenticationState(new ClaimsPrincipal(new ClaimsIdentity()))));
         }
-
         private IEnumerable<Claim> ParseClaimsFromJwt(string jwt)
         {
             var claims = new List<Claim>();
@@ -71,9 +75,29 @@ namespace Blazor_WebAssembly.Services
             if (keyValuePairs.TryGetValue("email", out var email))
                 claims.Add(new Claim(ClaimTypes.Email, email.ToString() ?? string.Empty));
 
-            if (keyValuePairs.TryGetValue("role", out var roles))
+            if (keyValuePairs.TryGetValue("role", out var roles) || keyValuePairs.TryGetValue(ClaimTypes.Role, out roles))
             {
                 if (roles is JsonElement element)
+                {
+                    if (element.ValueKind == JsonValueKind.Array)
+                    {
+                        foreach (var role in element.EnumerateArray())
+                            claims.Add(new Claim(ClaimTypes.Role, role.GetString() ?? string.Empty));
+                    }
+                    else
+                    {
+                        claims.Add(new Claim(ClaimTypes.Role, roles.ToString() ?? string.Empty));
+                    }
+                }
+                else
+                {
+                    claims.Add(new Claim(ClaimTypes.Role, roles.ToString()?.Trim() ?? string.Empty));
+                }
+            }
+            else if (keyValuePairs.TryGetValue("roles", out var rolesAlternative))
+            {
+                // Handle alternative role claim name
+                if (rolesAlternative is JsonElement element)
                 {
                     if (element.ValueKind == JsonValueKind.Array)
                     {
@@ -87,12 +111,14 @@ namespace Blazor_WebAssembly.Services
                 }
                 else
                 {
-                    claims.Add(new Claim(ClaimTypes.Role, roles.ToString() ?? string.Empty));
+                    claims.Add(new Claim(ClaimTypes.Role, rolesAlternative.ToString()?.Trim() ?? string.Empty));
                 }
             }
 
+            // Ensure all code paths return a value
             return claims;
         }
+
 
         private byte[] ParseBase64WithoutPadding(string base64)
         {

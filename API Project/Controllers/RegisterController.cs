@@ -1,9 +1,9 @@
 ﻿using Domain_Project.DTOs;
-using Domain_Project.Models;
-using Microsoft.AspNetCore.Identity;
+using Domain_Project.Interfaces;
+using Domain_Project.Models.Request;
 using Microsoft.AspNetCore.Mvc;
+using System.Text.Json;
 using System.Threading.Tasks;
-using static Domain_Project.DTOs.TeamMemberDto;
 
 namespace API_Project.Controllers
 {
@@ -11,49 +11,42 @@ namespace API_Project.Controllers
     [Route("api/[controller]")]
     public class RegisterController : ControllerBase
     {
-        private readonly UserManager<User> _userManager;
-        private readonly RoleManager<IdentityRole> _roleManager;
-        private readonly SignInManager<User> _signInManager;
+        private readonly IAuthenticationService _authService;
 
-        public RegisterController(
-            UserManager<User> userManager,
-            RoleManager<IdentityRole> roleManager,
-            SignInManager<User> signInManager)
+        public RegisterController(IAuthenticationService authService)
         {
-            _userManager = userManager;
-            _roleManager = roleManager;
-            _signInManager = signInManager;
+            _authService = authService;
         }
-
         [HttpPost]
-        public async Task<IActionResult> Register([FromBody] RegisterDto model)
+        public async Task<IActionResult> Register([FromBody] RegisterRequest request)
         {
+
+            using var reader = new StreamReader(Request.Body);
+            var rawRequestBody = await reader.ReadToEndAsync();
+            Console.WriteLine($"Raw Request Body: {rawRequestBody}");
+
             if (!ModelState.IsValid)
                 return BadRequest(ModelState);
 
-            var existingUser = await _userManager.FindByNameAsync(model.Username);
-            if (existingUser != null)
-                return BadRequest("Username already exists.");
-
-            var user = new User
+            try
             {
-                Username = model.Username, // Corrected property name
-                Email = model.Email
-            };
-            
-            var result = await _userManager.CreateAsync(user, model.Password);
-            if (!result.Succeeded)
-                return BadRequest(result.Errors);
+                var userDto = new UserDto
+                {
+                    Username = request.Username,
+                    Email = request.Email,
+                    Role = string.IsNullOrEmpty(request.Role) ? "User" : request.Role,
+                    FirstName = string.Empty,
+                    LastName = string.Empty
+                };
 
-            if (!await _roleManager.RoleExistsAsync(model.Role))
-            {
-                await _roleManager.CreateAsync(new IdentityRole(model.Role));
+                await _authService.RegisterUserAsync(userDto, request.Password);
+                return Ok(new { message = "Registration successful" });
             }
-
-            await _userManager.AddToRoleAsync(user, model.Role);
-            await _signInManager.SignInAsync(user, isPersistent: false);
-
-            return Ok(new { Message = "User registered successfully." });
+            catch (Exception ex)
+            {
+                return BadRequest(new { message = ex.Message });
+            }
         }
+
     }
 }

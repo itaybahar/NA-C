@@ -1,11 +1,12 @@
-﻿using Microsoft.EntityFrameworkCore;
-using API_Project.Data;
+﻿using API_Project.Data;
 using Domain_Project.Interfaces;
+using Microsoft.EntityFrameworkCore;
 using System;
 using System.Collections.Generic;
 using System.Linq;
 using System.Linq.Expressions;
 using System.Threading.Tasks;
+using System.ComponentModel.DataAnnotations.Schema; // Add this for NotMapped attribute
 
 namespace API_Project.Repositories
 {
@@ -24,8 +25,7 @@ namespace API_Project.Repositories
         {
             return await _dbSet.FindAsync(id) ?? throw new KeyNotFoundException($"Entity with id {id} not found");
         }
-
-        public virtual async Task<IReadOnlyList<T>> GetAllAsync()
+        public virtual async Task<List<T>> GetAllAsync()
         {
             return await _dbSet.ToListAsync();
         }
@@ -34,7 +34,6 @@ namespace API_Project.Repositories
         {
             return await _dbSet.Where(predicate).ToListAsync();
         }
-
         public virtual async Task<T> AddAsync(T entity)
         {
             await _dbSet.AddAsync(entity);
@@ -45,13 +44,13 @@ namespace API_Project.Repositories
         public virtual async Task UpdateAsync(T entity)
         {
             _dbSet.Update(entity);
-            await Task.CompletedTask;
+            await _context.SaveChangesAsync();
         }
 
         public virtual async Task DeleteAsync(T entity)
         {
             _dbSet.Remove(entity);
-            await Task.CompletedTask;
+            await _context.SaveChangesAsync();
         }
 
         public virtual async Task SaveChangesAsync(T entity)

@@ -1,4 +1,5 @@
-﻿using System.Threading.Tasks;
+﻿using System.Collections.Generic;
+using System.Threading.Tasks;
 using Blazor_WebAssembly.Models.Equipment;
 
 namespace Blazor_WebAssembly.Services.Interfaces
@@ -9,5 +10,8 @@ namespace Blazor_WebAssembly.Services.Interfaces
         Task<bool> CreateEquipmentRequestAsync(EquipmentRequestModel request);
         Task<bool> ApproveRequestAsync(int requestId);
         Task<bool> RejectRequestAsync(int requestId, string reason);
+
+        // Added the missing method
+        Task SendEquipmentRequestAsync(string message);
     }
 }

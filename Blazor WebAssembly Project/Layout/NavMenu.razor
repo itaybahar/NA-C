@@ -1,4 +1,5 @@
 ﻿@using Microsoft.AspNetCore.Components.Authorization
+@using System.Security.Claims
 
 <div class="top-row ps-3 navbar navbar-dark">
     <div class="container-fluid">
@@ -9,7 +10,7 @@
     </div>
 </div>
 
-<div class="@NavMenuCssClass nav-scrollable" @onclick="ToggleNavMenu">
+<div class="@NavMenuCssClass nav-scrollable">
     <nav class="flex-column">
         <AuthorizeView Context="MainNavAuth">
             <Authorized Context="MainNavAuthContext">
@@ -43,7 +44,7 @@
                     </NavLink>
                 </div>
 
-                <AuthorizeView Roles="Admin,Manager" Context="AdminAuth">
+                <AuthorizeView Roles="Admin,Manager">
                     <Authorized Context="AdminAuthContext">
                         <div class="nav-item px-3">
                             <NavLink class="nav-link" href="Reports">
@@ -74,7 +75,13 @@
                                 <span class="bi bi-clock" aria-hidden="true"></span> Audit Log
                             </NavLink>
                         </div>
+
+                        <p>Authenticated as: @(AdminAuthContext?.User?.Identity?.Name ?? "Unknown")</p>
+                        <p>Roles: @string.Join(", ", AdminAuthContext?.User?.Claims?.Where(c => c.Type == ClaimTypes.Role).Select(c => c.Value) ?? Enumerable.Empty<string>())</p>
                     </Authorized>
+                    <NotAuthorized>
+                        <p>You are not authorized.</p>
+                    </NotAuthorized>
                 </AuthorizeView>
             </Authorized>
             <NotAuthorized Context="NotAuthContext">

@@ -1,30 +1,30 @@
 ﻿using System.ComponentModel.DataAnnotations;
+using System.Text.Json.Serialization;
 
 namespace Blazor_WebAssembly.Models.Equipment
 {
     public class EquipmentModel
     {
+        // Use [JsonPropertyName] attributes to map from API's property names
+        [JsonPropertyName("id")]
         public int EquipmentID { get; set; }
 
-        [Required(ErrorMessage = "Equipment name is required")]
-        [StringLength(100)]
-        public string Name { get; set; }
+        [JsonPropertyName("name")]
+        public required string Name { get; set; } = string.Empty;
 
-        [StringLength(200)]
-        public string Description { get; set; }
+        public string? Description { get; set; }
 
-        [Required(ErrorMessage = "Category is required")]
-        public int CategoryID { get; set; }
+        public string? SerialNumber { get; set; }
 
-        [StringLength(50)]
-        public string SerialNumber { get; set; }
+        public int Value { get; set; }
 
-        public DateTime? PurchaseDate { get; set; }
+        [JsonPropertyName("status")]
+        public string Status { get; set; } = string.Empty;
 
-        [Range(0, double.MaxValue, ErrorMessage = "Value must be a positive number")]
-        public decimal? Value { get; set; }
+        [JsonPropertyName("quantity")]
+        public int Quantity { get; set; }
 
-        [Required]
-        public string Status { get; set; } = "Available";
+        [JsonPropertyName("storageLocation")]
+        public string StorageLocation { get; set; } = string.Empty;
     }
 }

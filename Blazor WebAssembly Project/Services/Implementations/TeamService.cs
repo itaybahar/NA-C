@@ -1,7 +1,10 @@
-﻿using System.Net.Http.Json;
-using Blazor_WebAssembly.Models.Team;
+﻿using System.Net.Http;
+using System.Net.Http.Json; // Added for GetFromJsonAsync, PostAsJsonAsync, and PutAsJsonAsync
+using System.Collections.Generic;
+using System.Threading.Tasks;
 using Blazor_WebAssembly.Services.Interfaces;
-using Blazor_WebAssembly_Project.Pages;
+using Domain_Project.DTOs; // Added for TeamDto
+using Blazor_WebAssembly.Models.Team; // Added for TeamModel and TeamMemberModel
 
 namespace Blazor_WebAssembly.Services.Implementations
 {
@@ -12,121 +15,80 @@ namespace Blazor_WebAssembly.Services.Implementations
         public TeamService(HttpClient httpClient)
         {
             _httpClient = httpClient;
-            _httpClient.BaseAddress = new Uri("https://localhost:7235/api/");
+        }
+
+        public async Task<List<TeamDto>> GetTeamsAsync()
+        {
+            return await _httpClient.GetFromJsonAsync<List<TeamDto>>("api/teams") ?? new List<TeamDto>();
         }
 
         public async Task<List<TeamModel>> GetAllTeamsAsync()
         {
-            try
-            {
-                return await _httpClient.GetFromJsonAsync<List<TeamModel>>("teams");
-            }
-            catch (Exception ex)
-            {
-                // Log the exception
-                return new List<TeamModel>();
-            }
+            return await _httpClient.GetFromJsonAsync<List<TeamModel>>("api/teams/details") ?? new List<TeamModel>();
         }
 
         public async Task<TeamModel> GetTeamByIdAsync(int id)
         {
-            try
-            {
-                return await _httpClient.GetFromJsonAsync<TeamModel>($"teams/{id}");
-            }
-            catch (Exception ex)
-            {
-                // Log the exception
-                return null;
-            }
+            var team = await _httpClient.GetFromJsonAsync<TeamModel>($"api/teams/{id}");
+            return team ?? new TeamModel { TeamName = string.Empty }; // Ensure required property is set
         }
 
         public async Task<bool> CreateTeamAsync(TeamModel team)
         {
-            try
-            {
-                var response = await _httpClient.PostAsJsonAsync("teams", team);
-                return response.IsSuccessStatusCode;
-            }
-            catch (Exception ex)
-            {
-                // Log the exception
-                return false;
-            }
+            var response = await _httpClient.PostAsJsonAsync("api/teams", team);
+            return response.IsSuccessStatusCode;
         }
 
         public async Task<bool> UpdateTeamAsync(TeamModel team)
         {
-            try
-            {
-                var response = await _httpClient.PutAsJsonAsync($"teams/{team.TeamID}", team);
-                return response.IsSuccessStatusCode;
-            }
-            catch (Exception ex)
-            {
-                // Log the exception
-                return false;
-            }
+            var response = await _httpClient.PutAsJsonAsync($"api/teams/{team.TeamID}", team);
+            return response.IsSuccessStatusCode;
         }
 
         public async Task<bool> DeleteTeamAsync(int id)
         {
-            try
-            {
-                var response = await _httpClient.DeleteAsync($"teams/{id}");
-                return response.IsSuccessStatusCode;
-            }
-            catch (Exception ex)
-            {
-                // Log the exception
-                return false;
-            }
+            var response = await _httpClient.DeleteAsync($"api/teams/{id}");
+            return response.IsSuccessStatusCode;
         }
 
         public async Task<List<TeamMemberModel>> GetTeamMembersAsync(int teamId)
         {
-            try
-            {
-                return await _httpClient.GetFromJsonAsync<List<TeamMemberModel>>($"teams/{teamId}/members");
-            }
-            catch (Exception ex)
-            {
-                // Log the exception
-                return new List<TeamMemberModel>();
-            }
+            return await _httpClient.GetFromJsonAsync<List<TeamMemberModel>>($"api/teams/{teamId}/members") ?? new List<TeamMemberModel>();
         }
 
         public async Task<bool> AddTeamMemberAsync(TeamMemberModel teamMember)
         {
-            try
-            {
-                var response = await _httpClient.PostAsJsonAsync("teams/members", teamMember);
-                return response.IsSuccessStatusCode;
-            }
-            catch (Exception ex)
-            {
-                // Log the exception
-                return false;
-            }
+            var response = await _httpClient.PostAsJsonAsync("api/teams/members", teamMember);
+            return response.IsSuccessStatusCode;
         }
 
         public async Task<bool> RemoveTeamMemberAsync(int teamId, int userId)
         {
-            try
-            {
-                var response = await _httpClient.DeleteAsync($"teams/{teamId}/members/{userId}");
-                return response.IsSuccessStatusCode;
-            }
-            catch (Exception ex)
-            {
-                // Log the exception
-                return false;
-            }
+            var response = await _httpClient.DeleteAsync($"api/teams/{teamId}/members/{userId}");
+            return response.IsSuccessStatusCode;
         }
 
-        public Task<List<TeamDetails.TeamDto>> GetBlacklistedTeamsAsync()
+        public async Task<List<TeamDto>> GetBlacklistedTeamsAsync()
         {
-            throw new NotImplementedException();
+            return await _httpClient.GetFromJsonAsync<List<TeamDto>>("api/teams/blacklisted") ?? new List<TeamDto>();
+        }
+
+        public async Task<bool> IsBlacklistedAsync(string teamId)
+        {
+            return await _httpClient.GetFromJsonAsync<bool>($"api/teams/{teamId}/is-blacklisted");
+        }
+
+        public async Task AddToBlacklistAsync(string teamId)
+        {
+            var response = await _httpClient.PostAsync($"api/teams/{teamId}/blacklist", null);
+            response.EnsureSuccessStatusCode();
+        }
+
+        public async Task<bool> RemoveFromBlacklistAsync(string teamId)
+        {
+            var response = await _httpClient.DeleteAsync($"api/teams/{teamId}/blacklist");
+            return response.IsSuccessStatusCode;
         }
     }
 }
+

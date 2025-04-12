@@ -1,4 +1,5 @@
-﻿using System.Threading.Tasks;
+﻿using System.Collections.Generic;
+using System.Threading.Tasks;
 using Blazor_WebAssembly.Models.Equipment;
 
 namespace Blazor_WebAssembly.Services.Interfaces
@@ -6,7 +7,7 @@ namespace Blazor_WebAssembly.Services.Interfaces
     public interface IEquipmentService
     {
         Task<List<EquipmentModel>> GetAllEquipmentAsync();
-        Task<EquipmentModel> GetEquipmentByIdAsync(int id);
+        Task<EquipmentModel?> GetEquipmentByIdAsync(int id); // Added nullable return type to handle null cases
         Task<bool> AddEquipmentAsync(EquipmentModel equipment);
         Task<bool> UpdateEquipmentAsync(EquipmentModel equipment);
         Task<bool> DeleteEquipmentAsync(int id);

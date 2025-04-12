@@ -1,0 +1,378 @@
+﻿@using Blazor_WebAssembly.Services.Interfaces
+@using Blazor_WebAssembly.Models.Equipment
+@using System.Net.Http.Json
+
+@inject IEquipmentService EquipmentService
+
+<h2 class="text-center text-xl font-bold mb-6 text-white">רשימת ציוד</h2>
+
+<div class="search-container">
+    <div class="form-group">
+        <label class="input-label">חיפוש</label>
+        <div class="search-input-container">
+            <input class="form-control" placeholder="הקלד שם פריט או מיקום אחסון..." @bind="searchTerm" @bind:event="oninput" />
+            <span class="search-icon">🔍</span>
+        </div>
+    </div>
+</div>
+
+@if (isLoading)
+{
+    <div class="loading-container">
+        <div class="spinner"></div>
+        <p>טוען נתונים...</p>
+    </div>
+}
+else if (errorMessage != null)
+{
+    <div class="alert-danger">
+        <p>שגיאה: @errorMessage</p>
+        <button class="btn-action" @onclick="RefreshData">נסה שנית</button>
+    </div>
+}
+else if (FilteredEquipment.Count == 0)
+{
+    <div class="empty-state">
+        <p>אין ציוד להצגה.</p>
+        <div class="empty-buttons">
+            <button class="btn-action" @onclick="RefreshData">טען נתונים</button>
+            <button class="btn-action secondary" @onclick="AddDemoData">הוסף נתוני הדגמה</button>
+        </div>
+    </div>
+}
+else
+{
+    <div class="info-bar">
+        <span>נמצאו @FilteredEquipment.Count פריטים</span>
+        <button class="btn-refresh" title="רענן נתונים" @onclick="RefreshData">🔄</button>
+    </div>
+
+    <div class="table-container">
+        <table class="equipment-table">
+            <thead>
+                <tr>
+                    <th>מזהה</th>
+                    <th>שם</th>
+                    <th>תיאור</th>
+                    <th>מספר סידורי</th>
+                    <th>סטטוס</th>
+                    <th>כמות</th>
+                    <th>ערך (ש״ח)</th>
+                    <th>מיקום אחסון</th>
+                </tr>
+            </thead>
+            <tbody>
+                @foreach (var equipment in FilteredEquipment)
+                {
+                    <tr>
+                        <td>@equipment.EquipmentID</td>
+                        <td>@equipment.Name</td>
+                        <td>@(string.IsNullOrEmpty(equipment.Description) ? "-" : equipment.Description)</td>
+                        <td>@(string.IsNullOrEmpty(equipment.SerialNumber) ? "-" : equipment.SerialNumber)</td>
+                        <td>@equipment.Status</td>
+                        <td>@equipment.Quantity</td>
+                        <td>@(equipment.Value > 0 ? equipment.Value.ToString() : "-")</td>
+                        <td>@equipment.StorageLocation</td>
+                    </tr>
+                }
+            </tbody>
+        </table>
+    </div>
+}
+
+<style>
+    /* Search section */
+    .search-container {
+        margin-bottom: 1.5rem;
+    }
+
+    .search-input-container {
+        position: relative;
+    }
+
+    .search-icon {
+        position: absolute;
+        left: 10px;
+        top: 8px;
+        color: var(--grey);
+    }
+
+    /* Loading state */
+    .loading-container {
+        display: flex;
+        flex-direction: column;
+        align-items: center;
+        justify-content: center;
+        padding: 2rem;
+    }
+
+    .spinner {
+        width: 40px;
+        height: 40px;
+        border: 4px solid rgba(255, 255, 255, 0.3);
+        border-radius: 50%;
+        border-top-color: var(--primary-red);
+        animation: spin 1s ease-in-out infinite;
+        margin-bottom: 1rem;
+    }
+
+    keyframes spin {
+        to
+
+    {
+        transform: rotate(360deg);
+    }
+
+    }
+
+    /* Empty state */
+    .empty-state {
+        text-align: center;
+        padding: 2rem;
+        background-color: rgba(255,255,255,0.05);
+        border-radius: 8px;
+    }
+
+    .empty-buttons {
+        display: flex;
+        gap: 1rem;
+        justify-content: center;
+        margin-top: 1rem;
+    }
+
+    /* Info bar */
+    .info-bar {
+        display: flex;
+        justify-content: space-between;
+        align-items: center;
+        margin-bottom: 0.5rem;
+        color: var(--grey);
+    }
+
+    /* Table styling */
+    .table-container {
+        overflow-x: auto;
+        margin-bottom: 1rem;
+    }
+
+    .equipment-table {
+        width: 100%;
+        border-collapse: collapse;
+    }
+
+        .equipment-table th {
+            background-color: #333;
+            padding: 12px;
+            text-align: right;
+            font-weight: bold;
+            border-bottom: 2px solid var(--primary-red);
+        }
+
+        .equipment-table td {
+            padding: 10px;
+            border-bottom: 1px solid #555;
+        }
+
+        .equipment-table tbody tr:hover {
+            background-color: rgba(255,255,255,0.05);
+        }
+
+    /* Button styling */
+    .btn-action {
+        background-color: var(--primary-red);
+        color: white;
+        border: none;
+        border-radius: 6px;
+        padding: 8px 16px;
+        cursor: pointer;
+        font-weight: bold;
+        transition: all 0.3s;
+        margin-top: 0.5rem;
+    }
+
+        .btn-action:hover {
+            background-color: #b71c1c;
+        }
+
+        .btn-action.secondary {
+            background-color: #555;
+        }
+
+            .btn-action.secondary:hover {
+                background-color: #444;
+            }
+
+    .btn-refresh {
+        background: none;
+        border: none;
+        font-size: 18px;
+        cursor: pointer;
+        transition: transform 0.3s;
+    }
+
+        .btn-refresh:hover {
+            transform: rotate(180deg);
+        }
+
+    /* Form elements - matching AddEquipmentForm */
+    .form-group {
+        margin-bottom: 1rem;
+    }
+
+    .input-label {
+        display: block;
+        font-weight: bold;
+        margin-bottom: 4px;
+        color: var(--grey);
+        font-size: 14px;
+    }
+
+    .form-control {
+        width: 100%;
+        padding: 10px 30px 10px 10px;
+        border-radius: 6px;
+        border: none;
+        background-color: #444;
+        color: white;
+        transition: all 0.3s;
+    }
+
+        .form-control:focus {
+            outline: 2px solid var(--primary-red);
+            background-color: #555;
+        }
+
+    /* Alert styling */
+    .alert-danger {
+        background-color: rgba(220, 53, 69, 0.2);
+        color: #dc3545;
+        padding: 16px;
+        border-radius: 6px;
+        border: 1px solid rgba(220, 53, 69, 0.3);
+        text-align: center;
+        margin-bottom: 1rem;
+    }
+</style>
+
+@code {
+    private List<EquipmentModel> equipmentList = new List<EquipmentModel>();
+    private string? errorMessage;
+    private bool isLoading = false;
+    private string searchTerm = string.Empty;
+
+    // Filtered list based on search term
+    private List<EquipmentModel> FilteredEquipment => string.IsNullOrWhiteSpace(searchTerm)
+        ? equipmentList
+        : equipmentList.Where(e =>
+            e.Name.Contains(searchTerm, StringComparison.OrdinalIgnoreCase) ||
+            e.StorageLocation.Contains(searchTerm, StringComparison.OrdinalIgnoreCase)).ToList();
+
+    // Initialize with an empty list instead of null
+    protected override async Task OnInitializedAsync()
+    {
+        await LoadEquipment();
+    }
+
+    private async Task LoadEquipment()
+    {
+        try
+        {
+            isLoading = true;
+            errorMessage = null;
+            StateHasChanged();
+
+            // Try to get data from service, but don't let errors stop us
+            try
+            {
+                var result = await EquipmentService.GetAllEquipmentAsync();
+                if (result != null && result.Any())
+                {
+                    equipmentList = result;
+                }
+            }
+            catch (Exception ex)
+            {
+                // Log but don't set as error message yet - we'll add demo data
+                Console.WriteLine($"Error loading equipment: {ex.Message}");
+                errorMessage = $"שגיאה בטעינת הנתונים: {ex.Message}";
+            }
+        }
+        finally
+        {
+            isLoading = false;
+            StateHasChanged();
+        }
+    }
+
+    private async Task RefreshData()
+    {
+        await LoadEquipment();
+    }
+
+    private void AddDemoData()
+    {
+        // Create demo equipment data
+        equipmentList = new List<EquipmentModel>
+        {
+            new EquipmentModel
+            {
+                EquipmentID = 1,
+                Name = "מקדחה חשמלית",
+                Description = "מקדחה חזקה במיוחד לקידוחים גדולים",
+                Status = "זמין",
+                Quantity = 5,
+                StorageLocation = "מחסן ראשי",
+                SerialNumber = "MK-2023-001",
+                Value = 350
+            },
+            new EquipmentModel
+            {
+                EquipmentID = 2,
+                Name = "פטיש 3 קילו",
+                Description = "פטיש כבד לעבודות בנייה",
+                Status = "בשימוש",
+                Quantity = 2,
+                StorageLocation = "חדר כלים",
+                SerialNumber = "PT-2022-105",
+                Value = 120
+            },
+            new EquipmentModel
+            {
+                EquipmentID = 3,
+                Name = "מברג חשמלי",
+                Description = "מברג חשמלי נטען",
+                Status = "זמין",
+                Quantity = 3,
+                StorageLocation = "מחסן ראשי",
+                SerialNumber = "MB-2023-054",
+                Value = 200
+            },
+            new EquipmentModel
+            {
+                EquipmentID = 4,
+                Name = "סולם אלומיניום",
+                Description = "סולם 10 שלבים",
+                Status = "זמין",
+                Quantity = 1,
+                StorageLocation = "מחסן חיצוני",
+                SerialNumber = "SL-2021-002",
+                Value = 450
+            },
+            new EquipmentModel
+            {
+                EquipmentID = 5,
+                Name = "גנרטור חשמלי",
+                Description = "גנרטור 5000W לחירום",
+                Status = "בתחזוקה",
+                Quantity = 1,
+                StorageLocation = "מחסן חיצוני",
+                SerialNumber = "GN-2020-007",
+                Value = 3200
+            }
+        };
+
+        // Clear any error messages
+        errorMessage = null;
+        StateHasChanged();
+    }
+}

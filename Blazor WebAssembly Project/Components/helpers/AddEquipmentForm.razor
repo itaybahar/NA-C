@@ -1,0 +1,232 @@
+﻿@using Domain_Project.DTOs
+@using Blazor_WebAssembly.Services.Interfaces
+@using Blazor_WebAssembly.Models.Equipment
+
+@inject IEquipmentService EquipmentService
+
+<h2 class="text-center text-xl font-bold mb-6 text-white">הוספת פריט חדש</h2>
+
+<div class="space-y-4">
+    @if (!string.IsNullOrWhiteSpace(Message))
+    {
+        <div class="@(IsError ? "alert-danger" : "alert-success")">
+            @Message
+        </div>
+    }
+
+    <div class="form-group">
+        <label class="input-label">שם פריט</label>
+        <input class="form-control" placeholder="שם הפריט" @bind="NewItem.Name" />
+    </div>
+
+    <div class="form-group">
+        <label class="input-label">תיאור פריט</label>
+        <input class="form-control" placeholder="תיאור קצר של הפריט" @bind="NewItem.Description" />
+    </div>
+
+    <div class="form-group">
+        <label class="input-label">מספר סידורי</label>
+        <input class="form-control" placeholder="מספר סידורי של הפריט" @bind="NewItem.SerialNumber" />
+    </div>
+
+    <div class="form-group">
+        <label class="input-label">כמות</label>
+        <input class="form-control" placeholder="כמות הפריטים במלאי" type="number" @bind="NewItem.Quantity" />
+    </div>
+
+    <div class="form-group">
+        <label class="input-label">מיקום אחסון</label>
+        <input class="form-control" placeholder="מיקום האחסון של הפריט" @bind="NewItem.StorageLocation" />
+    </div>
+
+    <div class="form-group">
+        <label class="input-label">סטטוס</label>
+        <select class="form-control" @bind="NewItem.Status">
+            <option value="" disabled selected>בחר סטטוס</option>
+            <option value="זמין">זמין</option>
+            <option value="בשימוש">בשימוש</option>
+            <option value="בתחזוקה">בתחזוקה</option>
+            <option value="מוחזר">מוחזר</option>
+        </select>
+    </div>
+
+    <div class="form-group">
+        <label class="input-label">ערך (ש״ח)</label>
+        <input class="form-control" placeholder="ערך כספי של הפריט" type="number" @bind="NewItem.Value" />
+    </div>
+
+    <button class="btn-submit" @onclick="AddEquipment" disabled="@IsSubmitting">
+        @if (IsSubmitting)
+        {
+            <span>מוסיף...</span>
+        }
+        else
+        {
+            <span>הוסף למערכת</span>
+        }
+    </button>
+</div>
+
+<style>
+    .form-group {
+        margin-bottom: 1rem;
+    }
+
+    .input-label {
+        display: block;
+        font-weight: bold;
+        margin-bottom: 4px;
+        color: var(--grey);
+        font-size: 14px;
+    }
+
+    .form-control {
+        width: 100%;
+        padding: 10px;
+        border-radius: 6px;
+        border: none;
+        background-color: #444;
+        color: white;
+        transition: all 0.3s;
+    }
+
+        .form-control:focus {
+            outline: 2px solid var(--primary-red);
+            background-color: #555;
+        }
+
+    .btn-submit {
+        background-color: var(--primary-red);
+        color: white;
+        width: 100%;
+        padding: 10px;
+        border: none;
+        border-radius: 6px;
+        font-weight: bold;
+        cursor: pointer;
+        transition: all 0.3s;
+        margin-top: 10px;
+    }
+
+        .btn-submit:hover:not(:disabled) {
+            background-color: #b71c1c;
+        }
+
+        .btn-submit:disabled {
+            opacity: 0.6;
+            cursor: not-allowed;
+        }
+
+    .alert-success {
+        background-color: rgba(40, 167, 69, 0.2);
+        color: #28a745;
+        padding: 10px;
+        border-radius: 6px;
+        border: 1px solid rgba(40, 167, 69, 0.3);
+        text-align: center;
+        margin-bottom: 1rem;
+    }
+
+    .alert-danger {
+        background-color: rgba(220, 53, 69, 0.2);
+        color: #dc3545;
+        padding: 10px;
+        border-radius: 6px;
+        border: 1px solid rgba(220, 53, 69, 0.3);
+        text-align: center;
+        margin-bottom: 1rem;
+    }
+</style>
+
+@code {
+    private EquipmentModel NewItem = new()
+    {
+        Name = string.Empty,
+        Description = string.Empty,
+        SerialNumber = string.Empty,
+        Status = string.Empty,
+        StorageLocation = string.Empty,
+        Quantity = 1  // Default quantity to 1
+    };
+
+    private string? Message;
+    private bool IsError = false;
+    private bool IsSubmitting = false;
+
+    private async Task AddEquipment()
+    {
+        IsSubmitting = true;
+        Message = string.Empty;
+        IsError = false;
+
+        try
+        {
+            if (string.IsNullOrWhiteSpace(NewItem.Name))
+            {
+                Message = "יש להזין שם פריט";
+                IsError = true;
+                return;
+            }
+
+            if (string.IsNullOrWhiteSpace(NewItem.StorageLocation))
+            {
+                Message = "יש להזין מיקום אחסון";
+                IsError = true;
+                return;
+            }
+
+            if (string.IsNullOrWhiteSpace(NewItem.Status))
+            {
+                Message = "יש לבחור סטטוס";
+                IsError = true;
+                return;
+            }
+
+            if (NewItem.Quantity <= 0)
+            {
+                Message = "יש להזין כמות תקינה (מספר חיובי)";
+                IsError = true;
+                return;
+            }
+
+            // Log fields to console for debugging
+            Console.WriteLine($"Adding equipment: Name={NewItem.Name}, StorageLocation={NewItem.StorageLocation}, Status={NewItem.Status}, Quantity={NewItem.Quantity}");
+
+            var result = await EquipmentService.AddEquipmentAsync(NewItem);
+
+            if (result)
+            {
+                Message = "הפריט נוסף בהצלחה!";
+                IsError = false;
+
+                // Reset form
+                NewItem = new()
+                {
+                    Name = string.Empty,
+                    Description = string.Empty,
+                    SerialNumber = string.Empty,
+                    Status = string.Empty,
+                    StorageLocation = string.Empty,
+                    Quantity = 1
+                };
+            }
+            else
+            {
+                Message = "שגיאה בהוספת הפריט";
+                IsError = true;
+            }
+        }
+        catch (Exception ex)
+        {
+            Message = $"שגיאה: {ex.Message}";
+            IsError = true;
+            Console.WriteLine($"Error adding equipment: {ex}");
+        }
+        finally
+        {
+            IsSubmitting = false;
+            StateHasChanged();
+        }
+    }
+}
+    

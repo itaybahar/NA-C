@@ -18,11 +18,11 @@ namespace Blazor_WebAssembly.Services.Implementations
         {
             try
             {
-                return await _httpClient.GetFromJsonAsync<List<EquipmentCheckoutModel>>("checkout");
+                return await _httpClient.GetFromJsonAsync<List<EquipmentCheckoutModel>>("checkout") ?? new List<EquipmentCheckoutModel>();
             }
-            catch (Exception ex)
+            catch (Exception)
             {
-                // Log the exception
+                // Log the exception if needed
                 return new List<EquipmentCheckoutModel>();
             }
         }
@@ -31,12 +31,12 @@ namespace Blazor_WebAssembly.Services.Implementations
         {
             try
             {
-                return await _httpClient.GetFromJsonAsync<EquipmentCheckoutModel>($"checkout/{id}");
+                return await _httpClient.GetFromJsonAsync<EquipmentCheckoutModel>($"checkout/{id}") ?? new EquipmentCheckoutModel();
             }
-            catch (Exception ex)
+            catch (Exception)
             {
-                // Log the exception
-                return null;
+                // Log the exception if needed
+                return new EquipmentCheckoutModel(); // Return a default object instead of null
             }
         }
 
@@ -47,9 +47,9 @@ namespace Blazor_WebAssembly.Services.Implementations
                 var response = await _httpClient.PostAsJsonAsync("checkout", checkout);
                 return response.IsSuccessStatusCode;
             }
-            catch (Exception ex)
+            catch (Exception)
             {
-                // Log the exception
+                // Log the exception if needed
                 return false;
             }
         }
@@ -61,9 +61,9 @@ namespace Blazor_WebAssembly.Services.Implementations
                 var response = await _httpClient.PostAsync($"checkout/{checkoutId}/return", null);
                 return response.IsSuccessStatusCode;
             }
-            catch (Exception ex)
+            catch (Exception)
             {
-                // Log the exception
+                // Log the exception if needed
                 return false;
             }
         }
@@ -72,11 +72,11 @@ namespace Blazor_WebAssembly.Services.Implementations
         {
             try
             {
-                return await _httpClient.GetFromJsonAsync<List<EquipmentCheckoutModel>>("checkout/active");
+                return await _httpClient.GetFromJsonAsync<List<EquipmentCheckoutModel>>("checkout/active") ?? new List<EquipmentCheckoutModel>();
             }
-            catch (Exception ex)
+            catch (Exception)
             {
-                // Log the exception
+                // Log the exception if needed
                 return new List<EquipmentCheckoutModel>();
             }
         }
@@ -85,13 +85,18 @@ namespace Blazor_WebAssembly.Services.Implementations
         {
             try
             {
-                return await _httpClient.GetFromJsonAsync<List<EquipmentCheckoutModel>>("checkout/overdue");
+                return await _httpClient.GetFromJsonAsync<List<EquipmentCheckoutModel>>("checkout/overdue") ?? new List<EquipmentCheckoutModel>();
             }
-            catch (Exception ex)
+            catch (Exception)
             {
-                // Log the exception
+                // Log the exception if needed
                 return new List<EquipmentCheckoutModel>();
             }
+        }
+
+        public Task CheckoutEquipmentAsync(int teamId, int equipmentId)
+        {
+            throw new NotImplementedException();
         }
     }
 }

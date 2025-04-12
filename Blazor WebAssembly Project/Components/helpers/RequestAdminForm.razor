@@ -1,4 +1,5 @@
-﻿@inject IEquipmentRequestService RequestService
+﻿@using Blazor_WebAssembly.Services.Interfaces
+@inject IEquipmentRequestService RequestService
 
 <h2 class="text-xl font-bold mb-4">שלח בקשה למנהל</h2>
 
@@ -19,8 +20,12 @@
 
     private async Task SendRequest()
     {
-        await RequestService.SendRequestToAdminAsync(Message);
-        Message = "";
-        Sent = true;
+        if (RequestService != null)
+        {
+            // Updated method name to match the correct interface definition
+            await RequestService.SendEquipmentRequestAsync(Message); // Corrected method name
+            Message = "";
+            Sent = true;
+        }
     }
 }

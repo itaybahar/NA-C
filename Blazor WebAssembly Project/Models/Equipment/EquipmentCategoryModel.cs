@@ -8,9 +8,9 @@ namespace Blazor_WebAssembly.Models.Equipment
 
         [Required(ErrorMessage = "Category name is required")]
         [StringLength(100)]
-        public string CategoryName { get; set; }
+        public required string CategoryName { get; set; }
 
         [StringLength(200)]
-        public string Description { get; set; }
+        public required string Description { get; set; }
     }
 }

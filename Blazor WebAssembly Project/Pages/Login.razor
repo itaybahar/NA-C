@@ -1,10 +1,15 @@
 ﻿@page "/login"
 @using System.ComponentModel.DataAnnotations
+@using Blazor_WebAssembly.Services
 @using Blazor_WebAssembly.Services.Interfaces
 @using Blazor_WebAssembly.Models.Auth
+@using System.Web
 @inject IAuthService AuthService
 @inject NavigationManager Navigation
 @inject Blazored.LocalStorage.ILocalStorageService LocalStorage
+@inject IJSRuntime JSRuntime
+@inject AuthenticationStateProvider AuthStateProvider
+@implements IDisposable
 
 <div class="login-container">
     <div class="login-card">
@@ -14,42 +19,42 @@
             <p>אנא התחבר כדי להמשיך</p>
         </div>
 
-        @if (!string.IsNullOrEmpty(errorMessage))
+        @if (!string.IsNullOrEmpty(ErrorMessage))
         {
-            <div class="alert alert-danger">@errorMessage</div>
+            <div class="alert alert-danger">@ErrorMessage</div>
         }
 
-        @if (!string.IsNullOrEmpty(successMessage))
+        @if (!string.IsNullOrEmpty(SuccessMessage))
         {
-            <div class="alert alert-success">@successMessage</div>
+            <div class="alert alert-success">@SuccessMessage</div>
         }
 
         <div class="login-tabs">
-            <button class="tab @(activeTab == "regular" ? "active" : "")" @onclick="@(() => activeTab = "regular")">משתמש</button>
-            <button class="tab @(activeTab == "google" ? "active" : "")" @onclick="@(() => activeTab = "google")">Gmail</button>
+            <button class="tab @(ActiveTab == "regular" ? "active" : "")" @onclick="@(() => ActiveTab = "regular")">משתמש</button>
+            <button class="tab @(ActiveTab == "google" ? "active" : "")" @onclick="@(() => ActiveTab = "google")">Gmail</button>
         </div>
 
-        @if (activeTab == "regular")
+        @if (ActiveTab == "regular")
         {
-            <EditForm Model="loginModel" OnValidSubmit="HandleLogin">
+            <EditForm Model="LoginModel" OnValidSubmit="HandleLogin">
                 <DataAnnotationsValidator />
                 <div class="form-group">
-                    <InputText @bind-Value="loginModel.Username" placeholder="שם משתמש" class="form-control" />
-                    <ValidationMessage For="@(() => loginModel.Username)" />
+                    <InputText @bind-Value="LoginModel.Username" placeholder="שם משתמש" class="form-control" />
+                    <ValidationMessage For="@(() => LoginModel.Username)" />
                 </div>
 
                 <div class="form-group">
-                    <InputText @bind-Value="loginModel.Password" type="password" placeholder="סיסמה" class="form-control" />
-                    <ValidationMessage For="@(() => loginModel.Password)" />
+                    <InputText @bind-Value="LoginModel.Password" type="password" placeholder="סיסמה" class="form-control" />
+                    <ValidationMessage For="@(() => LoginModel.Password)" />
                 </div>
 
                 <div class="form-options">
-                    <label><input type="checkbox" @bind="rememberMe" /> זכור אותי</label>
+                    <label><input type="checkbox" @bind="RememberMe" /> זכור אותי</label>
                     <a href="/forgot-password">שכחת סיסמה?</a>
                 </div>
 
-                <button type="submit" class="btn-submit" disabled="@isSubmitting">
-                    @(isSubmitting ? "מתחבר..." : "התחבר")
+                <button type="submit" class="btn-submit" disabled="@IsSubmitting">
+                    @(IsSubmitting ? "מתחבר..." : "התחבר")
                 </button>
             </EditForm>
         }
@@ -234,97 +239,215 @@
         margin-bottom: 15px;
         text-align: center;
     }
+
+    .alert-success {
+        background-color: #ddffd6;
+        color: #006600;
+    }
 </style>
 
 @code {
-    private LoginModel loginModel = new();
-    private string errorMessage = string.Empty;
-    private string successMessage = string.Empty;
-    private bool isSubmitting = false;
-    private bool rememberMe = false;
-    private string activeTab = "regular";
+    private LoginModel LoginModel { get; set; } = new LoginModel
+    {
+        Username = string.Empty,
+        Password = string.Empty
+    };
+
+    private string ErrorMessage { get; set; } = string.Empty;
+    private string SuccessMessage { get; set; } = string.Empty;
+    private bool IsSubmitting { get; set; } = false;
+    private bool RememberMe { get; set; } = false;
+    private string ActiveTab { get; set; } = "regular";
+    private bool isInitialized = false;
 
     protected override async Task OnInitializedAsync()
     {
-        var uri = new Uri(Navigation.Uri);
-        var query = System.Web.HttpUtility.ParseQueryString(uri.Query);
-        var token = query.Get("token");
-        var registered = query.Get("registered");
-
-        if (!string.IsNullOrEmpty(token))
+        try
         {
-            await LocalStorage.SetItemAsync("authToken", token);
-            await HandleRedirectAfterLogin();
-        }
+            // Log to browser console for debugging
+            await JSRuntime.InvokeVoidAsync("console.log", "Login page initializing");
 
-        if (!string.IsNullOrEmpty(registered) && registered == "true")
-        {
-            successMessage = "הרשמתך נקלטה בהצלחה! אנא התחבר כדי להמשיך.";
+            // Parse query parameters
+            var uri = new Uri(Navigation.Uri);
+            var query = HttpUtility.ParseQueryString(uri.Query);
+            var token = query["token"];
+            var registered = query["registered"];
+            var error = query["error"];
+
+            // Handle error messages from redirects
+            if (!string.IsNullOrEmpty(error))
+            {
+                ErrorMessage = GetErrorMessage(error);
+                await JSRuntime.InvokeVoidAsync("console.log", "Error from query param: " + error);
+            }
+
+            // Handle token from external auth
+            if (!string.IsNullOrEmpty(token))
+            {
+                await JSRuntime.InvokeVoidAsync("console.log", "Token found, saving to local storage");
+                await LocalStorage.SetItemAsync("authToken", token);
+
+                // Notify the auth state provider that the user is authenticated
+                if (AuthStateProvider is CustomAuthStateProvider customAuthProvider)
+                {
+                    await customAuthProvider.MarkUserAsAuthenticated(token);
+                }
+
+                await HandleRedirectAfterLogin();
+                return;
+            }
+
+            // Handle registration success
+            if (!string.IsNullOrEmpty(registered) && registered == "true")
+            {
+                SuccessMessage = "הרשמתך נקלטה בהצלחה! אנא התחבר כדי להמשיך.";
+            }
+
+            // Check for remembered username
+            var rememberedUser = await LocalStorage.GetItemAsync<string>("rememberedUser");
+            if (!string.IsNullOrEmpty(rememberedUser))
+            {
+                LoginModel.Username = rememberedUser;
+                await JSRuntime.InvokeVoidAsync("console.log", "Found remembered username: " + rememberedUser);
+            }
         }
+        catch (Exception ex)
+        {
+            ErrorMessage = $"אירעה שגיאה: {ex.Message}";
+            await JSRuntime.InvokeVoidAsync("console.error", "Login initialization error: " + ex.ToString());
+        }
+        finally
+        {
+            isInitialized = true;
+            StateHasChanged();
+        }
+    }
+
+    private string GetErrorMessage(string errorCode)
+    {
+        return errorCode switch
+        {
+            "google-auth-failed" => "התחברות באמצעות Google נכשלה, אנא נסה שוב.",
+            "missing-user-info" => "לא ניתן לאחזר את פרטי המשתמש מחשבון Google.",
+            "token-generation-failed" => "אירעה שגיאה ביצירת אסימון התחברות.",
+            _ => $"אירעה שגיאה: {errorCode}"
+        };
     }
 
     private async Task HandleLogin()
     {
-        isSubmitting = true;
-        errorMessage = string.Empty;
-        successMessage = string.Empty;
+        if (!isInitialized) return;
+
+        IsSubmitting = true;
+        ErrorMessage = string.Empty;
+        SuccessMessage = string.Empty;
+        StateHasChanged();
 
         try
         {
-            var result = await AuthService.LoginAsync(loginModel);
+            await JSRuntime.InvokeVoidAsync("console.log", "Starting login process...");
+
+            // Validate model client-side first
+            if (string.IsNullOrEmpty(LoginModel.Username) || string.IsNullOrEmpty(LoginModel.Password))
+            {
+                ErrorMessage = "שם משתמש וסיסמה הם שדות חובה.";
+                return;
+            }
+
+            await JSRuntime.InvokeVoidAsync("console.log", "Calling AuthService.LoginAsync...");
+
+            var result = await AuthService.LoginAsync(LoginModel);
+
+            await JSRuntime.InvokeVoidAsync("console.log", "Login result received, token exists: " +
+                (!string.IsNullOrEmpty(result?.Token) ? "yes" : "no"));
+
             if (result != null && !string.IsNullOrEmpty(result.Token))
             {
-                if (rememberMe)
+                // Save user preferences if remember me is checked
+                if (RememberMe)
                 {
-                    await LocalStorage.SetItemAsync("rememberedUser", loginModel.Username);
+                    await LocalStorage.SetItemAsync("rememberedUser", LoginModel.Username);
+                }
+
+                // Notify the auth state provider that the user is authenticated
+                if (AuthStateProvider is CustomAuthStateProvider customAuthProvider)
+                {
+                    await customAuthProvider.MarkUserAsAuthenticated(result.Token);
+                    await JSRuntime.InvokeVoidAsync("console.log", "User marked as authenticated");
+                }
+                else
+                {
+                    await JSRuntime.InvokeVoidAsync("console.error",
+                        "AuthStateProvider is not CustomAuthStateProvider: " +
+                        AuthStateProvider.GetType().FullName);
                 }
 
                 await HandleRedirectAfterLogin();
             }
             else
             {
-                errorMessage = "שם המשתמש או הסיסמה שגויים.";
+                ErrorMessage = "שם המשתמש או הסיסמה שגויים.";
             }
         }
         catch (Exception ex)
         {
-            errorMessage = $"שגיאה: {ex.Message}";
+            await JSRuntime.InvokeVoidAsync("console.error", "Login error: " + ex.ToString());
+            ErrorMessage = $"שגיאה: {ex.Message}";
         }
-
-        isSubmitting = false;
+        finally
+        {
+            IsSubmitting = false;
+            StateHasChanged();
+        }
     }
 
     private async Task HandleRedirectAfterLogin()
     {
-        var user = await LocalStorage.GetItemAsync<UserDto>("user");
-
-        if (user == null)
+        try
         {
-            Navigation.NavigateTo("/");
-            return;
+            await JSRuntime.InvokeVoidAsync("console.log", "Handling redirect after login");
+            var user = await LocalStorage.GetItemAsync<UserDto>("user");
+
+            if (user == null)
+            {
+                await JSRuntime.InvokeVoidAsync("console.log", "User is null, redirecting to home");
+                Navigation.NavigateTo("/");
+                return;
+            }
+
+            await JSRuntime.InvokeVoidAsync("console.log", "User role: " + user.Role);
+            switch (user.Role?.ToLower())
+            {
+                case "admin":
+                    Navigation.NavigateTo("/admin/dashboard");
+                    break;
+                case "warehousemanager":
+                    Navigation.NavigateTo("/warehouse/manager/dashboard");
+                    break;
+                case "warehouseoperator":
+                    Navigation.NavigateTo("/warehouse/operator/dashboard");
+                    break;
+                default:
+                    Navigation.NavigateTo("/user/dashboard");
+                    break;
+            }
         }
-
-        switch (user.Role?.ToLower())
+        catch (Exception ex)
         {
-            case "admin":
-                Navigation.NavigateTo("/admin/dashboard");
-                break;
-            case "warehousemanager":
-                Navigation.NavigateTo("/warehouse/manager/dashboard");
-                break;
-            case "warehouseoperator":
-                Navigation.NavigateTo("/warehouse/operator/dashboard");
-                break;
-            default:
-                Navigation.NavigateTo("/user/dashboard");
-                break;
+            await JSRuntime.InvokeVoidAsync("console.error", "Redirect error: " + ex.ToString());
+            // If there's an error in redirection, go to home page
+            Navigation.NavigateTo("/");
         }
     }
 
     private void HandleGoogleLogin()
     {
+        // Use the API URL from configuration or a consistent value
         Navigation.NavigateTo("https://localhost:5191/auth/login-google", true);
     }
 
-
+    public void Dispose()
+    {
+        // Cleanup code if needed
+    }
 }

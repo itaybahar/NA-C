@@ -16,110 +16,108 @@ namespace API_Project.Repositories
         {
         }
 
+        // Updated to match interface signature (non-nullable return type)
         public async Task<User?> GetUserByUsernameAsync(string username)
         {
-            return await _dbSet.FirstOrDefaultAsync(u => u.Username == username);
+            // Log the query being executed
+            var query = _context.Users
+                .Where(u => u.Username == username)
+                .ToQueryString();
+            Console.WriteLine($"Generated SQL Query for GetUserByUsernameAsync: {query}");
+
+            var user = await _context.Users.FirstOrDefaultAsync(u => u.Username == username);
+            return user; // Simply return null if the user doesn't exist
         }
 
+
+        // Updated to match interface signature (non-nullable return type)
         public async Task<User?> GetUserByEmailAsync(string email)
         {
-            return await _dbSet.FirstOrDefaultAsync(u => u.Email == email);
-        }
+            // Normalize email to lowercase
+            var normalizedEmail = email.ToLower();
 
-        public async Task<User?> GetUserByResetTokenAsync(string token)
-        {
-            return await _dbSet.FirstOrDefaultAsync(u => u.ResetToken == token);
-        }
+            // Log the query being executed
+            var query = _context.Users
+                .Where(u => u.Email.ToLower() == normalizedEmail)
+                .ToQueryString();
+            Console.WriteLine($"Generated SQL Query for GetUserByEmailAsync: {query}");
 
-        public async Task<IEnumerable<UserRole>> GetUserRolesAsync(int userId)
-        {
-            return await _context.UserRoles
-                .Where(ur => _context.UserRoleAssignments
-                    .Any(ura => ura.UserID == userId && ura.RoleID == ur.RoleID))
-                .ToListAsync();
+            var user = await _context.Users
+                .AsNoTracking() // Optional: Avoid tracking for read-only queries
+                .FirstOrDefaultAsync(u => u.Email.ToLower() == normalizedEmail);
+
+            return user; // Return null if no user found
         }
 
         public async Task<bool> ValidateUserCredentialsAsync(string username, string password)
         {
-            var user = await GetUserByUsernameAsync(username);
-            if (user == null)
-                return false;
+            var user = await _context.Users.FirstOrDefaultAsync(u => u.Username == username);
+            if (user == null) return false;
 
-            var inputHash = HashPassword(password);
-
-            // DEBUG
-            Console.WriteLine($"[ValidateUser] username: {username}");
-            Console.WriteLine($"[ValidateUser] inputHash: {inputHash}");
-            Console.WriteLine($"[ValidateUser] storedHash: {user.PasswordHash}");
-
-            return inputHash == user.PasswordHash;
+            using var sha256 = SHA256.Create();
+            var hashedPassword = Convert.ToBase64String(sha256.ComputeHash(Encoding.UTF8.GetBytes(password)));
+            return user.PasswordHash == hashedPassword;
         }
 
-        public override async Task<User> AddAsync(User user)
+        public async Task<IEnumerable<UserRole>> GetUserRolesAsync(int userId)
         {
-            if (!string.IsNullOrEmpty(user.PasswordHash))
+            try
             {
-                user.PasswordHash = HashPassword(user.PasswordHash);
+                // First attempt: Using raw SQL to avoid navigation property issues
+                var sql = @"
+                    SELECT ur.* 
+                    FROM UserRoles ur
+                    JOIN UserRoleAssignments ura ON ur.RoleID = ura.RoleID
+                    WHERE ura.UserID = {0}";
+
+                return await _context.UserRoles
+                    .FromSqlRaw(sql, userId)
+                    .ToListAsync();
             }
-
-            return await base.AddAsync(user);
-        }
-
-        public async Task<Domain_Project.Models.AppUser?> GetByEmailAsync(string? email)
-        {
-            if (string.IsNullOrEmpty(email))
-                return null;
-
-            var user = await _dbSet.FirstOrDefaultAsync(u => u.Email == email);
-            if (user == null)
-                return null;
-
-            return new Domain_Project.Models.AppUser
+            catch (Exception ex)
             {
-                Email = user.Email,
-                Username = user.Username,
-                Role = user.Role ?? "User"
-            };
+                // Log the exception
+                Console.WriteLine($"Error retrieving user roles via SQL: {ex.Message}");
+
+                try
+                {
+                    // Second attempt: Try using explicit join syntax
+                    return await _context.UserRoleAssignments
+                        .Where(ura => ura.UserID == userId)
+                        .Join(
+                            _context.UserRoles,
+                            ura => ura.RoleID,
+                            ur => ur.RoleID,
+                            (ura, ur) => ur)
+                        .ToListAsync();
+                }
+                catch (Exception joinEx)
+                {
+                    // Log the second exception
+                    Console.WriteLine($"Error retrieving user roles via join: {joinEx.Message}");
+
+                    // Return empty list as fallback
+                    return Enumerable.Empty<UserRole>();
+                }
+            }
         }
 
-        public async Task CreateAsync(Domain_Project.Models.AppUser appUser)
+        public async Task<User> GetUserByResetTokenAsync(string token)
         {
-            if (appUser == null)
-                throw new ArgumentNullException(nameof(appUser));
-
-            var user = new User
-            {
-                Email = appUser.Email,
-                Username = appUser.Username,
-                FirstName = "",
-                LastName = "",
-                Role = appUser.Role ?? "User",
-                PasswordHash = HashPassword("Temp123!") // סיסמה זמנית
-            };
-
-            await AddAsync(user);
-            await SaveChangesAsync(user);
+            var user = await _context.Users.FirstOrDefaultAsync(u => u.ResetToken == token);
+            return user ?? throw new KeyNotFoundException($"User with reset token '{token}' not found.");
         }
 
-        public async Task SaveChangesAsync(User user)
+        // Fixing SaveChangesAsync method
+        public new async Task SaveChangesAsync(User user)
         {
             _context.Update(user);
             await _context.SaveChangesAsync();
         }
 
-        public Task SaveChangesAsync()
+        public async Task SaveChangesAsync()
         {
-            return _context.SaveChangesAsync();
-        }
-
-        // Utility Methods
-
-        private string HashPassword(string password)
-        {
-            using var sha256 = SHA256.Create();
-            var bytes = Encoding.UTF8.GetBytes(password);
-            var hashBytes = sha256.ComputeHash(bytes);
-            return Convert.ToBase64String(hashBytes);
+            await _context.SaveChangesAsync();
         }
     }
 }

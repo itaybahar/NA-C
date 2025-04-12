@@ -1,60 +1,44 @@
-﻿using Blazored.LocalStorage;
-using Blazor_WebAssembly;
+﻿using Blazor_WebAssembly_Project;
 using Blazor_WebAssembly.Services;
 using Blazor_WebAssembly.Services.Implementations;
 using Blazor_WebAssembly.Services.Interfaces;
+using Blazored.LocalStorage;
 using Microsoft.AspNetCore.Components.Authorization;
 using Microsoft.AspNetCore.Components.Web;
 using Microsoft.AspNetCore.Components.WebAssembly.Hosting;
-using Microsoft.JSInterop;
+using System.Text;
 
-namespace Blazor_WebAssembly_Project
+var builder = WebAssemblyHostBuilder.CreateDefault(args);
+builder.RootComponents.Add<App>("#app");
+builder.RootComponents.Add<HeadOutlet>("head::after");
+
+// Register HttpClient
+builder.Services.AddScoped(sp => new HttpClient { BaseAddress = new Uri(builder.Configuration["API_BaseAddress"] ?? "https://localhost:7230") });
+builder.Services.AddScoped(sp => new HttpClient { BaseAddress = new Uri("https://localhost:7235/") });
+
+// Add Blazored.LocalStorage (DO NOT manually register ILocalStorageService)
+builder.Services.AddBlazoredLocalStorage();
+
+// Add authorization and authentication services
+builder.Services.AddAuthorizationCore(options =>
 {
-    public class Program
-    {
-        public static async Task Main(string[] args)
-        {
-            var builder = WebAssemblyHostBuilder.CreateDefault(args);
+    options.AddPolicy("WarehouseManagerPolicy", policy =>
+        policy.RequireRole("WarehouseManager", "Admin"));
+});
 
-            // Configure root components
-            ConfigureRootComponents(builder);
+// Add IJSRuntimeService registration
+builder.Services.AddScoped<IJSRuntimeService, JSRuntimeService>();
 
-            // Configure services
-            ConfigureServices(builder);
+// Add Authentication State Provider
+builder.Services.AddScoped<AuthenticationStateProvider, CustomAuthStateProvider>();
+builder.Services.AddScoped<IAuthService, AuthService>();
 
-            await builder.Build().RunAsync();
-        }
+// Register custom services
+builder.Services.AddScoped<IEquipmentService, EquipmentService>();
+builder.Services.AddScoped<IEquipmentRequestService, EquipmentRequestService>();
+builder.Services.AddScoped<ICheckoutService, CheckoutService>();
+builder.Services.AddScoped<ITeamService, TeamService>();
+builder.Services.AddScoped<IAuditLogService, AuditLogService>();
 
-        private static void ConfigureRootComponents(WebAssemblyHostBuilder builder)
-        {
-            builder.RootComponents.Add<App>("#app");
-            builder.RootComponents.Add<HeadOutlet>("head::after");
-        }
-
-        private static void ConfigureServices(WebAssemblyHostBuilder builder)
-        {
-            // HTTP Client
-            builder.Services.AddScoped(sp => new HttpClient
-            {
-                BaseAddress = new Uri("https://localhost:7176/") // Update to match your API base address
-            });
-
-            // Local storage
-            builder.Services.AddBlazoredLocalStorage();
-
-            // JS interop
-            builder.Services.AddScoped<IJSRuntimeService, JSRuntimeService>();
-
-            // Authentication
-            builder.Services.AddScoped<AuthenticationStateProvider, CustomAuthStateProvider>();
-            builder.Services.AddAuthorizationCore();
-
-            // Custom services
-            builder.Services.AddScoped<IAuthService, AuthService>();
-            builder.Services.AddScoped<IEquipmentService, EquipmentService>();
-            builder.Services.AddScoped<ITeamService, TeamService>();
-            builder.Services.AddScoped<IEquipmentRequestService, EquipmentRequestService>();
-            builder.Services.AddScoped<ICheckoutService, CheckoutService>();
-        }
-    }
-}
+// Build the application
+await builder.Build().RunAsync();

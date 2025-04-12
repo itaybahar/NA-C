@@ -12,17 +12,17 @@ namespace Blazor_WebAssembly.Models.Auth
 
         [Required(ErrorMessage = "Username is required")]
         [StringLength(50)]
-        public string Username { get; set; }
+        public required string Username { get; set; }
 
         [Required(ErrorMessage = "Action is required")]
         [StringLength(100)]
-        public string Action { get; set; }
+        public required string Action { get; set; }
 
         [StringLength(500)]
-        public string Details { get; set; }
+        public string? Details { get; set; }
 
         [StringLength(50)]
-        public string IPAddress { get; set; }
+        public string? IPAddress { get; set; }
 
         public DateTime LogDate { get; set; } = DateTime.UtcNow;
 
@@ -30,7 +30,7 @@ namespace Blazor_WebAssembly.Models.Auth
         public string LogLevel { get; set; } = "Information";
 
         [StringLength(100)]
-        public string EntityName { get; set; }
+        public string? EntityName { get; set; }
 
         public int? EntityID { get; set; }
 
@@ -38,9 +38,9 @@ namespace Blazor_WebAssembly.Models.Auth
             int userId,
             string username,
             string action,
-            string details,
-            string ipAddress = null,
-            string entityName = null,
+            string? details = null,
+            string? ipAddress = null,
+            string? entityName = null,
             int? entityId = null,
             string logLevel = "Information")
         {

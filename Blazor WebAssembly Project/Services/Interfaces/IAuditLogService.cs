@@ -9,6 +9,6 @@ namespace Blazor_WebAssembly.Services.Interfaces
         Task<List<AuditLogModel>> FilterAuditLogsAsync(
             DateTime? startDate = null,
             DateTime? endDate = null,
-            string action = null);
+            string? action = null); // Fixed by making 'action' nullable with '?'
     }
 }

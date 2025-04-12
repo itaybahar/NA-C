@@ -1,27 +1,52 @@
 ﻿using Blazor_WebAssembly.Services.Interfaces;
 using Microsoft.JSInterop;
 
-public class JSRuntimeService : IJSRuntimeService
+namespace Blazor_WebAssembly.Services.Implementations
 {
-    private readonly IJSRuntime _jsRuntime;
-
-    public JSRuntimeService(IJSRuntime jsRuntime)
+    public class JSRuntimeService : IJSRuntimeService
     {
-        _jsRuntime = jsRuntime;
-    }
+        private readonly IJSRuntime _jsRuntime;
 
-    public async Task<string> GetItemFromLocalStorage(string key)
-    {
-        return await _jsRuntime.InvokeAsync<string>("localStorage.getItem", key);
-    }
+        public JSRuntimeService(IJSRuntime jsRuntime)
+        {
+            _jsRuntime = jsRuntime;
+        }
 
-    public async Task SetItemInLocalStorage(string key, string value)
-    {
-        await _jsRuntime.InvokeVoidAsync("localStorage.setItem", key, value);
-    }
+        public async Task<string> GetItemFromLocalStorage(string key)
+        {
+            try
+            {
+                return await _jsRuntime.InvokeAsync<string>("localStorage.getItem", key) ?? string.Empty;
+            }
+            catch (Exception ex)
+            {
+                Console.WriteLine($"Error retrieving from localStorage: {ex.Message}");
+                return string.Empty;
+            }
+        }
 
-    public async Task RemoveItemFromLocalStorage(string key)
-    {
-        await _jsRuntime.InvokeVoidAsync("localStorage.removeItem", key);
+        public async Task SetItemInLocalStorage(string key, string value)
+        {
+            try
+            {
+                await _jsRuntime.InvokeVoidAsync("localStorage.setItem", key, value);
+            }
+            catch (Exception ex)
+            {
+                Console.WriteLine($"Error setting localStorage: {ex.Message}");
+            }
+        }
+
+        public async Task RemoveItemFromLocalStorage(string key)
+        {
+            try
+            {
+                await _jsRuntime.InvokeVoidAsync("localStorage.removeItem", key);
+            }
+            catch (Exception ex)
+            {
+                Console.WriteLine($"Error removing from localStorage: {ex.Message}");
+            }
+        }
     }
 }

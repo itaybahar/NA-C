@@ -8,20 +8,20 @@ namespace Blazor_WebAssembly.Models.Equipment
 
         [Required(ErrorMessage = "Equipment name is required")]
         [StringLength(100)]
-        public string EquipmentName { get; set; }
+        public required string EquipmentName { get; set; }
 
         public int? CategoryID { get; set; }
 
         [Range(1, int.MaxValue, ErrorMessage = "Quantity must be at least 1")]
-        public int Quantity { get; set; } = 1;
+        public int Quantity { get; set; }
 
         [Required]
-        public string Urgency { get; set; } = "Normal";
+        public required string Urgency { get; set; }
 
         [Required(ErrorMessage = "Justification is required")]
         [StringLength(200)]
-        public string Justification { get; set; }
+        public required string Justification { get; set; }
 
-        public string Status { get; set; } = "Pending";
+        public required string Status { get; set; }
     }
 }

@@ -1,5 +1,4 @@
 ﻿using Domain_Project.Models;
-using Domain_Project.Models.Domain_Project.Models;
 using Microsoft.EntityFrameworkCore;
 
 namespace API_Project.Data
@@ -42,7 +41,8 @@ namespace API_Project.Data
             modelBuilder.Entity<Equipment>(entity =>
             {
                 entity.Property(e => e.Status)
-                    .HasDefaultValue("Available");
+                    .HasConversion<string>()
+                    .HasDefaultValue(EquipmentStatus.Available);
             });
 
             // Equipment Checkout configurations
@@ -70,22 +70,25 @@ namespace API_Project.Data
                     .HasDefaultValue("Normal");
             });
 
+            // In EquipmentManagementContext.cs - OnModelCreating method
             modelBuilder.Entity<UserRoleAssignment>(entity =>
             {
-                // Composite primary key
+                // Define composite primary key
                 entity.HasKey(ura => new { ura.UserID, ura.RoleID });
 
-                // Relationships
-                entity.HasOne<User>()
+                // Configure User relationship with explicit foreign key name
+                entity.HasOne(ura => ura.User)
                     .WithMany()
-                    .HasForeignKey(ura => ura.UserID);
+                    .HasForeignKey(ura => ura.UserID)
+                    .OnDelete(DeleteBehavior.Cascade);
 
-                entity.HasOne<UserRole>()
+                // Configure UserRole relationship with explicit foreign key name
+                entity.HasOne(ura => ura.UserRole)
                     .WithMany()
-                    .HasForeignKey(ura => ura.RoleID);
-
+                    .HasForeignKey(ura => ura.RoleID)
+                    .OnDelete(DeleteBehavior.Cascade);
                 // Default assigned date
-                entity.Property(ura => ura.AssignedDate)
+                 entity.Property(ura => ura.AssignedDate)
                     .HasDefaultValueSql("CURRENT_TIMESTAMP");
             });
 
@@ -105,4 +108,3 @@ namespace API_Project.Data
         }
     }
 }
-

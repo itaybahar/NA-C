@@ -2,6 +2,11 @@
 using Domain_Project.Models;
 using Microsoft.AspNetCore.Authorization;
 using Microsoft.AspNetCore.Mvc;
+using Domain_Project.DTOs;
+using System;
+using System.Threading.Tasks;
+using System.Linq.Expressions;
+using Domain_Project.DTOs.Domain_Project.DTOs.Domain_Project.Models;
 
 namespace API_Project.Controllers
 {
@@ -76,80 +81,84 @@ namespace API_Project.Controllers
     }
 
     [Route("api/[controller]")]
-    [Authorize(Roles = "WarehouseManager,CentralManager")]
+    [Authorize(Roles = "Admin,WarehouseManager")] // Restrict access to authorized roles
     public class UsersController : BaseController<User, IGenericRepository<User>>
     {
-        public UsersController(IGenericRepository<User> repository, IUnitOfWork unitOfWork)
-            : base(repository, unitOfWork) { }
+        private readonly IUnitOfWork _unitOfWork;
 
-        protected override int GetEntityId(User entity) => entity.Username.GetHashCode();
-
-        [HttpGet("profile")]
-        [Authorize]
-        public async Task<IActionResult> GetCurrentUserProfile()
+        public UsersController(IGenericRepository<User> repository, IUnitOfWork unitOfWork) : base(repository, unitOfWork)
         {
-            var username = User.Identity?.Name;
-            if (string.IsNullOrEmpty(username))
-            {
-                return Unauthorized();
-            }
-
-            var users = await _repository.FindAsync(u => u.Username == username);
-            var userProfile = users.FirstOrDefault();
-
-            if (userProfile == null)
-            {
-                return NotFound();
-            }
-
-            return Ok(userProfile);
+            _unitOfWork = unitOfWork;
         }
 
-        [HttpGet("user-roles/{userId}")]
-        [Authorize(Roles = "WarehouseManager")]
-        public async Task<IActionResult> GetUserRoles(int userId)
+        protected override int GetEntityId(User entity) => entity.UserID;
+
+        /// <summary>
+        /// Assign a role to a user.
+        /// </summary>
+        /// <param name="userId">The ID of the user to assign the role to.</param>
+        /// <param name="assignRoleDto">The role assignment data.</param>
+        /// <returns>An IActionResult indicating success or failure.</returns>
+        [HttpPost("{userId}/assign-role")]
+        public async Task<IActionResult> AssignRole(int userId, [FromBody] AssignRoleDto assignRoleDto)
         {
-            var userRoles = await _repository.FindAsync(u => u.Username.GetHashCode() == userId);
-            return Ok(userRoles);
-        }
-    }
-
-    [Route("api/user-profiles")]
-    [Authorize(Roles = "WarehouseManager,CentralManager")]
-    public class UserProfilesController : BaseController<User, IGenericRepository<User>>
-    {
-        public UserProfilesController(IGenericRepository<User> repository, IUnitOfWork unitOfWork)
-            : base(repository, unitOfWork) { }
-
-        protected override int GetEntityId(User entity) => entity.Username.GetHashCode();
-
-        [HttpGet("profile")]
-        [Authorize]
-        public async Task<IActionResult> GetCurrentUserProfile()
-        {
-            var username = User.Identity?.Name;
-            if (string.IsNullOrEmpty(username))
+            if (assignRoleDto == null || string.IsNullOrEmpty(assignRoleDto.Role))
             {
-                return Unauthorized();
+                return BadRequest("Invalid role data.");
             }
 
-            var users = await _repository.FindAsync(u => u.Username == username);
-            var userProfile = users.FirstOrDefault();
-
-            if (userProfile == null)
+            // Validate the role
+            if (!IsValidRole(assignRoleDto.Role))
             {
-                return NotFound();
+                return BadRequest($"Invalid role: {assignRoleDto.Role}. Valid roles are: WarehouseOperator, WarehouseManager, Admin.");
             }
 
-            return Ok(userProfile);
+            // Get the user
+            var user = await _repository.GetByIdAsync(userId);
+            if (user == null)
+            {
+                return NotFound($"User with ID {userId} not found.");
+            }
+
+            // Assign the role
+            user.Role = assignRoleDto.Role;
+            await _repository.UpdateAsync(user);
+            await _unitOfWork.CompleteAsync();
+
+            return Ok(new { message = $"Role '{assignRoleDto.Role}' assigned to user '{user.Username}'." });
         }
 
-        [HttpGet("user-roles/{userId}")]
-        [Authorize(Roles = "WarehouseManager")]
-        public async Task<IActionResult> GetUserRoles(int userId)
+        /// <summary>
+        /// Get all users with optional role filtering.
+        /// </summary>
+        /// <param name="role">Optional role to filter users by.</param>
+        /// <returns>A list of users.</returns>
+        [HttpGet("filter")]  // Changed route to avoid conflict
+        public async Task<IActionResult> GetAllUsers([FromQuery] string? role = null)
         {
-            var userRoles = await _repository.FindAsync(u => u.Username.GetHashCode() == userId);
-            return Ok(userRoles);
+            var users = string.IsNullOrEmpty(role)
+                ? await _repository.GetAllAsync()
+                : await _repository.FindAsync(u => u.Role == role);
+
+            return Ok(users);
+        }
+
+        // Override the base GetAll method to avoid the conflict
+        [HttpGet]
+        public override async Task<IActionResult> GetAll()
+        {
+            // Call the implementation in the GetAllUsers method with no role filter
+            return await GetAllUsers();
+        }
+
+        /// <summary>
+        /// Validate if the provided role is valid.
+        /// </summary>
+        /// <param name="role">The role to validate.</param>
+        /// <returns>True if the role is valid, otherwise false.</returns>
+        private bool IsValidRole(string role)
+        {
+            return role is "WarehouseOperator" or "WarehouseManager" or "Admin";
         }
     }
 }

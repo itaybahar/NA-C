@@ -4,6 +4,8 @@ using Domain_Project.Interfaces;
 using Domain_Project.Models;
 using Domain_Project.DTOs;
 using System.Linq.Expressions;
+using System.ComponentModel.DataAnnotations; // Added to resolve [Required], [StringLength]
+using System.ComponentModel.DataAnnotations.Schema; // Added to resolve [Key], [DatabaseGenerated], [Column]
 
 namespace API_Project.Controllers
 {
@@ -67,7 +69,7 @@ namespace API_Project.Controllers
     {
         public DateTime? StartDate { get; set; }
         public DateTime? EndDate { get; set; }
-        public string Action { get; set; }
-        public string LogLevel { get; set; }
+        public string? Action { get; set; } // Made nullable to avoid CS8618
+        public string? LogLevel { get; set; } // Made nullable to avoid CS8618
     }
 }

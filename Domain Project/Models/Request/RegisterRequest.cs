@@ -15,6 +15,9 @@ namespace Domain_Project.Models.Request
         [MinLength(6, ErrorMessage = "Password must be at least 6 characters")]
         public string Password { get; set; } = string.Empty;
 
+        [Required(ErrorMessage = "Confirm Password is required")]
+        [Compare("Password", ErrorMessage = "Passwords do not match")]
+
         public string ConfirmPassword { get; set; } = string.Empty;
 
         public string Role { get; set; } = "User";  // Default role

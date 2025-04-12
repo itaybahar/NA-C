@@ -1,5 +1,8 @@
 ﻿using Blazored.LocalStorage;
 using Blazor_WebAssembly.Services.Interfaces;
+using System;
+using System.Collections.Generic;
+using System.Threading;
 using System.Threading.Tasks;
 
 namespace Blazor_WebAssembly.Services.Implementations
@@ -8,17 +11,22 @@ namespace Blazor_WebAssembly.Services.Implementations
     {
         private readonly ILocalStorageService _blazoredLocalStorage;
 
-        public event EventHandler<ChangingEventArgs> Changing;
-        public event EventHandler<ChangedEventArgs> Changed;
-
         public LocalStorageService(ILocalStorageService blazoredLocalStorage)
         {
-            _blazoredLocalStorage = blazoredLocalStorage;
+            _blazoredLocalStorage = blazoredLocalStorage ?? throw new ArgumentNullException(nameof(blazoredLocalStorage));
+
+            // Subscribe to the events from the underlying localStorage service
+            if (_blazoredLocalStorage is Blazored.LocalStorage.ILocalStorageService typedStorage)
+            {
+                typedStorage.Changing += (sender, args) => Changing?.Invoke(sender, args);
+                typedStorage.Changed += (sender, args) => Changed?.Invoke(sender, args);
+            }
         }
 
         public async Task<T> GetItemAsync<T>(string key)
         {
-            return await _blazoredLocalStorage.GetItemAsync<T>(key);
+            var result = await _blazoredLocalStorage.GetItemAsync<T>(key);
+            return result ?? throw new InvalidOperationException($"The item with key '{key}' was not found or is null.");
         }
 
         public async Task SetItemAsync<T>(string key, T value)
@@ -33,57 +41,61 @@ namespace Blazor_WebAssembly.Services.Implementations
 
         public ValueTask ClearAsync(CancellationToken cancellationToken = default)
         {
-            throw new NotImplementedException();
+            return _blazoredLocalStorage.ClearAsync(cancellationToken);
         }
 
         public ValueTask<T?> GetItemAsync<T>(string key, CancellationToken cancellationToken = default)
         {
-            throw new NotImplementedException();
+            return _blazoredLocalStorage.GetItemAsync<T>(key, cancellationToken);
         }
 
         public ValueTask<string?> GetItemAsStringAsync(string key, CancellationToken cancellationToken = default)
         {
-            throw new NotImplementedException();
+            return _blazoredLocalStorage.GetItemAsStringAsync(key, cancellationToken);
         }
 
         public ValueTask<string?> KeyAsync(int index, CancellationToken cancellationToken = default)
         {
-            throw new NotImplementedException();
+            return _blazoredLocalStorage.KeyAsync(index, cancellationToken);
         }
 
         public ValueTask<IEnumerable<string>> KeysAsync(CancellationToken cancellationToken = default)
         {
-            throw new NotImplementedException();
+            return _blazoredLocalStorage.KeysAsync(cancellationToken);
         }
 
         public ValueTask<bool> ContainKeyAsync(string key, CancellationToken cancellationToken = default)
         {
-            throw new NotImplementedException();
+            return _blazoredLocalStorage.ContainKeyAsync(key, cancellationToken);
         }
 
         public ValueTask<int> LengthAsync(CancellationToken cancellationToken = default)
         {
-            throw new NotImplementedException();
+            return _blazoredLocalStorage.LengthAsync(cancellationToken);
         }
 
         public ValueTask RemoveItemAsync(string key, CancellationToken cancellationToken = default)
         {
-            throw new NotImplementedException();
+            return _blazoredLocalStorage.RemoveItemAsync(key, cancellationToken);
         }
 
         public ValueTask RemoveItemsAsync(IEnumerable<string> keys, CancellationToken cancellationToken = default)
         {
-            throw new NotImplementedException();
+            return _blazoredLocalStorage.RemoveItemsAsync(keys, cancellationToken);
         }
 
         public ValueTask SetItemAsync<T>(string key, T data, CancellationToken cancellationToken = default)
         {
-            throw new NotImplementedException();
+            return _blazoredLocalStorage.SetItemAsync(key, data, cancellationToken);
         }
 
         public ValueTask SetItemAsStringAsync(string key, string data, CancellationToken cancellationToken = default)
         {
-            throw new NotImplementedException();
+            return _blazoredLocalStorage.SetItemAsStringAsync(key, data, cancellationToken);
         }
+
+        // Implementing and properly using the events
+        public event EventHandler<ChangingEventArgs>? Changing;
+        public event EventHandler<ChangedEventArgs>? Changed;
     }
 }

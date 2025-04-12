@@ -1,24 +1,26 @@
 ﻿@page "/"
 @inject NavigationManager NavigationManager
+@inject AuthenticationStateProvider AuthStateProvider
+@inject Blazor_WebAssembly.Services.Interfaces.IJSRuntimeService JSRuntime
 
-<h1>Welcome to Equipment Management System</h1>
+<h1>מחסן הנשיא</h1>
 
 <div class="row mt-4">
     <div class="col-md-4">
         <div class="card">
             <div class="card-header">
-                <h5>Quick Access</h5>
+                <h5>גישה מהירה</h5>
             </div>
             <div class="card-body">
                 <div class="d-grid gap-2">
-                    <a class="btn btn-primary" href="EquipmentInventory">
-                        Equipment Inventory
+                    <a class="btn btn-primary" href="/EquipmentInventory">
+                        מצאי ציוד
                     </a>
-                    <a class="btn btn-primary" href="EquipmentRequestList">
-                        Equipment Requests
+                    <a class="btn btn-primary" href="/EquipmentRequestList">
+                        בקשות ציוד
                     </a>
-                    <a class="btn btn-primary" href="EquipmentCheckout">
-                        Equipment Checkout
+                    <a class="btn btn-primary" href="/EquipmentCheckout">
+                        השאלת ציוד
                     </a>
                 </div>
             </div>
@@ -27,20 +29,24 @@
 </div>
 
 @code {
-    protected override void OnInitialized()
+    protected override async Task OnInitializedAsync()
     {
-        // Navigate to login page if the user is not authenticated
-        // Assuming you have a method IsUserAuthenticated() to check authentication status
-        if (!IsUserAuthenticated())
+        try
         {
-            NavigationManager.NavigateTo("login");
-        }
-    }
+            var authState = await AuthStateProvider.GetAuthenticationStateAsync();
+            var user = authState.User;
 
-    private bool IsUserAuthenticated()
-    {
-        // Implement your authentication check logic here
-        // For example, check if a valid token exists in local storage
-        return false; // Placeholder, replace with actual logic
+            // Navigate to login page if the user is not authenticated
+            if (!user.Identity?.IsAuthenticated ?? true)
+            {
+                NavigationManager.NavigateTo("/login");
+            }
+        }
+        catch (Exception ex)
+        {
+            Console.WriteLine($"Error in Index.razor initialization: {ex.Message}");
+            // Still navigate to login on error
+            NavigationManager.NavigateTo("/login");
+        }
     }
 }

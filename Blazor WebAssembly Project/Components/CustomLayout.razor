@@ -1,0 +1,43 @@
+﻿@namespace Blazor_WebAssembly_Project.Components
+
+<div class="page-container @CssClass" dir="@Direction">
+    <header class="@HeaderClass">
+        @HeaderContent
+    </header>
+
+    <main class="content-area">
+        @ChildContent
+    </main>
+
+    @if (HasFooter)
+    {
+        <footer class="@FooterClass">
+            @FooterContent
+        </footer>
+    }
+</div>
+
+@code {
+    [Parameter]
+    public string Direction { get; set; } = "rtl";
+
+    [Parameter]
+    public string CssClass { get; set; } = "";
+
+    [Parameter]
+    public string HeaderClass { get; set; } = "page-header";
+
+    [Parameter]
+    public string FooterClass { get; set; } = "page-footer";
+
+    [Parameter]
+    public RenderFragment? HeaderContent { get; set; }
+
+    [Parameter]
+    public RenderFragment? FooterContent { get; set; }
+
+    [Parameter]
+    public RenderFragment? ChildContent { get; set; }
+
+    private bool HasFooter => FooterContent != null;
+}

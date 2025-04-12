@@ -1,13 +1,9 @@
-﻿@using Microsoft.AspNetCore.Components.Authorization
-@using Microsoft.AspNetCore.Components.Routing
-@using Microsoft.AspNetCore.Components.WebAssembly.Authentication
-
-<CascadingAuthenticationState>
+﻿<CascadingAuthenticationState>
     <Router AppAssembly="@typeof(Program).Assembly">
         <Found Context="routeData">
             <AuthorizeRouteView RouteData="@routeData" DefaultLayout="@typeof(MainLayout)">
                 <NotAuthorized>
-                    @if (context.User.Identity?.IsAuthenticated != true)
+                    @if (context?.User?.Identity?.IsAuthenticated != true)
                     {
                         <RedirectToLogin />
                     }
@@ -17,28 +13,19 @@
                     }
                 </NotAuthorized>
                 <Authorizing>
-                    <p>Loading authorization...</p>
+                    <div class="loading-progress d-flex flex-column justify-content-center align-items-center vh-100">
+                        <div class="spinner-border text-primary mb-3" role="status">
+                            <span class="visually-hidden">Loading...</span>
+                        </div>
+                        <p>Loading authorization...</p>
+                    </div>
                 </Authorizing>
             </AuthorizeRouteView>
         </Found>
         <NotFound>
             <LayoutView Layout="@typeof(MainLayout)">
-                <p>⚠ Page not found</p>
+                <p class="text-center p-4">⚠ Page not found</p>
             </LayoutView>
         </NotFound>
     </Router>
 </CascadingAuthenticationState>
-
-@code {
-    // Made RedirectToLogin public to be accessible as a component
-    public class RedirectToLogin : ComponentBase
-    {
-        [Inject]
-        required public NavigationManager Navigation { get; set; }
-
-        protected override void OnInitialized()
-        {
-            Navigation.NavigateTo($"/login?returnUrl={Uri.EscapeDataString(Navigation.Uri)}");
-        }
-    }
-}

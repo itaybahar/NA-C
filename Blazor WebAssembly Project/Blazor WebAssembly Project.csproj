@@ -1,23 +1,21 @@
-﻿<Project Sdk="Microsoft.NET.Sdk.BlazorWebAssembly">
-	<PropertyGroup>
-		<TargetFramework>net9.0</TargetFramework>
-		<Nullable>enable</Nullable>
-		<ImplicitUsings>enable</ImplicitUsings>
-		<RuntimeIdentifier>browser-wasm</RuntimeIdentifier>
-	
-</PropertyGroup>
-	<ItemGroup>
-		<PackageReference Include="Blazored.LocalStorage" Version="4.5.0" />
-		<PackageReference Include="Intersoft.Crosslight" Version="6.0.5000.975" />
-		<PackageReference Include="Microsoft.AspNetCore.Components.Authorization" Version="9.0.3" />
-		<PackageReference Include="Microsoft.AspNetCore.Components.WebAssembly" Version="9.0.3" />
-		<PackageReference Include="Microsoft.AspNetCore.Components.WebAssembly.Authentication" Version="9.0.3" />
-		<PackageReference Include="Microsoft.AspNetCore.Components.WebAssembly.DevServer" Version="9.0.3" PrivateAssets="all" />
-		<PackageReference Include="Microsoft.AspNetCore.WebUtilities" Version="9.0.3" />
-		<PackageReference Include="System.IdentityModel.Tokens.Jwt" Version="7.4.0" />
-		<PackageReference Include="System.Net.Http.Json" Version="9.0.3" />
-	</ItemGroup>
-	<ItemGroup>
-	  <ProjectReference Include="..\Domain Project\Domain Project.csproj" />
-	</ItemGroup>
+﻿<Project Sdk="Microsoft.NET.Sdk.BlazorWebAssembly">  
+<PropertyGroup>  
+<TargetFramework>net9.0</TargetFramework>  
+<Nullable>enable</Nullable>  
+<ImplicitUsings>enable</ImplicitUsings>  
+<RuntimeIdentifier>browser-wasm</RuntimeIdentifier>  
+</PropertyGroup>  
+<ItemGroup>  
+<PackageReference Include="Blazored.LocalStorage" Version="4.5.0" />  
+<PackageReference Include="Microsoft.AspNetCore.Components.Authorization" Version="9.0.3" />  
+<PackageReference Include="Microsoft.AspNetCore.Components.WebAssembly" Version="9.0.3" />  
+<PackageReference Include="Microsoft.AspNetCore.Components.WebAssembly.Authentication" Version="9.0.3" />  
+<PackageReference Include="Microsoft.AspNetCore.Components.WebAssembly.DevServer" Version="9.0.3" PrivateAssets="all" />  
+<PackageReference Include="Microsoft.AspNetCore.WebUtilities" Version="9.0.3" />  
+<PackageReference Include="System.IdentityModel.Tokens.Jwt" Version="7.4.0" />  
+<PackageReference Include="System.Net.Http.Json" Version="9.0.3" />  
+</ItemGroup>  
+<ItemGroup>  
+ <ProjectReference Include="..\Domain Project\Domain Project.csproj" />  
+</ItemGroup>  
 </Project>

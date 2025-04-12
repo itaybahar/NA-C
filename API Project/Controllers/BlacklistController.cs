@@ -1,4 +1,5 @@
 ﻿using Domain_Project.DTOs;
+using Domain_Project.DTOs.Domain_Project.DTOs.Domain_Project.Models;
 using Domain_Project.Interfaces;
 using Domain_Project.Models;
 using Microsoft.AspNetCore.Authorization;
@@ -11,7 +12,12 @@ namespace API_Project.Controllers
     [Authorize(Roles = "WarehouseManager,CentralManager")]
     public class BlacklistController : BaseController<Blacklist, IGenericRepository<Blacklist>>
     {
-        public BlacklistController(IGenericRepository<Blacklist> repository, IUnitOfWork unitOfWork) : base(repository, unitOfWork) { }
+        private readonly IUnitOfWork _unitOfWork;
+
+        public BlacklistController(IGenericRepository<Blacklist> repository, IUnitOfWork unitOfWork) : base(repository, unitOfWork)
+        {
+            _unitOfWork = unitOfWork; // Assign the injected unitOfWork to a private field
+        }
 
         protected override int GetEntityId(Blacklist entity) => entity.BlacklistID;
 
@@ -25,8 +31,29 @@ namespace API_Project.Controllers
         [HttpPost("add")]
         public async Task<IActionResult> AddToBlacklist([FromBody] BlacklistCreateDto blacklistDto)
         {
-            // Custom logic to create a blacklist entry
-            return Ok();
+            if (!ModelState.IsValid)
+            {
+                return BadRequest(ModelState);
+            }
+
+            if (!blacklistDto.IsValidReason())
+            {
+                return BadRequest("The reason for blacklisting is invalid.");
+            }
+
+            var blacklist = new Blacklist
+            {
+                TeamID = blacklistDto.TeamID,
+                BlacklistedBy = blacklistDto.BlacklistedBy,
+                ReasonForBlacklisting = blacklistDto.ReasonForBlacklisting,
+                Notes = blacklistDto.Notes,
+                BlacklistDate = blacklistDto.BlacklistDate
+            };
+
+            await _repository.AddAsync(blacklist);
+            await _unitOfWork.CompleteAsync(); // Ensure changes are saved to the database
+
+            return CreatedAtAction(nameof(GetById), new { id = blacklist.BlacklistID }, blacklist);
         }
 
         [HttpPatch("{blacklistId}/remove")]
@@ -40,7 +67,7 @@ namespace API_Project.Controllers
 
             blacklist.RemovalDate = DateTime.UtcNow;
             await _repository.UpdateAsync(blacklist);
-            // Removed the call to SaveChangesAsync as it is not defined in IGenericRepository
+            await _unitOfWork.CompleteAsync(); // Ensure changes are saved to the database
 
             return Ok(blacklist);
         }

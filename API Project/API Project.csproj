@@ -11,6 +11,8 @@
 		<!-- ASP.NET Core Auth -->
 		<PackageReference Include="Microsoft.AspNetCore.Authentication.Google" Version="9.0.3" />
 		<PackageReference Include="Microsoft.AspNetCore.Authentication.JwtBearer" Version="9.0.3" />
+		<PackageReference Include="Microsoft.AspNetCore.Authentication.MicrosoftAccount" Version="9.0.4" />
+		<PackageReference Include="Microsoft.AspNetCore.Authentication.OpenIdConnect" Version="9.0.4" />
 		<PackageReference Include="Microsoft.AspNetCore.Authorization" Version="9.0.3" />
 
 		<!-- EF Core 9 (Matching all versions) -->
@@ -21,6 +23,7 @@
 			<PrivateAssets>all</PrivateAssets>
 			<IncludeAssets>runtime; build; native; contentfiles; analyzers; buildtransitive</IncludeAssets>
 		</PackageReference>
+		<PackageReference Include="Microsoft.Identity.Web" Version="3.8.3" />
 
 		<!-- Pomelo MySQL Provider (EF Core 9 compatible) -->
 		<PackageReference Include="Pomelo.EntityFrameworkCore.MySql" Version="9.0.0-preview.3.efcore.9.0.0" />

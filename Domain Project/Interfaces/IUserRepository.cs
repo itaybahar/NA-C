@@ -6,8 +6,8 @@ namespace Domain_Project.Interfaces
 {
     public interface IUserRepository : IGenericRepository<User>
     {
-        Task<User> GetUserByUsernameAsync(string username);
-        Task<User> GetUserByEmailAsync(string email);
+        Task<User?> GetUserByUsernameAsync(string username);
+        Task<User?> GetUserByEmailAsync(string email);
         Task<bool> ValidateUserCredentialsAsync(string username, string password);
         Task<IEnumerable<UserRole>> GetUserRolesAsync(int userId);
         Task SaveChangesAsync();

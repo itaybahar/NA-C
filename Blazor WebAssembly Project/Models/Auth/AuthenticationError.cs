@@ -2,8 +2,8 @@
 {
     public class AuthenticationError
     {
-        public string ErrorCode { get; set; }
-        public string ErrorMessage { get; set; }
+        public required string ErrorCode { get; set; }
+        public required string ErrorMessage { get; set; }
         public DateTime Timestamp { get; set; } = DateTime.UtcNow;
     }
 }

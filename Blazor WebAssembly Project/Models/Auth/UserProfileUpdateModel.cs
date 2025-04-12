@@ -6,14 +6,14 @@ namespace Blazor_WebAssembly.Models.Auth
     {
         [Required(ErrorMessage = "Email is required")]
         [EmailAddress(ErrorMessage = "Invalid email address")]
-        public string Email { get; set; }
+        public required string Email { get; set; }
 
         [StringLength(50)]
-        public string FirstName { get; set; }
+        public required string FirstName { get; set; }
 
         [StringLength(50)]
-        public string LastName { get; set; }
+        public required string LastName { get; set; }
 
-        public string PhoneNumber { get; set; }
+        public required string PhoneNumber { get; set; }
     }
 }

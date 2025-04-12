@@ -125,5 +125,18 @@ namespace Blazor_WebAssembly.Services
             var response = await _httpClient.PostAsJsonAsync($"api/role-requests/{requestId}/reject", requestModel);
             return response.IsSuccessStatusCode;
         }
+        public async Task<bool> AssignRoleAsync(int userId, string role)
+        {
+            await SetAuthHeader();
+
+            var requestModel = new
+            {
+                Role = role
+            };
+
+            var response = await _httpClient.PostAsJsonAsync($"api/users/{userId}/assign-role", requestModel);
+            return response.IsSuccessStatusCode;
+        }
+
     }
 }

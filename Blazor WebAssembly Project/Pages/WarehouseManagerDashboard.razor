@@ -1,47 +1,249 @@
 ﻿@page "/warehouse/manager/dashboard"
+@using Microsoft.AspNetCore.Authorization
+@using Blazor_WebAssembly_Project.Components.helpers
 @attribute [Authorize(Roles = "WarehouseManager,Admin")]
 
 <PageTitle>Dashboard - מנהל מחסן</PageTitle>
 
-<div class="max-w-6xl mx-auto mt-10 p-6 rounded-2xl bg-zinc-900 shadow-lg text-white">
-    <h1 class="text-3xl font-bold mb-6 text-red-500">ממשק ניהול מחסן</h1>
+<div class="app-layout">
+    <!-- Top navbar with logo and tabs -->
+    <div class="top-navbar">
+        <div class="navbar-container">
+            <div class="navbar-branding">
+                <img src="images/logo_png.png" alt="לוגו השבט" class="navbar-logo" />
+                <span class="navbar-title">א.מחסן שבט הנשיא</span>
+            </div>
 
-    <div class="flex space-x-4 mb-6">
-        <button class="@GetTabClass("equipment")" @onclick="() => ActiveTab = "equipment"">רשימת ציוד</button>
-        <button class="@GetTabClass("blacklist")" @onclick="() => ActiveTab = "blacklist"">רשימה שחורה</button>
-        <button class="@GetTabClass("request")" @onclick="() => ActiveTab = "request"">שלח בקשה</button>
-        <button class="@GetTabClass("checkout")" @onclick="() => ActiveTab = "checkout"">הוצאת ציוד</button>
-        <button class="@GetTabClass("add")" @onclick="() => ActiveTab = "add"">➕ הוספת ציוד</button>
+            <div class="navbar-tabs">
+                <button class="nav-tab @(ActiveTab == "equipment" ? "active" : "")" @onclick='() => ActiveTab = "equipment"'>רשימת ציוד</button>
+                <button class="nav-tab @(ActiveTab == "blacklist" ? "active" : "")" @onclick='() => ActiveTab = "blacklist"'>רשימה שחורה</button>
+                <button class="nav-tab @(ActiveTab == "request" ? "active" : "")" @onclick='() => ActiveTab = "request"'>שלח בקשה</button>
+                <button class="nav-tab @(ActiveTab == "checkout" ? "active" : "")" @onclick='() => ActiveTab = "checkout"'>הוצאת ציוד</button>
+                <button class="nav-tab @(ActiveTab == "add" ? "active" : "")" @onclick='() => ActiveTab = "add"'>➕ הוספת ציוד</button>
+            </div>
+        </div>
     </div>
 
-    <div class="bg-zinc-800 p-6 rounded-xl">
-        @switch (ActiveTab)
-        {
-            case "equipment":
-                <EquipmentList />
-                break;
-            case "blacklist":
-                <BlacklistView />
-                break;
-            case "request":
-                <RequestAdminForm />
-                break;
-            case "checkout":
-                <EquipmentCheckout />
-                break;
-            case "add":
-                <AddEquipmentForm />
-                break;
-        }
+    <!-- Main content area -->
+    <div class="content-container">
+        <div class="content-area">
+            @switch (ActiveTab)
+            {
+                case "equipment":
+                    <EquipmentList />
+                    break;
+                case "blacklist":
+                    <BlacklistView />
+                    break;
+                case "request":
+                    <RequestAdminForm />
+                    break;
+                case "checkout":
+                    <EquipmentCheckout />
+                    break;
+                case "add":
+                    <AddEquipmentForm />
+                    break;
+            }
+        </div>
     </div>
 </div>
 
+<style>
+    :root {
+        --background: #1a1a1a;
+        --primary-red: #d32f2f;
+        --white: #ffffff;
+        --grey: #cccccc;
+        --content-bg: #2a2a2a;
+        --navbar-height: 70px;
+    }
+
+    /* Full page layout */
+    .app-layout {
+        display: flex;
+        flex-direction: column;
+        min-height: 100vh;
+        background: var(--background);
+        color: var(--white);
+        font-family: 'Segoe UI', sans-serif;
+        direction: rtl;
+    }
+
+    /* Top navbar with logo and tabs */
+    .top-navbar {
+        background-color: #1a1a1a;
+        height: var(--navbar-height);
+        position: fixed;
+        top: 0;
+        left: 0;
+        right: 0;
+        z-index: 100;
+        box-shadow: 0 2px 5px rgba(0,0,0,0.2);
+    }
+
+    .navbar-container {
+        max-width: 1400px;
+        margin: 0 auto;
+        height: 100%;
+        display: flex;
+        align-items: center;
+        padding: 0 20px;
+    }
+
+    .navbar-branding {
+        display: flex;
+        align-items: center;
+        margin-left: 20px;
+    }
+
+    .navbar-logo {
+        height: 40px;
+        margin-left: 10px;
+    }
+
+    .navbar-title {
+        color: var(--primary-red);
+        font-weight: bold;
+        font-size: 18px;
+        white-space: nowrap;
+    }
+
+    .navbar-tabs {
+        display: flex;
+        align-items: center;
+        height: 100%;
+        overflow-x: auto;
+        white-space: nowrap;
+        flex-grow: 1;
+    }
+
+    .nav-tab {
+        padding: 0 15px;
+        height: 100%;
+        background: none;
+        border: none;
+        color: var(--white);
+        cursor: pointer;
+        font-weight: bold;
+        transition: 0.3s;
+        border-bottom: 3px solid transparent;
+        display: flex;
+        align-items: center;
+    }
+
+        .nav-tab.active {
+            border-bottom: 3px solid var(--primary-red);
+            color: var(--primary-red);
+        }
+
+        .nav-tab:hover:not(.active) {
+            background-color: rgba(255,255,255,0.05);
+        }
+
+    /* Content area */
+    .content-container {
+        margin-top: var(--navbar-height);
+        flex-grow: 1;
+        background: var(--background);
+        padding: 20px;
+    }
+
+    .content-area {
+        background-color: var(--content-bg);
+        border-radius: 8px;
+        padding: 25px;
+        min-height: calc(100vh - var(--navbar-height) - 40px);
+        box-shadow: 0 0 15px rgba(0,0,0,0.3);
+    }
+
+        /* Component styling overrides */
+        .content-area :deep(*) {
+            color: var(--white);
+        }
+
+        .content-area :deep(input),
+        .content-area :deep(select),
+        .content-area :deep(textarea) {
+            background-color: #333;
+            border: 1px solid #555;
+            color: var(--white);
+            border-radius: 6px;
+            padding: 8px;
+        }
+
+        .content-area :deep(button) {
+            background-color: var(--primary-red);
+            color: white;
+            border: none;
+            border-radius: 6px;
+            padding: 8px 16px;
+            cursor: pointer;
+            font-weight: bold;
+        }
+
+        .content-area :deep(button:hover) {
+            background-color: #b71c1c;
+        }
+
+        .content-area :deep(table) {
+            width: 100%;
+            border-collapse: collapse;
+        }
+
+        .content-area :deep(th),
+        .content-area :deep(td) {
+            padding: 12px;
+            text-align: right;
+            border-bottom: 1px solid #555;
+        }
+
+        .content-area :deep(th) {
+            background-color: #333;
+        }
+
+        .content-area :deep(tr:hover) {
+            background-color: #3a3a3a;
+        }
+
+    /* Responsive adjustments */
+    media (max-width: 768px) {
+        .navbar-container
+
+    {
+        flex-direction: column;
+        align-items: flex-start;
+        padding: 10px;
+    }
+
+    .top-navbar {
+        height: auto;
+    }
+
+    .navbar-branding {
+        margin-bottom: 10px;
+        width: 100%;
+        justify-content: space-between;
+    }
+
+    .navbar-tabs {
+        width: 100%;
+        overflow-x: auto;
+    }
+
+    .nav-tab {
+        padding: 10px;
+        font-size: 14px;
+        height: 40px;
+    }
+
+    .content-container {
+        margin-top: 110px;
+    }
+
+    }
+</style>
+
 @code {
     private string ActiveTab = "equipment";
-
-    private string GetTabClass(string tab) =>
-        $"px-4 py-2 rounded-xl text-sm font-semibold " +
-        (ActiveTab == tab
-            ? "bg-red-700 text-white shadow"
-            : "bg-zinc-700 hover:bg-red-600 text-gray-300");
 }

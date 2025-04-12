@@ -40,7 +40,7 @@
     public EventCallback OnCancel { get; set; }
 
     [Parameter]
-    public RenderFragment ChildContent { get; set; }
+    public RenderFragment? ChildContent { get; set; } // Made nullable to fix CS8618
 
     private string _modalDisplay = "none";
     private string _modalClass = "";

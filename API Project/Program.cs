@@ -9,10 +9,13 @@ using Microsoft.AspNetCore.Authentication;
 using Microsoft.AspNetCore.Authentication.Cookies;
 using Microsoft.AspNetCore.Authentication.Google;
 using Microsoft.AspNetCore.Authentication.JwtBearer;
+using Microsoft.AspNetCore.Authentication.MicrosoftAccount;
+using Microsoft.AspNetCore.Authentication.OpenIdConnect;
 using Microsoft.AspNetCore.CookiePolicy;
 using Microsoft.AspNetCore.RateLimiting;
 using Microsoft.EntityFrameworkCore;
 using Microsoft.Extensions.Diagnostics.HealthChecks;
+using Microsoft.Identity.Web;
 using Microsoft.IdentityModel.Tokens;
 using Microsoft.OpenApi.Models;
 using System.Security.Cryptography.X509Certificates;
@@ -26,28 +29,95 @@ namespace API_Project
         public static void Main(string[] args)
         {
             var builder = WebApplication.CreateBuilder(args);
-            builder.WebHost.ConfigureKestrel(options =>
-            {
-                options.ConfigureHttpsDefaults(httpsOptions =>
-                {
-                    var certPath = "./localhost.pem";
-                    var keyPath = "./localhost-key.pem";
-                    httpsOptions.ServerCertificate = X509Certificate2.CreateFromPemFile(certPath, keyPath);
-                });
-            });
 
+            // Configure Kestrel with improved certificate handling
+            ConfigureKestrel(builder);
+
+            // Configure application services
             ConfigureServices(builder);
+
+            builder.Logging.ClearProviders();
+            builder.Logging.AddConsole();
+            builder.Logging.AddDebug();
+            builder.Logging.SetMinimumLevel(LogLevel.Information);
+
             var app = builder.Build();
 
+            // Configure the HTTP request pipeline
             ConfigurePipeline(app);
-
-            app.MapGet("/", () => "Welcome to Equipment Management API");
 
             app.Run();
         }
 
+        private static void ConfigureKestrel(WebApplicationBuilder builder)
+        {
+            builder.WebHost.ConfigureKestrel(options =>
+            {
+                options.ListenAnyIP(5191, listenOptions =>
+                {
+                    listenOptions.UseHttps(httpsOptions =>
+                    {
+                        if (builder.Environment.IsDevelopment())
+                        {
+                            var possibleLocations = new[]
+                            {
+                                new { CertPath = Path.Combine(Directory.GetCurrentDirectory(), "localhost.pem"),
+                                    KeyPath = Path.Combine(Directory.GetCurrentDirectory(), "localhost-key.pem") },
+                                new { CertPath = Path.Combine(AppContext.BaseDirectory, "localhost.pem"),
+                                    KeyPath = Path.Combine(AppContext.BaseDirectory, "localhost-key.pem") }
+                            };
+
+                            Console.WriteLine($"Current Directory: {Directory.GetCurrentDirectory()}");
+                            Console.WriteLine($"AppContext.BaseDirectory: {AppContext.BaseDirectory}");
+
+                            bool certificateFound = false;
+
+                            foreach (var location in possibleLocations)
+                            {
+                                Console.WriteLine($"Checking for certificates at: {location.CertPath} and {location.KeyPath}");
+
+                                if (File.Exists(location.CertPath) && File.Exists(location.KeyPath))
+                                {
+                                    try
+                                    {
+                                        httpsOptions.ServerCertificate = X509Certificate2.CreateFromPemFile(location.CertPath, location.KeyPath);
+                                        Console.WriteLine($"Certificates loaded successfully from {location.CertPath}");
+                                        certificateFound = true;
+                                        break;
+                                    }
+                                    catch (Exception ex)
+                                    {
+                                        Console.WriteLine($"Error loading certificates from {location.CertPath}: {ex.Message}");
+                                    }
+                                }
+                            }
+
+                            if (!certificateFound)
+                            {
+                                Console.WriteLine("No certificate files found. Using development certificate instead.");
+                            }
+                        }
+                        else
+                        {
+                            Console.WriteLine("Production environment detected. Using configured certificate.");
+                        }
+                    });
+                });
+
+                // Also add HTTPS endpoint on port 7235 as defined in launchSettings.json
+                options.ListenAnyIP(7235, listenOptions =>
+                {
+                    listenOptions.UseHttps();
+                });
+            });
+        }
+
         private static void ConfigureServices(WebApplicationBuilder builder)
         {
+            var authSettings = builder.Configuration.GetSection("Authentication").Get<AuthenticationSettings>()
+                ?? throw new ArgumentNullException("AuthenticationSettings");
+            builder.Services.AddSingleton(authSettings);
+
             builder.Services.AddControllers()
                 .AddJsonOptions(options =>
                 {
@@ -55,35 +125,59 @@ namespace API_Project
                     options.JsonSerializerOptions.DefaultIgnoreCondition = JsonIgnoreCondition.WhenWritingNull;
                 });
 
+            ConfigureDatabase(builder);
+            RegisterServices(builder);
+
+            builder.Services.AddMemoryCache();
+            ConfigureRateLimiting(builder);
+            ConfigureHealthChecks(builder);
+            ConfigureSwagger(builder);
+            ConfigureCors(builder);
+
+            AuthenticationServiceExtensions.ConfigureAuthentication(builder);
+        }
+
+        private static void ConfigureDatabase(WebApplicationBuilder builder)
+        {
             builder.Services.AddDbContext<EquipmentManagementContext>(options =>
                 options.UseMySql(
                     builder.Configuration.GetConnectionString("DefaultConnection"),
                     new MySqlServerVersion(new Version(8, 0, 21)),
-                    mySqlOptions => mySqlOptions.EnableRetryOnFailure(5, TimeSpan.FromSeconds(30), null))
+                    mySqlOptions => mySqlOptions.EnableRetryOnFailure(
+                        maxRetryCount: 5,
+                        maxRetryDelay: TimeSpan.FromSeconds(30),
+                        errorNumbersToAdd: null
+                    )
+                )
+                .LogTo(Console.WriteLine, LogLevel.Information)
+                .EnableSensitiveDataLogging()
             );
+        }
 
+        private static void RegisterServices(WebApplicationBuilder builder)
+        {
             builder.Services.AddHttpClient();
-
-            var authSettings = builder.Configuration.GetSection("Authentication").Get<AuthenticationSettings>()
-                ?? throw new ArgumentNullException("AuthenticationSettings");
-            builder.Services.AddSingleton(authSettings);
-
+            builder.Services.AddScoped<IEquipmentRepository, EquipmentRepository>();
             builder.Services.AddScoped(typeof(IGenericRepository<>), typeof(GenericRepository<>));
             builder.Services.AddScoped<IUserRepository, UserRepository>();
             builder.Services.AddScoped<IRoleChangeRequestRepository, RoleChangeRequestRepository>();
+
             builder.Services.AddScoped<Services.AuthenticationService>();
             builder.Services.AddScoped<Domain_Project.Interfaces.IAuthenticationService, AuthenticationServiceAdapter>();
             builder.Services.AddScoped<IRoleRequestService, RoleRequestService>();
             builder.Services.AddScoped<IEmailService, EmailService>();
+            builder.Services.AddScoped<IEquipmentService, EquipmentService>();
+        }
 
-            builder.Services.AddMemoryCache();
-
-            // Add rate limiting
+        private static void ConfigureRateLimiting(WebApplicationBuilder builder)
+        {
             builder.Services.AddRateLimiter(options =>
             {
-                options.GlobalLimiter = PartitionedRateLimiter.Create<HttpContext, string>(context =>
+                // Configure global rate limiting
+                options.GlobalLimiter = PartitionedRateLimiter.Create<HttpContext, string>(httpContext =>
                 {
-                    return RateLimitPartition.GetFixedWindowLimiter("GlobalLimiter",
+                    var clientIp = httpContext.Connection.RemoteIpAddress?.ToString() ?? "unknown";
+                    return RateLimitPartition.GetFixedWindowLimiter(clientIp,
                         _ => new FixedWindowRateLimiterOptions
                         {
                             AutoReplenishment = true,
@@ -92,13 +186,15 @@ namespace API_Project
                         });
                 });
 
+                // Add specific named rate limiter for authentication endpoints
                 options.AddPolicy("AuthEndpoints", context =>
                 {
-                    return RateLimitPartition.GetFixedWindowLimiter("AuthLimiter",
+                    var clientIp = context.Connection.RemoteIpAddress?.ToString() ?? "unknown";
+                    return RateLimitPartition.GetFixedWindowLimiter(clientIp,
                         _ => new FixedWindowRateLimiterOptions
                         {
                             AutoReplenishment = true,
-                            PermitLimit = 10,
+                            PermitLimit = 10, // More restrictive limit for auth endpoints
                             Window = TimeSpan.FromMinutes(1)
                         });
                 });
@@ -106,32 +202,32 @@ namespace API_Project
                 options.OnRejected = async (context, token) =>
                 {
                     context.HttpContext.Response.StatusCode = 429; // Too Many Requests
+                    context.HttpContext.Response.Headers.Append("Retry-After", "60"); // Recommend retry after 60 seconds
                     await context.HttpContext.Response.WriteAsync("Too many requests. Please try again later.", token);
                 };
             });
+        }
+
+        private static void ConfigureHealthChecks(WebApplicationBuilder builder)
+        {
+            string? connectionString = builder.Configuration.GetConnectionString("DefaultConnection");
+
+            if (string.IsNullOrEmpty(connectionString))
+            {
+                throw new InvalidOperationException("Database connection string 'DefaultConnection' is not configured.");
+            }
 
             builder.Services.AddHealthChecks()
                 .AddCheck(
                     "mysql-connection",
-                    () =>
-                    {
-                        try
-                        {
-                            using var serviceScope = builder.Services.BuildServiceProvider().CreateScope();
-                            var dbContext = serviceScope.ServiceProvider.GetRequiredService<EquipmentManagementContext>();
-                            dbContext.Database.OpenConnection();
-                            dbContext.Database.CloseConnection();
-                            return HealthCheckResult.Healthy("Database connection is healthy");
-                        }
-                        catch (Exception ex)
-                        {
-                            return HealthCheckResult.Unhealthy("Database connection failed", ex);
-                        }
-                    },
+                    new DbConnectionHealthCheck(connectionString),
                     tags: new[] { "db", "mysql" },
                     timeout: TimeSpan.FromSeconds(30)
                 );
+        }
 
+        private static void ConfigureSwagger(WebApplicationBuilder builder)
+        {
             builder.Services.AddEndpointsApiExplorer();
             builder.Services.AddSwaggerGen(c =>
             {
@@ -169,156 +265,23 @@ namespace API_Project
 
                 c.CustomSchemaIds(type => type.FullName);
             });
+        }
 
-            var allowedOrigins = builder.Configuration.GetSection("AllowedOrigins").Get<string[]>() ??
-                new[] { "https://localhost:7176" };
+        private static void ConfigureCors(WebApplicationBuilder builder)
+        {
+            // Get the CORS origins from the CorsSettings section which matches launchSettings.json better
+            var allowedOrigins = builder.Configuration.GetSection("CorsSettings:AllowedOrigins").Get<string[]>() ??
+                new[] { "https://localhost:7176", "http://localhost:5176" };
 
             builder.Services.AddCors(options =>
             {
                 options.AddDefaultPolicy(policy =>
                 {
-                    policy.WithOrigins(allowedOrigins)
+                    policy.WithOrigins("https://localhost:7176", "http://localhost:5176")
                           .AllowAnyMethod()
                           .AllowAnyHeader()
                           .AllowCredentials();
                 });
-            });
-
-            builder.Services.AddAuthentication(options =>
-            {
-                options.DefaultScheme = CookieAuthenticationDefaults.AuthenticationScheme;
-                options.DefaultChallengeScheme = GoogleDefaults.AuthenticationScheme;
-                options.DefaultAuthenticateScheme = CookieAuthenticationDefaults.AuthenticationScheme;
-            })
-            .AddCookie(options =>
-            {
-                options.Cookie.HttpOnly = true;
-                options.Cookie.SecurePolicy = CookieSecurePolicy.Always;
-                options.Cookie.SameSite = SameSiteMode.None;
-                options.Cookie.Name = "EquipmentMgmt.Auth";
-                options.LoginPath = "/login";
-                options.ExpireTimeSpan = TimeSpan.FromMinutes(60);
-                options.SlidingExpiration = true;
-
-                // Add CSRF protection
-                options.Cookie.IsEssential = true;
-
-                // Add event handlers for authentication events
-                options.Events = new CookieAuthenticationEvents
-                {
-                    OnRedirectToLogin = context =>
-                    {
-                        // For API requests, return 401 instead of redirect
-                        if (context.Request.Path.StartsWithSegments("/api") ||
-                            context.Request.Headers["X-Requested-With"] == "XMLHttpRequest")
-                        {
-                            context.Response.StatusCode = 401;
-                            return Task.CompletedTask;
-                        }
-                        context.Response.Redirect(context.RedirectUri);
-                        return Task.CompletedTask;
-                    }
-                };
-            })
-            .AddGoogle(options =>
-            {
-                options.ClientId = builder.Configuration["Authentication:GoogleClientId"]
-                    ?? throw new ArgumentNullException("GoogleClientId");
-                options.ClientSecret = builder.Configuration["Authentication:GoogleClientSecret"]
-                    ?? throw new ArgumentNullException("GoogleClientSecret");
-                options.CallbackPath = "/auth/google-callback";
-                options.SaveTokens = true;
-                options.AccessType = "offline"; // Request a refresh token
-
-                options.Events.OnRemoteFailure = context =>
-                {
-                    Console.WriteLine("Google Login Failed: " + context.Failure?.Message);
-                    context.Response.Redirect("/login?error=google");
-                    context.HandleResponse();
-                    return Task.CompletedTask;
-                };
-
-                options.Events.OnTicketReceived = context =>
-                {
-                    // Log successful authentications
-                    Console.WriteLine($"User {context.Principal?.Identity?.Name} authenticated successfully with Google");
-                    return Task.CompletedTask;
-                };
-            })
-            .AddJwtBearer(JwtBearerDefaults.AuthenticationScheme, options =>
-            {
-                options.TokenValidationParameters = new TokenValidationParameters
-                {
-                    ValidateIssuer = true,
-                    ValidateAudience = true,
-                    ValidateLifetime = true,
-                    ValidateIssuerSigningKey = true,
-                    ValidIssuer = authSettings.Issuer,
-                    ValidAudience = authSettings.Audience,
-                    IssuerSigningKey = authSettings.GetSymmetricSecurityKey(),
-                    ClockSkew = TimeSpan.Zero,
-                    NameClaimType = "name",
-                    RoleClaimType = "role"
-                };
-
-                options.Events = new JwtBearerEvents
-                {
-                    OnMessageReceived = context =>
-                    {
-                        // Extract token from query string for SignalR or WebSockets
-                        var accessToken = context.Request.Query["access_token"];
-                        if (!string.IsNullOrEmpty(accessToken))
-                        {
-                            context.Token = accessToken;
-                        }
-                        return Task.CompletedTask;
-                    },
-                    OnAuthenticationFailed = context =>
-                    {
-                        if (context.Exception is SecurityTokenExpiredException)
-                        {
-                            context.Response.Headers.Append("Token-Expired", "true");
-                        }
-                        Console.WriteLine($"JWT authentication failed: {context.Exception?.Message}");
-                        return Task.CompletedTask;
-                    },
-                    OnTokenValidated = context =>
-                    {
-                        Console.WriteLine($"JWT token validated successfully for {context.Principal?.Identity?.Name}");
-                        return Task.CompletedTask;
-                    },
-                    OnChallenge = context =>
-                    {
-                        // Add more descriptive error responses
-                        if (context.AuthenticateFailure != null)
-                        {
-                            context.HandleResponse();
-                            context.Response.StatusCode = 401;
-                            context.Response.ContentType = "application/json";
-                            var message = context.AuthenticateFailure is SecurityTokenExpiredException
-                                ? "The token has expired"
-                                : "Invalid authentication";
-                            return context.Response.WriteAsync(
-                                System.Text.Json.JsonSerializer.Serialize(new { error = message }));
-                        }
-                        return Task.CompletedTask;
-                    }
-                };
-
-                options.SaveToken = true; // Store the token in the authentication properties
-                options.RequireHttpsMetadata = true; // Require HTTPS for all requests
-            });
-
-            builder.Services.AddAuthorization(options =>
-            {
-                options.AddPolicy("AdminOnly", policy => policy.RequireRole("Admin"));
-                options.AddPolicy("WarehouseManagementOnly", policy =>
-                    policy.RequireRole("Admin", "WarehouseManager", "WarehouseOperator"));
-                options.AddPolicy("AdminOrWarehouseManager", policy =>
-                    policy.RequireRole("Admin", "WarehouseManager"));
-
-                // Add a fallback policy for all endpoints
-                options.FallbackPolicy = options.DefaultPolicy;
             });
         }
 
@@ -327,12 +290,22 @@ namespace API_Project
             if (app.Environment.IsDevelopment())
             {
                 app.UseDeveloperExceptionPage();
+
+                // Configure Swagger UI for development
                 app.UseSwagger();
                 app.UseSwaggerUI(c =>
                 {
                     c.SwaggerEndpoint("/swagger/v1/swagger.json", "Equipment Management API v1");
-                    c.RoutePrefix = string.Empty;
+                    c.RoutePrefix = "swagger"; // Changed from empty to "swagger"
                     c.DocExpansion(Swashbuckle.AspNetCore.SwaggerUI.DocExpansion.None);
+                    c.EnableDeepLinking();
+                    c.DisplayRequestDuration();
+                });
+
+                // Add a redirect from root to swagger UI (after Swagger middleware is set up)
+                app.MapGet("/", context => {
+                    context.Response.Redirect("/swagger");
+                    return Task.CompletedTask;
                 });
             }
             else
@@ -341,12 +314,53 @@ namespace API_Project
                 app.UseHsts();
             }
 
+            // Security headers - updated to be less restrictive for Swagger UI
+            app.Use(async (context, next) =>
+            {
+                context.Response.Headers.Append("X-Content-Type-Options", "nosniff");
+                context.Response.Headers.Append("X-Frame-Options", "DENY");
+                context.Response.Headers.Append("X-XSS-Protection", "1; mode=block");
+                context.Response.Headers.Append("Strict-Transport-Security", "max-age=31536000; includeSubDomains");
+                context.Response.Headers.Append("Referrer-Policy", "strict-origin-when-cross-origin");
+                context.Response.Headers.Append("Permissions-Policy", "camera=(), microphone=(), geolocation=()");
+
+                // Modified CSP to allow Swagger UI to function properly
+                if (context.Request.Path.StartsWithSegments("/swagger"))
+                {
+                    context.Response.Headers.Append(
+                        "Content-Security-Policy",
+                        "default-src 'self'; " +
+                        "script-src 'self' 'unsafe-inline' 'unsafe-eval'; " +
+                        "style-src 'self' 'unsafe-inline'; " +
+                        "img-src 'self' data: https:; " +
+                        "font-src 'self'; " +
+                        "connect-src 'self'; " +
+                        "frame-src 'self'; " +
+                        "object-src 'none'");
+                }
+                else
+                {
+                    context.Response.Headers.Append(
+                        "Content-Security-Policy",
+                        "default-src 'self'; " +
+                        "script-src 'self' 'unsafe-inline' https://apis.google.com; " +
+                        "style-src 'self' 'unsafe-inline'; " +
+                        "img-src 'self' data: https:; " +
+                        "font-src 'self'; " +
+                        "connect-src 'self' https://apis.google.com https://login.microsoftonline.com; " +
+                        "frame-src 'self' https://accounts.google.com https://login.microsoftonline.com; " +
+                        "object-src 'none'");
+                }
+
+                await next();
+            });
+
             app.MapHealthChecks("/health");
 
             app.UseHttpsRedirection();
             app.UseCors();
 
-            // Add rate limiting middleware
+            // Always use rate limiter since we've properly configured it now
             app.UseRateLimiter();
 
             app.UseCookiePolicy(new CookiePolicyOptions
@@ -356,38 +370,46 @@ namespace API_Project
                 HttpOnly = HttpOnlyPolicy.Always
             });
 
-            // Add security headers middleware
-            app.Use(async (context, next) =>
-            {
-                // Basic security headers
-                context.Response.Headers.Append("X-Content-Type-Options", "nosniff");
-                context.Response.Headers.Append("X-Frame-Options", "DENY");
-                context.Response.Headers.Append("X-XSS-Protection", "1; mode=block");
-
-                // Enhanced security headers
-                context.Response.Headers.Append("Referrer-Policy", "strict-origin-when-cross-origin");
-                context.Response.Headers.Append("Permissions-Policy", "camera=(), microphone=(), geolocation=()");
-
-                // Content Security Policy
-                context.Response.Headers.Append(
-                    "Content-Security-Policy",
-                    "default-src 'self'; " +
-                    "script-src 'self' 'unsafe-inline' https://apis.google.com; " +
-                    "style-src 'self' 'unsafe-inline'; " +
-                    "img-src 'self' data: https:; " +
-                    "font-src 'self'; " +
-                    "connect-src 'self' https://apis.google.com; " +
-                    "frame-src 'self' https://accounts.google.com; " +
-                    "object-src 'none'");
-
-                await next();
-            });
-
             app.UseAuthentication();
             app.UseAuthorization();
 
-            // Apply rate limiting specifically to auth endpoints
-            app.MapControllers().RequireRateLimiting("AuthEndpoints");
+            // Apply rate limiting to specific endpoints
+            var authGroup = app.MapGroup("/auth");
+            authGroup.MapControllers().RequireRateLimiting("AuthEndpoints");
+
+            // Map other controllers without special rate limiting
+            app.MapControllers();
+        }
+    }
+
+    public class DbConnectionHealthCheck : IHealthCheck
+    {
+        private readonly string _connectionString;
+
+        public DbConnectionHealthCheck(string connectionString)
+        {
+            _connectionString = connectionString ?? throw new ArgumentNullException(nameof(connectionString));
+        }
+
+        public async Task<HealthCheckResult> CheckHealthAsync(HealthCheckContext context, CancellationToken cancellationToken = default)
+        {
+            try
+            {
+                var optionsBuilder = new DbContextOptionsBuilder<EquipmentManagementContext>();
+                optionsBuilder.UseMySql(
+                    _connectionString,
+                    new MySqlServerVersion(new Version(8, 0, 21)));
+
+                using var dbContext = new EquipmentManagementContext(optionsBuilder.Options);
+                await dbContext.Database.OpenConnectionAsync(cancellationToken);
+                await dbContext.Database.CloseConnectionAsync();
+
+                return HealthCheckResult.Healthy("Database connection is healthy");
+            }
+            catch (Exception ex)
+            {
+                return HealthCheckResult.Unhealthy("Database connection failed", ex);
+            }
         }
     }
 }

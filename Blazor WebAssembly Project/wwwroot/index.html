@@ -3,44 +3,75 @@
 <head>
     <meta charset="utf-8" />
     <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no" />
-    <title>Equipment Management System</title>
+    <title>מחסן הנשיא</title>
     <base href="/" />
 
+    <!-- Meta tags for SEO and social sharing -->
+    <meta name="description" content="מחסן הנשיא - מערכת לניהול ומעקב אחר ציוד" />
+
+    <!-- Content Security Policy -->
+    <meta http-equiv="Content-Security-Policy" content="
+        default-src 'self';
+        script-src 'self' https://cdn.jsdelivr.net 'unsafe-eval';
+        style-src 'self' https://cdn.jsdelivr.net 'unsafe-inline';
+        img-src 'self' data: https:;
+        font-src 'self' https://cdn.jsdelivr.net;
+        connect-src 'self' https://localhost:* http://localhost:* wss://localhost:* ws://localhost:*;
+        frame-src 'self' https://accounts.google.com https://login.microsoftonline.com;
+        manifest-src 'self'">
+
+    <!-- PWA support -->
+    <meta name="theme-color" content="#000000" />
+
     <!-- Bootstrap CSS (CDN) -->
-    <link href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.2/dist/css/bootstrap.min.css" rel="stylesheet" crossorigin="anonymous" />
+    <link href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.2/dist/css/bootstrap.min.css" rel="stylesheet" integrity="sha384-T3c6CoIi6uLrA9TneNEoa7RxnatzjcDSCmG1MXxSR1GAsXEV/Dwwykc2MPK8M2HN" crossorigin="anonymous" />
+
+    <!-- Bootstrap Icons -->
+    <link href="https://cdn.jsdelivr.net/npm/bootstrap-icons@1.11.1/font/bootstrap-icons.css" rel="stylesheet" />
 
     <!-- App Styles -->
     <link href="css/app.css" rel="stylesheet" />
 
-    <!-- Custom Favicon -->
-    <link rel="icon" type="image/png" href="images/logo_png.Png" />
-    <link rel="apple-touch-icon" href="images/logo_png.Png" />
+    <!-- Favicons for all platforms -->
+    <link rel="icon" type="image/png" href="images/logo_png.png" />
+    <link rel="apple-touch-icon" href="images/logo_png.png" />
+    <link rel="apple-touch-icon" sizes="180x180" href="images/logo_png.png" />
+    <link rel="icon" type="image/png" sizes="192x192" href="icon-192.png" />
+    <link rel="manifest" href="manifest.json" crossorigin="use-credentials" />
+    <meta name="msapplication-TileImage" content="images/logo_png.png" />
+    <meta name="msapplication-TileColor" content="#000000" />
 </head>
 <body>
     <div id="app">
-        <div class="loading-progress text-center mt-5">
-            <h1>טוען...</h1>
-            <span>אנא המתן בזמן שהמערכת נטענת.</span>
+        <div class="loading-progress d-flex flex-column justify-content-center align-items-center vh-100 loading-background">
+            <div class="text-center mb-4">
+                <img src="images/logo_png.png" alt="Logo" width="128" height="128" class="mb-4" />
+                <h1 class="app-title">מחסן הנשיא</h1>
+            </div>
+            <div class="spinner-border text-light mb-3" role="status">
+                <span class="visually-hidden">טוען...</span>
+            </div>
+            <div class="text-center">
+                <h2>טוען...</h2>
+                <p>אנא המתן בזמן שהמערכת נטענת.</p>
+            </div>
         </div>
     </div>
 
-    <div id="blazor-error-ui" style="display:none;" class="alert alert-danger text-center">
-        אירעה שגיאה בלתי צפויה.
-        <a href="" class="reload text-danger">טען מחדש</a>
-        <span class="dismiss" style="cursor: pointer;">❌</span>
+    <div id="blazor-error-ui" style="display:none;" class="alert alert-danger text-center fixed-bottom m-3">
+        <div class="d-flex justify-content-between align-items-center">
+            <span>אירעה שגיאה בלתי צפויה. <a href="" class="reload text-danger fw-bold">טען מחדש</a></span>
+            <button type="button" class="btn-close dismiss" aria-label="סגור"></button>
+        </div>
     </div>
 
-    <!-- Bootstrap Bundle JS (optional) -->
-    <script src="https://cdn.jsdelivr.net/npm/bootstrap@5.3.2/dist/js/bootstrap.bundle.min.js" crossorigin="anonymous"></script>
+    <!-- Bootstrap Bundle JS -->
+    <script src="https://cdn.jsdelivr.net/npm/bootstrap@5.3.2/dist/js/bootstrap.bundle.min.js" integrity="sha384-C6RzsynM9kWDrMNeT87bh95OGNyZPhcTNXj1NW7RuBCsyN/o0jlpcV8Qyq46cDfL" crossorigin="anonymous"></script>
 
     <!-- Blazor script -->
     <script src="_framework/blazor.webassembly.js"></script>
 
-    <script>
-        // כפתור סגירת הודעת שגיאה
-        document.querySelector('.dismiss')?.addEventListener('click', () => {
-            document.getElementById('blazor-error-ui').style.display = 'none';
-        });
-    </script>
+    <!-- App Scripts -->
+    <script src="scripts/app.js"></script>
 </body>
 </html>

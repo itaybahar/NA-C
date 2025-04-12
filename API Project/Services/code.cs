@@ -6,8 +6,10 @@ using Microsoft.IdentityModel.Tokens;
 using System.IdentityModel.Tokens.Jwt;
 using System.Net.Http;
 using System.Net.Http.Json;
+using System.Runtime.Intrinsics.Arm;
 using System.Security.Claims;
 using System.Security.Cryptography;
+using System.Text;
 using System.Text.Json;
 
 namespace API_Project.Services
@@ -168,31 +170,39 @@ namespace API_Project.Services
                 }
             };
         }
-
         public async Task RegisterUserAsync(UserDto userDto, string password)
         {
-            if (await _userRepository.GetUserByEmailAsync(userDto.Email) != null)
+            var email = userDto.Email.Trim().ToLower();
+
+            // Try to get the user by email - should be null for successful registration
+            var existingUserByEmail = await _userRepository.GetUserByEmailAsync(email);
+            if (existingUserByEmail != null)
                 throw new InvalidOperationException("Email is already in use");
 
-            if (await _userRepository.GetUserByUsernameAsync(userDto.Username) != null)
+            // Try to get the user by username - should be null for successful registration
+            var existingUserByUsername = await _userRepository.GetUserByUsernameAsync(userDto.Username);
+            if (existingUserByUsername != null)
                 throw new InvalidOperationException("Username is already taken");
+
+            // Create an instance of SHA256
+            using var sha256 = SHA256.Create();
+            var hashedPassword = Convert.ToBase64String(sha256.ComputeHash(Encoding.UTF8.GetBytes(password)));
 
             var newUser = new User
             {
                 Username = userDto.Username,
-                Email = userDto.Email,
+                Email = email,
                 FirstName = string.Empty,
                 LastName = string.Empty,
                 CreatedDate = DateTime.UtcNow,
                 IsActive = true,
-                PasswordHash = password, // Will be hashed by repo
-                Role = "User" // Force "User" role regardless of what was sent in the DTO
+                PasswordHash = hashedPassword, // Store the hashed password
+                Role = "User"
             };
 
-            var createdUser = await _userRepository.AddAsync(newUser);
+            await _userRepository.AddAsync(newUser);
             await _userRepository.SaveChangesAsync();
         }
-
 
         public async Task SendPasswordResetEmailAsync(string email)
         {
@@ -228,20 +238,34 @@ namespace API_Project.Services
 
             return true;
         }
-
         public string GenerateJwtToken(User user)
         {
-            var roles = _userRepository.GetUserRolesAsync(user.UserID).Result;
-            return GenerateJwtToken(user, roles);
-        }
+            var claims = new List<Claim>
+    {
+        new Claim(ClaimTypes.Name, user.Username),
+        new Claim(ClaimTypes.NameIdentifier, user.UserID.ToString()),
+        new Claim(ClaimTypes.Role, user.Role ?? string.Empty)
+    };
 
+            var key = new SymmetricSecurityKey(Encoding.UTF8.GetBytes(_authSettings.SecretKey));
+            var creds = new SigningCredentials(key, SecurityAlgorithms.HmacSha256);
+
+            var token = new JwtSecurityToken(
+                issuer: _authSettings.Issuer,
+                audience: _authSettings.Audience,
+                claims: claims,
+                expires: DateTime.UtcNow.AddMinutes(_authSettings.ExpirationInMinutes),
+                signingCredentials: creds);
+
+            return new JwtSecurityTokenHandler().WriteToken(token);
+        }
         private string GenerateJwtToken(User user, IEnumerable<UserRole> roles)
         {
             var claims = new List<Claim>
             {
-                new Claim(JwtRegisteredClaimNames.Sub, user.UserID.ToString()),
-                new Claim(JwtRegisteredClaimNames.UniqueName, user.Username),
-                new Claim(JwtRegisteredClaimNames.Email, user.Email)
+                new Claim(ClaimTypes.Name, user.Username),
+                new Claim(ClaimTypes.NameIdentifier, user.UserID.ToString()),
+                new Claim(ClaimTypes.Role, user.Role ?? string.Empty) // Ensure this is added
             };
 
             // Add Role claim from user.Role if it exists
@@ -253,10 +277,9 @@ namespace API_Project.Services
             // Add any additional roles from the roles collection
             claims.AddRange(roles.Select(role => new Claim(ClaimTypes.Role, role.RoleName)));
 
-            var credentials = new SigningCredentials(
-                _authSettings.GetSymmetricSecurityKey(),
-                SecurityAlgorithms.HmacSha256
-            );
+            // Use the secret key from the authentication settings
+            var key = new SymmetricSecurityKey(Encoding.UTF8.GetBytes(_authSettings.SecretKey));
+            var credentials = new SigningCredentials(key, SecurityAlgorithms.HmacSha256);
 
             var token = new JwtSecurityToken(
                 issuer: _authSettings.Issuer,

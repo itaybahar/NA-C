@@ -18,11 +18,12 @@ namespace Blazor_WebAssembly.Services.Implementations
         {
             try
             {
-                return await _httpClient.GetFromJsonAsync<List<EquipmentRequestModel>>("equipment-requests/pending");
+                var result = await _httpClient.GetFromJsonAsync<List<EquipmentRequestModel>>("equipment-requests/pending");
+                return result ?? new List<EquipmentRequestModel>(); // Fix for CS8603: Handle possible null return
             }
-            catch (Exception ex)
+            catch (Exception)
             {
-                // Log the exception
+                // Log the exception (if needed)
                 return new List<EquipmentRequestModel>();
             }
         }
@@ -34,9 +35,9 @@ namespace Blazor_WebAssembly.Services.Implementations
                 var response = await _httpClient.PostAsJsonAsync("equipment-requests", request);
                 return response.IsSuccessStatusCode;
             }
-            catch (Exception ex)
+            catch (Exception)
             {
-                // Log the exception
+                // Log the exception (if needed)
                 return false;
             }
         }
@@ -48,9 +49,9 @@ namespace Blazor_WebAssembly.Services.Implementations
                 var response = await _httpClient.PatchAsync($"equipment-requests/{requestId}/approve", null);
                 return response.IsSuccessStatusCode;
             }
-            catch (Exception ex)
+            catch (Exception)
             {
-                // Log the exception
+                // Log the exception (if needed)
                 return false;
             }
         }
@@ -65,10 +66,27 @@ namespace Blazor_WebAssembly.Services.Implementations
                 );
                 return response.IsSuccessStatusCode;
             }
-            catch (Exception ex)
+            catch (Exception)
             {
-                // Log the exception
+                // Log the exception (if needed)
                 return false;
+            }
+        }
+
+        public async Task SendEquipmentRequestAsync(string message)
+        {
+            try
+            {
+                var content = new StringContent(message);
+                var response = await _httpClient.PostAsync("equipment-requests/send", content);
+                if (!response.IsSuccessStatusCode)
+                {
+                    // Log the failure (if needed)
+                }
+            }
+            catch (Exception)
+            {
+                // Log the exception (if needed)
             }
         }
     }

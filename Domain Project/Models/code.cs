@@ -1,30 +1,28 @@
-﻿using Domain_Project.Models.Domain_Project.Models;
-using System;
-using System.Collections.Generic;
-using System.ComponentModel.DataAnnotations;
+﻿using System.ComponentModel.DataAnnotations;
 using System.ComponentModel.DataAnnotations.Schema;
 
 namespace Domain_Project.Models
 {
     public class AppUser
     {
-        public string Email { get; set; }
-        public string Username { get; set; }
-        public string Role { get; set; }
+        public required string Email { get; set; }
+        public required string Username { get; set; }
+        public required string Role { get; set; }
     }
+
     public class User
     {
         public int UserID { get; set; }
 
-        public string Email { get; set; } = string.Empty;
-        public string Username { get; set; } = string.Empty;
-        public string PasswordHash { get; set; } = string.Empty;
+        public required string Email { get; set; } = string.Empty;
+        public required string Username { get; set; } = string.Empty;
+        public required string PasswordHash { get; set; } = string.Empty;
 
         public string? ResetToken { get; set; }
         public DateTime? LastLoginDate { get; set; }
 
-        public string FirstName { get; set; } = string.Empty;
-        public string LastName { get; set; } = string.Empty;
+        public required string FirstName { get; set; } = string.Empty;
+        public required string LastName { get; set; } = string.Empty;
 
         public bool IsActive { get; set; } = true;
         public DateTime? CreatedDate { get; set; }
@@ -46,11 +44,12 @@ namespace Domain_Project.Models
                 Email = v.Email,
                 Username = v.Username,
                 Role = v.Role,
-                // ניתן להשלים את שאר המיפויים בהתאם לצורך
+                PasswordHash = string.Empty, // Default value
+                FirstName = string.Empty,   // Default value
+                LastName = string.Empty     // Default value
             };
         }
     }
-
 
     public class UserRole
     {
@@ -59,10 +58,10 @@ namespace Domain_Project.Models
 
         [Required]
         [MaxLength(50)]
-        public string RoleName { get; set; }
+        public required string RoleName { get; set; }
 
         [MaxLength(200)]
-        public string Description { get; set; }
+        public string? Description { get; set; }
     }
 
     public class Team
@@ -72,30 +71,61 @@ namespace Domain_Project.Models
 
         [Required]
         [MaxLength(100)]
-        public string TeamName { get; set; }
+        public required string TeamName { get; set; }
 
         [MaxLength(200)]
-        public string Description { get; set; }
+        public string? Description { get; set; }
 
         public bool IsActive { get; set; } = true;
         public DateTime CreatedDate { get; set; } = DateTime.Now;
         public bool IsBlacklisted { get; set; }
     }
 
-    namespace Domain_Project.Models
+    public enum EquipmentStatus
     {
-        public class Equipment
-        {
-            public string Id { get; set; } = Guid.NewGuid().ToString();
-            public string Name { get; set; }
-            public int Quantity { get; set; }
-            public string StorageLocation { get; set; }
-
-            public ICollection<CheckoutRecord> CheckoutRecords { get; set; }
-            public object Status { get; set; }
-        }
+        Available,
+        CheckedOut,
+        Maintenance,
+        Damaged,
+        Lost
     }
 
+    public class Equipment
+    {
+        [Key]
+        public int Id { get; set; }
+
+        [Required]
+        [MaxLength(100)]
+        public required string Name { get; set; } = string.Empty;
+
+        [MaxLength(200)]
+        public string? Description { get; set; }
+
+        [MaxLength(50)]
+        public string? SerialNumber { get; set; }
+
+        public DateTime? PurchaseDate { get; set; }
+
+        public decimal? Value { get; set; }
+
+        [Required]
+        [MaxLength(20)]
+        public string Status { get; set; } = "Available";
+
+        public string? Notes { get; set; }
+
+        public DateTime? LastUpdatedDate { get; set; }
+
+        [Required]
+        public int Quantity { get; set; }
+
+        [Required]
+        [MaxLength(100)]
+        public required string StorageLocation { get; set; } = string.Empty;
+
+        public required List<CheckoutRecord> CheckoutRecords { get; set; } = new List<CheckoutRecord>();
+    }
 
     public class EquipmentCheckout
     {
@@ -122,9 +152,28 @@ namespace Domain_Project.Models
 
         [Required]
         [MaxLength(20)]
-        public string Status { get; set; } = "CheckedOut";
+        public required string Status { get; set; } = "CheckedOut";
 
-        public string Notes { get; set; }
+        public string? Notes { get; set; }
+
+        [ForeignKey("EquipmentID")]
+        public virtual Equipment? Equipment { get; set; }
+    }
+
+    public class CheckoutRecord
+    {
+        public string Id { get; set; } = Guid.NewGuid().ToString();
+        public required int EquipmentId { get; set; }
+        public required Equipment Equipment { get; set; }
+
+        public required int TeamId { get; set; }
+        public required Team Team { get; set; } = new Team
+        {
+            TeamName = string.Empty
+        };
+
+        public DateTime CheckedOutAt { get; set; } = DateTime.UtcNow;
+        public DateTime? ReturnedAt { get; set; }
     }
 
     public class Blacklist
@@ -140,13 +189,13 @@ namespace Domain_Project.Models
 
         [Required]
         [MaxLength(200)]
-        public string ReasonForBlacklisting { get; set; }
+        public required string ReasonForBlacklisting { get; set; }
 
         public DateTime BlacklistDate { get; set; } = DateTime.Now;
         public DateTime? RemovalDate { get; set; }
         public int? RemovedBy { get; set; }
 
-        public string Notes { get; set; }
+        public string? Notes { get; set; }
     }
 
     public class EquipmentRequest
@@ -161,29 +210,29 @@ namespace Domain_Project.Models
 
         [Required]
         [MaxLength(100)]
-        public string EquipmentName { get; set; }
+        public required string EquipmentName { get; set; }
 
         [Required]
         public int Quantity { get; set; } = 1;
 
         [Required]
         [MaxLength(20)]
-        public string Urgency { get; set; } = "Normal";
+        public required string Urgency { get; set; } = "Normal";
 
         [Required]
         [MaxLength(200)]
-        public string Justification { get; set; }
+        public required string Justification { get; set; }
 
         public DateTime RequestDate { get; set; } = DateTime.Now;
 
         [Required]
         [MaxLength(20)]
-        public string Status { get; set; } = "Pending";
+        public required string Status { get; set; } = "Pending";
 
         public int? ApprovedBy { get; set; }
         public DateTime? ApprovalDate { get; set; }
 
-        public string Notes { get; set; }
+        public string? Notes { get; set; }
     }
 
     public class UserRoleAssignment
@@ -196,12 +245,18 @@ namespace Domain_Project.Models
 
         public DateTime AssignedDate { get; set; } = DateTime.UtcNow;
 
-        // Optional navigation properties
         [ForeignKey(nameof(UserID))]
-        public User User { get; set; }
+        public required User User { get; set; } = new User
+        {
+            Email = string.Empty,
+            Username = string.Empty,
+            PasswordHash = string.Empty,
+            FirstName = string.Empty,
+            LastName = string.Empty
+        };
 
         [ForeignKey(nameof(RoleID))]
-        public UserRole UserRole { get; set; }
+        public required UserRole UserRole { get; set; }
     }
 
     public class EquipmentCategory
@@ -212,10 +267,10 @@ namespace Domain_Project.Models
 
         [Required]
         [StringLength(100, MinimumLength = 2)]
-        public string CategoryName { get; set; }
+        public required string CategoryName { get; set; }
 
         [StringLength(200)]
-        public string Description { get; set; }
+        public string? Description { get; set; }
 
         [Column(TypeName = "datetime")]
         public DateTime CreatedDate { get; set; } = DateTime.UtcNow;
@@ -223,10 +278,8 @@ namespace Domain_Project.Models
         [Column(TypeName = "bit")]
         public bool IsActive { get; set; } = true;
 
-        // Optional: Navigation property for related equipment
-        public virtual ICollection<Equipment> Equipment { get; set; }
+        public virtual ICollection<Equipment> Equipment { get; set; } = new List<Equipment>();
 
-        // Validation method
         public bool IsValid()
         {
             return !string.IsNullOrWhiteSpace(CategoryName)
@@ -246,31 +299,35 @@ namespace Domain_Project.Models
 
         [Required]
         [StringLength(50)]
-        public string Action { get; set; }
+        public required string Action { get; set; }
 
         [Required]
-        public string Details { get; set; }
+        public required string Details { get; set; }
 
         [StringLength(50)]
-        public string IPAddress { get; set; }
+        public string? IPAddress { get; set; }
 
         [Column(TypeName = "datetime")]
         public DateTime LogDate { get; set; } = DateTime.UtcNow;
 
-        // Optional: Navigation property to User
         [ForeignKey("UserID")]
-        public virtual User User { get; set; }
+        public required User User { get; set; } = new User
+        {
+            Email = string.Empty,
+            Username = string.Empty,
+            PasswordHash = string.Empty,
+            FirstName = string.Empty,
+            LastName = string.Empty
+        };
 
-        // Additional properties for more detailed logging
         [StringLength(100)]
-        public string EntityName { get; set; }
+        public string? EntityName { get; set; }
 
         public int? EntityID { get; set; }
 
         [StringLength(20)]
-        public string LogLevel { get; set; } = "Information";
+        public string? LogLevel { get; set; } = "Information";
 
-        // Method to validate log entry
         public bool IsValid()
         {
             return !string.IsNullOrWhiteSpace(Action)
@@ -278,7 +335,6 @@ namespace Domain_Project.Models
                    && Action.Length <= 50;
         }
 
-        // Method to create a log entry
         public static AuditLog Create(
             int userId,
             string action,
@@ -294,7 +350,15 @@ namespace Domain_Project.Models
                 Details = details,
                 IPAddress = ipAddress,
                 EntityName = entityName,
-                EntityID = entityId
+                EntityID = entityId,
+                User = new User
+                {
+                    Email = string.Empty,
+                    Username = string.Empty,
+                    PasswordHash = string.Empty,
+                    FirstName = string.Empty,
+                    LastName = string.Empty
+                }
             };
         }
     }
@@ -315,44 +379,49 @@ namespace Domain_Project.Models
 
         public bool IsActive { get; set; } = true;
 
-        // Navigation properties
         [ForeignKey(nameof(TeamID))]
-        public virtual Team Team { get; set; }
+        public required Team Team { get; set; } = new Team
+        {
+            TeamName = string.Empty
+        };
 
         [ForeignKey(nameof(UserID))]
-        public virtual User User { get; set; }
+        public required User User { get; set; } = new User
+        {
+            Email = string.Empty,
+            Username = string.Empty,
+            PasswordHash = string.Empty,
+            FirstName = string.Empty,
+            LastName = string.Empty
+        };
 
-        // Composite key
         public object[] GetKeys() => new object[] { TeamID, UserID };
 
-        // Validation method
         public bool IsValid()
         {
             return TeamID > 0 && UserID > 0;
         }
 
-        // Method to create a team member assignment
         public static TeamMember Create(int teamId, int userId, string? assignedRole = null)
         {
             return new TeamMember
             {
                 TeamID = teamId,
                 UserID = userId,
-                AssignedRole = assignedRole
+                AssignedRole = assignedRole,
+                Team = new Team
+                {
+                    TeamName = string.Empty
+                },
+                User = new User
+                {
+                    Email = string.Empty,
+                    Username = string.Empty,
+                    PasswordHash = string.Empty,
+                    FirstName = string.Empty,
+                    LastName = string.Empty
+                }
             };
         }
     }
-    public class CheckoutRecord
-    {
-        public string Id { get; set; } = Guid.NewGuid().ToString();
-        public string EquipmentId { get; set; }
-        public Equipment Equipment { get; set; }
-
-        public string TeamId { get; set; }
-        public Team Team { get; set; }
-
-        public DateTime CheckedOutAt { get; set; } = DateTime.UtcNow;
-        public DateTime? ReturnedAt { get; set; }
-    }
 }
-
