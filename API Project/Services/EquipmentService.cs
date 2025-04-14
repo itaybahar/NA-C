@@ -8,7 +8,7 @@ public class EquipmentService : IEquipmentService
 {
     private readonly IEquipmentRepository _repo;
 
-    public EquipmentService(IEquipmentRepository repo)
+    public EquipmentService(IEquipmentRepository repo, HttpClient httpClient)
     {
         _repo = repo;
     }

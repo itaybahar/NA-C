@@ -9,39 +9,39 @@
 <div class="space-y-4">
     @if (!string.IsNullOrWhiteSpace(Message))
     {
-        <div class="@(IsError ? "alert-danger" : "alert-success")">
+        <div class="@(IsError ? "alert-danger" : "alert-success")" aria-live="polite">
             @Message
         </div>
     }
 
     <div class="form-group">
-        <label class="input-label">שם פריט</label>
-        <input class="form-control" placeholder="שם הפריט" @bind="NewItem.Name" />
+        <label class="input-label" for="name">שם פריט</label>
+        <input id="name" class="form-control" placeholder="שם הפריט" @bind="NewItem.Name" />
     </div>
 
     <div class="form-group">
-        <label class="input-label">תיאור פריט</label>
-        <input class="form-control" placeholder="תיאור קצר של הפריט" @bind="NewItem.Description" />
+        <label class="input-label" for="description">תיאור פריט</label>
+        <input id="description" class="form-control" placeholder="תיאור קצר של הפריט" @bind="NewItem.Description" />
     </div>
 
     <div class="form-group">
-        <label class="input-label">מספר סידורי</label>
-        <input class="form-control" placeholder="מספר סידורי של הפריט" @bind="NewItem.SerialNumber" />
+        <label class="input-label" for="serialNumber">מספר סידורי</label>
+        <input id="serialNumber" class="form-control" placeholder="מספר סידורי של הפריט" @bind="NewItem.SerialNumber" />
     </div>
 
     <div class="form-group">
-        <label class="input-label">כמות</label>
-        <input class="form-control" placeholder="כמות הפריטים במלאי" type="number" @bind="NewItem.Quantity" />
+        <label class="input-label" for="quantity">כמות</label>
+        <input id="quantity" class="form-control" placeholder="כמות הפריטים במלאי" type="number" @bind="NewItem.Quantity" min="1" />
     </div>
 
     <div class="form-group">
-        <label class="input-label">מיקום אחסון</label>
-        <input class="form-control" placeholder="מיקום האחסון של הפריט" @bind="NewItem.StorageLocation" />
+        <label class="input-label" for="storageLocation">מיקום אחסון</label>
+        <input id="storageLocation" class="form-control" placeholder="מיקום האחסון של הפריט" @bind="NewItem.StorageLocation" />
     </div>
 
     <div class="form-group">
-        <label class="input-label">סטטוס</label>
-        <select class="form-control" @bind="NewItem.Status">
+        <label class="input-label" for="status">סטטוס</label>
+        <select id="status" class="form-control" @bind="NewItem.Status">
             <option value="" disabled selected>בחר סטטוס</option>
             <option value="זמין">זמין</option>
             <option value="בשימוש">בשימוש</option>
@@ -51,14 +51,17 @@
     </div>
 
     <div class="form-group">
-        <label class="input-label">ערך (ש״ח)</label>
-        <input class="form-control" placeholder="ערך כספי של הפריט" type="number" @bind="NewItem.Value" />
+        <label class="input-label" for="value">ערך (ש״ח)</label>
+        <input id="value" class="form-control" placeholder="ערך כספי של הפריט" type="number" @bind="NewItem.Value" min="0" />
     </div>
 
     <button class="btn-submit" @onclick="AddEquipment" disabled="@IsSubmitting">
         @if (IsSubmitting)
         {
-            <span>מוסיף...</span>
+            <span>
+                <i class="spinner-border spinner-border-sm me-2" role="status"></i>
+                מוסיף...
+            </span>
         }
         else
         {
@@ -146,7 +149,8 @@
         SerialNumber = string.Empty,
         Status = string.Empty,
         StorageLocation = string.Empty,
-        Quantity = 1  // Default quantity to 1
+        Quantity = 1, // Default quantity to 1
+        Value = 0     // Default value to 0
     };
 
     private string? Message;
@@ -161,6 +165,7 @@
 
         try
         {
+            // Validate required fields
             if (string.IsNullOrWhiteSpace(NewItem.Name))
             {
                 Message = "יש להזין שם פריט";
@@ -189,8 +194,15 @@
                 return;
             }
 
+            if (NewItem.Value < 0)
+            {
+                Message = "יש להזין ערך תקין (מספר חיובי)";
+                IsError = true;
+                return;
+            }
+
             // Log fields to console for debugging
-            Console.WriteLine($"Adding equipment: Name={NewItem.Name}, StorageLocation={NewItem.StorageLocation}, Status={NewItem.Status}, Quantity={NewItem.Quantity}");
+            Console.WriteLine($"Adding equipment: Name={NewItem.Name}, StorageLocation={NewItem.StorageLocation}, Status={NewItem.Status}, Quantity={NewItem.Quantity}, Value={NewItem.Value}");
 
             var result = await EquipmentService.AddEquipmentAsync(NewItem);
 
@@ -207,7 +219,8 @@
                     SerialNumber = string.Empty,
                     Status = string.Empty,
                     StorageLocation = string.Empty,
-                    Quantity = 1
+                    Quantity = 1,
+                    Value = 0
                 };
             }
             else
@@ -229,4 +242,3 @@
         }
     }
 }
-    

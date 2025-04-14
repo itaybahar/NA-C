@@ -6,6 +6,7 @@ namespace Domain_Project.Interfaces
     public interface IAuthenticationService
     {
         string GenerateJwtToken(User user);
+        Task<string?> GetTokenAsync();
         Task RegisterUserAsync(UserDto userDto, string password);
         bool ValidatePassword(User user, string password);
     }

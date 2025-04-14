@@ -9,5 +9,6 @@ namespace Domain_Project.Interfaces
         Task<User> GetUserByUsernameAsync(string username);
         Task AddUserAsync(User user);
         Task UpdateUserAsync(User user);
+        Task UpdateUserRoleAsync(int userId, string role);
     }
 }

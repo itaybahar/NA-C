@@ -14,6 +14,7 @@ namespace Blazor_WebAssembly.Services
         {
             _jsRuntime = jsRuntime;
         }
+
         public override async Task<AuthenticationState> GetAuthenticationStateAsync()
         {
             string savedToken = string.Empty;
@@ -21,15 +22,16 @@ namespace Blazor_WebAssembly.Services
             {
                 Console.WriteLine("🔍 Checking token in local storage...");
                 savedToken = await _jsRuntime.GetItemFromLocalStorage(TokenStorageKey);
+                Console.WriteLine($"Retrieved token: {savedToken}");
 
-                if (string.IsNullOrWhiteSpace(savedToken))
+                if (string.IsNullOrWhiteSpace(savedToken) || IsTokenExpired(savedToken))
                 {
-                    Console.WriteLine("❌ Token not found in local storage.");
+                    Console.WriteLine("❌ Token is either missing or expired.");
                     var anonymousPrincipal = new ClaimsPrincipal(new ClaimsIdentity());
                     return new AuthenticationState(anonymousPrincipal);
                 }
 
-                Console.WriteLine("✅ Token found, parsing claims...");
+                Console.WriteLine("✅ Token is valid, parsing claims...");
                 var claimsPrincipal = new ClaimsPrincipal(new ClaimsIdentity(ParseClaimsFromJwt(savedToken), "jwt"));
                 Console.WriteLine("User roles: " + string.Join(", ", claimsPrincipal.Claims.Where(c => c.Type == ClaimTypes.Role).Select(c => c.Value)));
                 return new AuthenticationState(claimsPrincipal);
@@ -41,7 +43,6 @@ namespace Blazor_WebAssembly.Services
                 return new AuthenticationState(anonymousPrincipal);
             }
         }
-
 
         public async Task MarkUserAsAuthenticated(string token)
         {
@@ -57,6 +58,7 @@ namespace Blazor_WebAssembly.Services
             await _jsRuntime.RemoveItemFromLocalStorage(TokenStorageKey);
             NotifyAuthenticationStateChanged(Task.FromResult(new AuthenticationState(new ClaimsPrincipal(new ClaimsIdentity()))));
         }
+
         private IEnumerable<Claim> ParseClaimsFromJwt(string jwt)
         {
             var claims = new List<Claim>();
@@ -94,31 +96,9 @@ namespace Blazor_WebAssembly.Services
                     claims.Add(new Claim(ClaimTypes.Role, roles.ToString()?.Trim() ?? string.Empty));
                 }
             }
-            else if (keyValuePairs.TryGetValue("roles", out var rolesAlternative))
-            {
-                // Handle alternative role claim name
-                if (rolesAlternative is JsonElement element)
-                {
-                    if (element.ValueKind == JsonValueKind.Array)
-                    {
-                        foreach (var role in element.EnumerateArray())
-                            claims.Add(new Claim(ClaimTypes.Role, role.GetString() ?? string.Empty));
-                    }
-                    else
-                    {
-                        claims.Add(new Claim(ClaimTypes.Role, element.GetString() ?? string.Empty));
-                    }
-                }
-                else
-                {
-                    claims.Add(new Claim(ClaimTypes.Role, rolesAlternative.ToString()?.Trim() ?? string.Empty));
-                }
-            }
 
-            // Ensure all code paths return a value
             return claims;
         }
-
 
         private byte[] ParseBase64WithoutPadding(string base64)
         {
@@ -130,5 +110,28 @@ namespace Blazor_WebAssembly.Services
 
             return Convert.FromBase64String(base64);
         }
+
+        private bool IsTokenExpired(string token)
+        {
+            try
+            {
+                var payload = token.Split('.')[1];
+                var jsonBytes = ParseBase64WithoutPadding(payload);
+                var keyValuePairs = JsonSerializer.Deserialize<Dictionary<string, object>>(jsonBytes);
+
+                if (keyValuePairs != null && keyValuePairs.TryGetValue("exp", out var exp))
+                {
+                    var expirationTime = DateTimeOffset.FromUnixTimeSeconds(Convert.ToInt64(exp));
+                    return expirationTime < DateTime.UtcNow;
+                }
+
+                return true; // Assume expired if we can't parse it
+            }
+            catch
+            {
+                return true; // Assume expired if there's an error
+            }
+        }
     }
+
 }

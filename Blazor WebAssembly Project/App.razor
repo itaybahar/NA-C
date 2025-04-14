@@ -1,4 +1,6 @@
-﻿<CascadingAuthenticationState>
+﻿@inject IJSRuntime JSRuntime
+
+<CascadingAuthenticationState>
     <Router AppAssembly="@typeof(Program).Assembly">
         <Found Context="routeData">
             <AuthorizeRouteView RouteData="@routeData" DefaultLayout="@typeof(MainLayout)">
@@ -29,3 +31,14 @@
         </NotFound>
     </Router>
 </CascadingAuthenticationState>
+
+@code {
+    protected override async Task OnAfterRenderAsync(bool firstRender)
+    {
+        if (firstRender)
+        {
+            // Initialize the logger JavaScript script
+            await JSRuntime.InvokeVoidAsync("blazorConsoleLog.init");
+        }
+    }
+}

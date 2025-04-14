@@ -1,9 +1,9 @@
-﻿@page "/warehouse/manager/dashboard"
+﻿@page "/admin/dashboard"
 @using Microsoft.AspNetCore.Authorization
 @using Blazor_WebAssembly_Project.Components.helpers
-@attribute [Authorize(Roles = "WarehouseManager,Admin")]
+@attribute [Authorize(Roles = "Admin")]
 
-<PageTitle>Dashboard - מנהל מחסן</PageTitle>
+<PageTitle>Dashboard - מנהל מערכת</PageTitle>
 
 <div class="app-layout">
     <!-- Top navbar with logo and tabs -->
@@ -11,13 +11,15 @@
         <div class="navbar-container">
             <div class="navbar-branding">
                 <img src="images/logo_png.png" alt="לוגו השבט" class="navbar-logo" />
-                <span class="navbar-title">א.מחסן שבט הנשיא</span>
+                <span class="navbar-title">Admin שבט הנשיא</span>
             </div>
 
             <div class="navbar-tabs">
                 <button class="nav-tab @(ActiveTab == "equipment" ? "active" : "")" @onclick='() => ActiveTab = "equipment"'>רשימת ציוד</button>
                 <button class="nav-tab @(ActiveTab == "blacklist" ? "active" : "")" @onclick='() => ActiveTab = "blacklist"'>רשימה שחורה</button>
-                <button class="nav-tab @(ActiveTab == "request" ? "active" : "")" @onclick='() => ActiveTab = "request"'>שלח בקשה</button>
+                <button class="nav-tab @(ActiveTab == "request" ? "active" : "")" @onclick='() => ActiveTab = "request"'>בקשות הרשאה</button>
+                <button class="nav-tab @(ActiveTab == "teams" ? "active" : "")" @onclick='() => ActiveTab = "teams"'>ניהול צוותים</button>
+                <button class="nav-tab @(ActiveTab == "users" ? "active" : "")" @onclick='() => ActiveTab = "users"'>ניהול משתמשים</button>
                 <button class="nav-tab @(ActiveTab == "checkout" ? "active" : "")" @onclick='() => ActiveTab = "checkout"'>הוצאת ציוד</button>
                 <button class="nav-tab @(ActiveTab == "return" ? "active" : "")" @onclick='() => ActiveTab = "return"'>החזרת ציוד</button>
                 <button class="nav-tab @(ActiveTab == "add" ? "active" : "")" @onclick='() => ActiveTab = "add"'>➕ הוספת ציוד</button>
@@ -37,7 +39,13 @@
                     <BlacklistView />
                     break;
                 case "request":
-                    <RequestAdminForm />
+                    <AdminRoleRequests />
+                    break;
+                case "teams":
+                    <AddTeam />
+                    break;
+                case "users":
+                    <UserRoleManager />
                     break;
                 case "checkout":
                     <EquipmentCheckout />
@@ -212,39 +220,36 @@
 
     /* Responsive adjustments */
     media (max-width: 768px) {
-        .navbar-container
+        .navbar-container {
+            flex-direction: column;
+            align-items: flex-start;
+            padding: 10px;
+        }
 
-    {
-        flex-direction: column;
-        align-items: flex-start;
-        padding: 10px;
-    }
+        .top-navbar {
+            height: auto;
+        }
 
-    .top-navbar {
-        height: auto;
-    }
+        .navbar-branding {
+            margin-bottom: 10px;
+            width: 100%;
+            justify-content: space-between;
+        }
 
-    .navbar-branding {
-        margin-bottom: 10px;
-        width: 100%;
-        justify-content: space-between;
-    }
+        .navbar-tabs {
+            width: 100%;
+            overflow-x: auto;
+        }
 
-    .navbar-tabs {
-        width: 100%;
-        overflow-x: auto;
-    }
+        .nav-tab {
+            padding: 10px;
+            font-size: 14px;
+            height: 40px;
+        }
 
-    .nav-tab {
-        padding: 10px;
-        font-size: 14px;
-        height: 40px;
-    }
-
-    .content-container {
-        margin-top: 110px;
-    }
-
+        .content-container {
+            margin-top: 110px;
+        }
     }
 </style>
 

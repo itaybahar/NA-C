@@ -7,11 +7,25 @@ public class AuthenticationServiceAdapter : Domain_Project.Interfaces.IAuthentic
 {
     private readonly API_Project.Services.AuthenticationService _authService;
     private readonly IUserRepository _userRepository;
+    private readonly AuthenticationService _authenticationService;
+    private readonly HttpClient _httpClient;
 
+    // Constructor for API layer services
     public AuthenticationServiceAdapter(API_Project.Services.AuthenticationService authService, IUserRepository userRepository)
     {
         _authService = authService ?? throw new ArgumentNullException(nameof(authService));
         _userRepository = userRepository ?? throw new ArgumentNullException(nameof(userRepository));
+        _authenticationService = authService; // Initialize to avoid nullability issues
+        _httpClient = new HttpClient(); // Default HttpClient initialization
+    }
+
+    // Constructor for Blazor WebAssembly services
+    public AuthenticationServiceAdapter(AuthenticationService authenticationService, HttpClient httpClient)
+    {
+        _authenticationService = authenticationService ?? throw new ArgumentNullException(nameof(authenticationService));
+        _httpClient = httpClient ?? throw new ArgumentNullException(nameof(httpClient));
+        _authService = authenticationService; // Initialize to avoid nullability issues
+        _userRepository = null!; // Mark as non-nullable since it's not used in this context
     }
 
     public string GenerateJwtToken(User user)
@@ -105,5 +119,10 @@ public class AuthenticationServiceAdapter : Domain_Project.Interfaces.IAuthentic
             return false;
 
         return _userRepository.ValidateUserCredentialsAsync(user.Username, password).GetAwaiter().GetResult();
+    }
+
+    public Task<string?> GetTokenAsync()
+    {
+        throw new NotImplementedException();
     }
 }

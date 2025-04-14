@@ -1,16 +1,12 @@
 ﻿using Domain_Project.DTOs;
 using Domain_Project.Interfaces;
 using Domain_Project.Models;
-using Microsoft.AspNetCore.Authentication;
 using Microsoft.IdentityModel.Tokens;
 using System.IdentityModel.Tokens.Jwt;
-using System.Net.Http;
 using System.Net.Http.Json;
-using System.Runtime.Intrinsics.Arm;
 using System.Security.Claims;
 using System.Security.Cryptography;
 using System.Text;
-using System.Text.Json;
 
 namespace API_Project.Services
 {
@@ -31,7 +27,7 @@ namespace API_Project.Services
         public required UserDto User { get; set; }
     }
 
-    public class AuthenticationService : Domain_Project.Interfaces.IAuthenticationService
+    public class AuthenticationService : IAuthenticationService
     {
         private readonly IUserRepository _userRepository;
         private readonly Configuration.AuthenticationSettings _authSettings;
@@ -43,10 +39,10 @@ namespace API_Project.Services
                                      IEmailService emailService,
                                      IHttpClientFactory httpClientFactory)
         {
-            _userRepository = userRepository;
-            _authSettings = authSettings;
-            _emailService = emailService;
-            _httpClientFactory = httpClientFactory;
+            _userRepository = userRepository ?? throw new ArgumentNullException(nameof(userRepository));
+            _authSettings = authSettings ?? throw new ArgumentNullException(nameof(authSettings));
+            _emailService = emailService ?? throw new ArgumentNullException(nameof(emailService));
+            _httpClientFactory = httpClientFactory ?? throw new ArgumentNullException(nameof(httpClientFactory));
         }
 
         public async Task<AuthenticationResponseDto> AuthenticateAsync(string email, UserLoginDto loginDto)
@@ -69,40 +65,34 @@ namespace API_Project.Services
 
         public async Task<AuthenticationResponseDto> AuthenticateWithGoogleAsync(string googleToken)
         {
-            // Verify the Google token and get user info
             var googleUserInfo = await VerifyGoogleTokenAsync(googleToken);
             if (googleUserInfo == null)
                 throw new UnauthorizedAccessException("Invalid Google token");
 
-            // Check if user exists by email
             var user = await _userRepository.GetUserByEmailAsync(googleUserInfo.Email);
 
-            // If user doesn't exist, create a new one
             if (user == null)
             {
                 user = new User
                 {
                     Email = googleUserInfo.Email,
-                    Username = googleUserInfo.Email, // Use email as username initially
+                    Username = googleUserInfo.Email,
                     FirstName = googleUserInfo.GivenName,
                     LastName = googleUserInfo.FamilyName,
                     CreatedDate = DateTime.UtcNow,
                     IsActive = true,
-                    // Set a random password since user will login via Google
                     PasswordHash = Convert.ToBase64String(RandomNumberGenerator.GetBytes(32)),
-                    Role = "User" // Default role
+                    Role = "User"
                 };
 
                 user = await _userRepository.AddAsync(user);
                 await _userRepository.SaveChangesAsync();
             }
 
-            // Update login timestamp
             user.LastLoginDate = DateTime.UtcNow;
             await _userRepository.UpdateAsync(user);
             await _userRepository.SaveChangesAsync();
 
-            // Generate token and return response
             var userRoles = await _userRepository.GetUserRolesAsync(user.UserID);
             var token = GenerateJwtToken(user, userRoles);
 
@@ -116,7 +106,7 @@ namespace API_Project.Services
                     Email = user.Email,
                     FirstName = user.FirstName,
                     LastName = user.LastName,
-                    Role = user.Role ?? string.Empty
+                    Role = user.Role ?? "User"
                 }
             };
         }
@@ -166,25 +156,23 @@ namespace API_Project.Services
                     Email = user.Email,
                     FirstName = user.FirstName,
                     LastName = user.LastName,
-                    Role = user.Role ?? string.Empty
+                    Role = user.Role ?? "User"
                 }
             };
         }
+
         public async Task RegisterUserAsync(UserDto userDto, string password)
         {
             var email = userDto.Email.Trim().ToLower();
 
-            // Try to get the user by email - should be null for successful registration
             var existingUserByEmail = await _userRepository.GetUserByEmailAsync(email);
             if (existingUserByEmail != null)
                 throw new InvalidOperationException("Email is already in use");
 
-            // Try to get the user by username - should be null for successful registration
             var existingUserByUsername = await _userRepository.GetUserByUsernameAsync(userDto.Username);
             if (existingUserByUsername != null)
                 throw new InvalidOperationException("Username is already taken");
 
-            // Create an instance of SHA256
             using var sha256 = SHA256.Create();
             var hashedPassword = Convert.ToBase64String(sha256.ComputeHash(Encoding.UTF8.GetBytes(password)));
 
@@ -192,11 +180,11 @@ namespace API_Project.Services
             {
                 Username = userDto.Username,
                 Email = email,
-                FirstName = string.Empty,
-                LastName = string.Empty,
+                FirstName = userDto.FirstName,
+                LastName = userDto.LastName,
                 CreatedDate = DateTime.UtcNow,
                 IsActive = true,
-                PasswordHash = hashedPassword, // Store the hashed password
+                PasswordHash = hashedPassword,
                 Role = "User"
             };
 
@@ -229,23 +217,25 @@ namespace API_Project.Services
             if (user == null || user.PasswordResetExpiration < DateTime.UtcNow)
                 return false;
 
-            user.PasswordHash = newPassword;
+            using var sha256 = SHA256.Create();
+            user.PasswordHash = Convert.ToBase64String(sha256.ComputeHash(Encoding.UTF8.GetBytes(newPassword)));
             user.PasswordResetToken = null;
-            user.PasswordResetExpiration = DateTime.MinValue;
+            user.PasswordResetExpiration = null;
 
             await _userRepository.UpdateAsync(user);
             await _userRepository.SaveChangesAsync();
 
             return true;
         }
+
         public string GenerateJwtToken(User user)
         {
             var claims = new List<Claim>
-    {
-        new Claim(ClaimTypes.Name, user.Username),
-        new Claim(ClaimTypes.NameIdentifier, user.UserID.ToString()),
-        new Claim(ClaimTypes.Role, user.Role ?? string.Empty)
-    };
+            {
+                new Claim(ClaimTypes.Name, user.Username),
+                new Claim(ClaimTypes.NameIdentifier, user.UserID.ToString()),
+                new Claim(ClaimTypes.Role, user.Role ?? "User")
+            };
 
             var key = new SymmetricSecurityKey(Encoding.UTF8.GetBytes(_authSettings.SecretKey));
             var creds = new SigningCredentials(key, SecurityAlgorithms.HmacSha256);
@@ -259,25 +249,22 @@ namespace API_Project.Services
 
             return new JwtSecurityTokenHandler().WriteToken(token);
         }
+
         private string GenerateJwtToken(User user, IEnumerable<UserRole> roles)
         {
             var claims = new List<Claim>
             {
                 new Claim(ClaimTypes.Name, user.Username),
-                new Claim(ClaimTypes.NameIdentifier, user.UserID.ToString()),
-                new Claim(ClaimTypes.Role, user.Role ?? string.Empty) // Ensure this is added
+                new Claim(ClaimTypes.NameIdentifier, user.UserID.ToString())
             };
 
-            // Add Role claim from user.Role if it exists
             if (!string.IsNullOrEmpty(user.Role))
             {
                 claims.Add(new Claim(ClaimTypes.Role, user.Role));
             }
 
-            // Add any additional roles from the roles collection
             claims.AddRange(roles.Select(role => new Claim(ClaimTypes.Role, role.RoleName)));
 
-            // Use the secret key from the authentication settings
             var key = new SymmetricSecurityKey(Encoding.UTF8.GetBytes(_authSettings.SecretKey));
             var credentials = new SigningCredentials(key, SecurityAlgorithms.HmacSha256);
 
@@ -286,13 +273,19 @@ namespace API_Project.Services
                 audience: _authSettings.Audience,
                 claims: claims,
                 expires: DateTime.UtcNow.AddMinutes(_authSettings.ExpirationInMinutes),
-                signingCredentials: credentials
-            );
+                signingCredentials: credentials);
 
             return new JwtSecurityTokenHandler().WriteToken(token);
         }
 
         public bool ValidatePassword(User user, string password)
+        {
+            using var sha256 = SHA256.Create();
+            var hashedPassword = Convert.ToBase64String(sha256.ComputeHash(Encoding.UTF8.GetBytes(password)));
+            return user.PasswordHash == hashedPassword;
+        }
+
+        public Task<string?> GetTokenAsync()
         {
             throw new NotImplementedException();
         }

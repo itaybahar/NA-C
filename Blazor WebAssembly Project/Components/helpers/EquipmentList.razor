@@ -3,6 +3,7 @@
 @using System.Net.Http.Json
 
 @inject IEquipmentService EquipmentService
+@inject ILogger<EquipmentList> Logger
 
 <h2 class="text-center text-xl font-bold mb-6 text-white">רשימת ציוד</h2>
 
@@ -59,6 +60,10 @@ else
                     <th>כמות</th>
                     <th>ערך (ש״ח)</th>
                     <th>מיקום אחסון</th>
+                    @if (IsAdminOrWarehouseManager)
+                    {
+                        <th>פעולות</th>
+                    }
                 </tr>
             </thead>
             <tbody>
@@ -73,6 +78,13 @@ else
                         <td>@equipment.Quantity</td>
                         <td>@(equipment.Value > 0 ? equipment.Value.ToString() : "-")</td>
                         <td>@equipment.StorageLocation</td>
+                        @if (IsAdminOrWarehouseManager)
+                        {
+                            <td>
+                                <button class="btn-action edit" @onclick="() => EditEquipment(equipment)">✏️ ערוך</button>
+                                <button class="btn-action delete" @onclick="() => RemoveEquipment(equipment)">🗑️ מחק</button>
+                            </td>
+                        }
                     </tr>
                 }
             </tbody>
@@ -202,6 +214,22 @@ else
                 background-color: #444;
             }
 
+        .btn-action.edit {
+            background-color: #007bff;
+        }
+
+            .btn-action.edit:hover {
+                background-color: #0056b3;
+            }
+
+        .btn-action.delete {
+            background-color: #dc3545;
+        }
+
+            .btn-action.delete:hover {
+                background-color: #a71d2a;
+            }
+
     .btn-refresh {
         background: none;
         border: none;
@@ -260,6 +288,9 @@ else
     private bool isLoading = false;
     private string searchTerm = string.Empty;
 
+    // Simulate user roles
+    private bool IsAdminOrWarehouseManager => true; // Replace with actual role-checking logic
+
     // Filtered list based on search term
     private List<EquipmentModel> FilteredEquipment => string.IsNullOrWhiteSpace(searchTerm)
         ? equipmentList
@@ -267,9 +298,9 @@ else
             e.Name.Contains(searchTerm, StringComparison.OrdinalIgnoreCase) ||
             e.StorageLocation.Contains(searchTerm, StringComparison.OrdinalIgnoreCase)).ToList();
 
-    // Initialize with an empty list instead of null
     protected override async Task OnInitializedAsync()
     {
+        Logger.LogInformation("Initializing EquipmentList component...");
         await LoadEquipment();
     }
 
@@ -281,21 +312,22 @@ else
             errorMessage = null;
             StateHasChanged();
 
-            // Try to get data from service, but don't let errors stop us
-            try
+            Logger.LogInformation("Loading equipment data...");
+            var result = await EquipmentService.GetAllEquipmentAsync();
+            if (result != null && result.Any())
             {
-                var result = await EquipmentService.GetAllEquipmentAsync();
-                if (result != null && result.Any())
-                {
-                    equipmentList = result;
-                }
+                equipmentList = result;
+                Logger.LogInformation($"Loaded {equipmentList.Count} equipment items.");
             }
-            catch (Exception ex)
+            else
             {
-                // Log but don't set as error message yet - we'll add demo data
-                Console.WriteLine($"Error loading equipment: {ex.Message}");
-                errorMessage = $"שגיאה בטעינת הנתונים: {ex.Message}";
+                Logger.LogWarning("No equipment data found.");
             }
+        }
+        catch (Exception ex)
+        {
+            errorMessage = $"שגיאה בטעינת הנתונים: {ex.Message}";
+            Logger.LogError(ex, "Error loading equipment data.");
         }
         finally
         {
@@ -306,12 +338,13 @@ else
 
     private async Task RefreshData()
     {
+        Logger.LogInformation("Refreshing equipment data...");
         await LoadEquipment();
     }
 
     private void AddDemoData()
     {
-        // Create demo equipment data
+        Logger.LogInformation("Adding demo equipment data...");
         equipmentList = new List<EquipmentModel>
         {
             new EquipmentModel
@@ -335,44 +368,45 @@ else
                 StorageLocation = "חדר כלים",
                 SerialNumber = "PT-2022-105",
                 Value = 120
-            },
-            new EquipmentModel
-            {
-                EquipmentID = 3,
-                Name = "מברג חשמלי",
-                Description = "מברג חשמלי נטען",
-                Status = "זמין",
-                Quantity = 3,
-                StorageLocation = "מחסן ראשי",
-                SerialNumber = "MB-2023-054",
-                Value = 200
-            },
-            new EquipmentModel
-            {
-                EquipmentID = 4,
-                Name = "סולם אלומיניום",
-                Description = "סולם 10 שלבים",
-                Status = "זמין",
-                Quantity = 1,
-                StorageLocation = "מחסן חיצוני",
-                SerialNumber = "SL-2021-002",
-                Value = 450
-            },
-            new EquipmentModel
-            {
-                EquipmentID = 5,
-                Name = "גנרטור חשמלי",
-                Description = "גנרטור 5000W לחירום",
-                Status = "בתחזוקה",
-                Quantity = 1,
-                StorageLocation = "מחסן חיצוני",
-                SerialNumber = "GN-2020-007",
-                Value = 3200
             }
         };
 
-        // Clear any error messages
         errorMessage = null;
+        Logger.LogInformation("Demo equipment data added successfully.");
         StateHasChanged();
     }
+
+    private void EditEquipment(EquipmentModel equipment)
+    {
+        Logger.LogInformation($"Editing equipment: {equipment.Name} (ID: {equipment.EquipmentID})");
+        // Logic to edit equipment (e.g., open a modal or navigate to an edit page)
+    }
+
+    private async Task RemoveEquipment(EquipmentModel equipment)
+    {
+        try
+        {
+            isLoading = true;
+            StateHasChanged();
+
+            Logger.LogInformation($"Removing equipment: {equipment.Name} (ID: {equipment.EquipmentID})...");
+            await EquipmentService.DeleteEquipmentAsync(equipment.EquipmentID);
+            equipmentList.Remove(equipment);
+
+            Logger.LogInformation($"Equipment removed successfully: {equipment.Name} (ID: {equipment.EquipmentID})");
+        }
+        catch (Exception ex)
+        {
+            errorMessage = $"שגיאה במחיקת הציוד: {ex.Message}";
+            Logger.LogError(ex, $"Error removing equipment: {equipment.Name} (ID: {equipment.EquipmentID})");
+        }
+        finally
+        {
+            isLoading = false;
+            StateHasChanged();
+        }
+    }
 }
+
+
+

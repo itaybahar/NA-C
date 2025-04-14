@@ -10,20 +10,25 @@ namespace Blazor_WebAssembly.Services.Implementations
     {
         private readonly HttpClient _httpClient;
         private readonly ILocalStorageService _localStorage;
+        private readonly string _apiBaseUrl;
 
         public AuthService(HttpClient httpClient, ILocalStorageService localStorage)
         {
             _httpClient = httpClient;
             _localStorage = localStorage;
 
-            // ודא שזה תואם לכתובת של ה־API שלך בפועל:
-            _httpClient.BaseAddress = new Uri("https://localhost:5191/");
+            // Instead of directly setting the BaseAddress, store it for later use
+            _apiBaseUrl = "https://localhost:5191/";
         }
 
         // ✅ התחברות עם מודל מלא
         public async Task<AuthenticationResponse> LoginAsync(LoginModel loginModel)
         {
-            var response = await _httpClient.PostAsJsonAsync("auth/login", loginModel);
+            // Create a new HttpClient for this specific request with the correct base address
+            using var client = new HttpClient();
+            client.BaseAddress = new Uri(_apiBaseUrl);
+
+            var response = await client.PostAsJsonAsync("auth/login", loginModel);
 
             if (response.IsSuccessStatusCode)
             {
@@ -55,7 +60,11 @@ namespace Blazor_WebAssembly.Services.Implementations
         // ✅ הרשמה עם מודל
         public async Task<bool> RegisterAsync(RegisterModel registerModel)
         {
-            var response = await _httpClient.PostAsJsonAsync("auth/register", registerModel);
+            // Create a new HttpClient for this specific request with the correct base address
+            using var client = new HttpClient();
+            client.BaseAddress = new Uri(_apiBaseUrl);
+
+            var response = await client.PostAsJsonAsync("auth/register", registerModel);
             return response.IsSuccessStatusCode;
         }
 
@@ -77,7 +86,11 @@ namespace Blazor_WebAssembly.Services.Implementations
         // ✅ שליחת קישור לאיפוס סיסמה
         public async Task<bool> SendPasswordResetEmail(string email)
         {
-            var response = await _httpClient.PostAsJsonAsync("auth/send-reset-email", new { Email = email });
+            // Create a new HttpClient for this specific request with the correct base address
+            using var client = new HttpClient();
+            client.BaseAddress = new Uri(_apiBaseUrl);
+
+            var response = await client.PostAsJsonAsync("auth/send-reset-email", new { Email = email });
             return response.IsSuccessStatusCode;
         }
 
@@ -114,6 +127,16 @@ namespace Blazor_WebAssembly.Services.Implementations
         {
             // לא מומש עדיין, אפשר להוסיף לפי הצורך
             throw new NotImplementedException();
+        }
+
+        public Task<bool> IsUserInRoleAsync(string role)
+        {
+            throw new NotImplementedException();
+        }
+        // ✅ חדש: מימוש של GetTokenAsync
+        public async Task<string> GetTokenAsync()
+        {
+            return await _localStorage.GetItemAsync<string>("authToken") ?? string.Empty;
         }
     }
 }

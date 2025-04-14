@@ -1,11 +1,11 @@
-﻿using System.ComponentModel.DataAnnotations;
+﻿using Domain_Project.DTOs.Domain_Project.DTOs.Domain_Project.Models;
 using System.Text.Json.Serialization;
+using Blazor_WebAssembly.Models.Checkout;
 
 namespace Blazor_WebAssembly.Models.Equipment
 {
     public class EquipmentModel
     {
-        // Use [JsonPropertyName] attributes to map from API's property names
         [JsonPropertyName("id")]
         public int EquipmentID { get; set; }
 
@@ -15,8 +15,7 @@ namespace Blazor_WebAssembly.Models.Equipment
         public string? Description { get; set; }
 
         public string? SerialNumber { get; set; }
-
-        public int Value { get; set; }
+        public decimal Value { get; set; }
 
         [JsonPropertyName("status")]
         public string Status { get; set; } = string.Empty;
@@ -26,5 +25,8 @@ namespace Blazor_WebAssembly.Models.Equipment
 
         [JsonPropertyName("storageLocation")]
         public string StorageLocation { get; set; } = string.Empty;
+
+        [JsonPropertyName("checkoutRecords")]
+        public List<CheckoutRecordDto> CheckoutRecords { get; set; } = new();
     }
 }

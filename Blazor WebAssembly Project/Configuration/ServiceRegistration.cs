@@ -6,6 +6,7 @@ using Microsoft.AspNetCore.Components;
 using Microsoft.AspNetCore.Components.Authorization;
 using Microsoft.AspNetCore.Components.WebAssembly.Hosting;
 
+
 namespace Blazor_WebAssembly.Configuration
 {
     public static class ServiceRegistration
@@ -31,7 +32,6 @@ namespace Blazor_WebAssembly.Configuration
             builder.Services.AddScoped<ITeamService, TeamService>();
             builder.Services.AddScoped<ICheckoutService, CheckoutService>();
             builder.Services.AddScoped<IEquipmentRequestService, EquipmentRequestService>();
-
             // Navigation
             builder.Services.AddScoped<NavigationManager>();
         }

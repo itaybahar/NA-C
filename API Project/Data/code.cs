@@ -24,6 +24,14 @@ namespace API_Project.Data
         {
             base.OnModelCreating(modelBuilder);
 
+            // Team configurations
+            modelBuilder.Entity<Team>(entity =>
+            {
+                entity.HasIndex(t => t.TeamName).IsUnique();
+                entity.Property(t => t.IsActive).HasDefaultValue(true);
+                entity.Property(t => t.CreatedDate).HasDefaultValueSql("CURRENT_TIMESTAMP");
+                entity.Property(t => t.IsBlacklisted).HasDefaultValue(false);
+            });
             // User configurations
             modelBuilder.Entity<User>(entity =>
             {

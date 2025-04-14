@@ -176,6 +176,21 @@ namespace Domain_Project.Models
         public DateTime? ReturnedAt { get; set; }
     }
 
+    public class Checkout
+    {
+        public int Id { get; set; } // Unique identifier for the checkout
+
+        public required int EquipmentId { get; set; } // ID of the equipment being checked out
+        public required Equipment Equipment { get; set; } // Navigation property for the equipment
+
+        public required string TeamId { get; set; } // ID of the team performing the checkout
+        public required Team Team { get; set; } // Navigation property for the team
+
+        public DateTime CheckoutDate { get; set; } = DateTime.UtcNow; // Date of checkout
+        public DateTime? ReturnDate { get; set; } // Date of return, if returned
+
+        public bool IsReturned { get; set; } = false; // Indicates if the equipment has been returned
+    }
     public class Blacklist
     {
         [Key]

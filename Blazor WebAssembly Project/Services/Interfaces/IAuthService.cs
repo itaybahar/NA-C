@@ -12,8 +12,10 @@ namespace Blazor_WebAssembly.Services.Interfaces
         Task<bool> RegisterAsync(RegisterModel registerModel);
         Task<bool> Logout();
         Task<bool> ChangePassword(string oldPassword, string newPassword);
-
+        Task<bool> IsUserInRoleAsync(string role);
         // ✅ חדש: שליחת קישור לאיפוס סיסמה
         Task<bool> SendPasswordResetEmail(string email);
+        // ✅ חדש: מחזיר את הטוקן הנוכחי
+        Task<string> GetTokenAsync();
     }
 }

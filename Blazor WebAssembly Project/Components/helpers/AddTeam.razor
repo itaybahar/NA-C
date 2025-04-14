@@ -1,0 +1,430 @@
+﻿@using Blazor_WebAssembly.Models.Team
+@using Blazor_WebAssembly.Services.Interfaces
+@using System.Diagnostics
+@using Microsoft.Extensions.Logging
+@using Microsoft.AspNetCore.Components.Authorization
+@using System.Net.Http.Headers
+
+@inject ITeamService TeamService
+@inject ILogger<AddTeam> Logger
+@inject AuthenticationStateProvider AuthStateProvider
+@inject HttpClient HttpClient
+@inject NavigationManager NavigationManager
+@inject Blazored.LocalStorage.ILocalStorageService LocalStorage
+
+<h2 class="text-center text-2xl font-extrabold mb-6 text-white">ניהול קבוצות ומפעלים</h2>
+
+<div class="tabs flex justify-center gap-4 mb-6">
+    <button class="tab-button @(ActiveTab == "add" ? "bg-red-700" : "bg-zinc-700")" @onclick='() => OnTabChanged("add")'>
+        הוספת קבוצה חדשה
+    </button>
+    <button class="tab-button @(ActiveTab == "LoadTeams" ? "bg-red-700" : "bg-zinc-700")" @onclick='() => OnTabChanged("LoadTeams")'>
+        רשימת קבוצות
+    </button>
+</div>
+
+@if (ActiveTab == "add")
+{
+    <div class="space-y-4">
+        @if (!string.IsNullOrWhiteSpace(Message))
+        {
+            <div class="@(IsError ? "alert-danger" : "alert-success")">
+                @Message
+            </div>
+        }
+
+        <div class="form-group">
+            <label class="input-label">שם</label>
+            <input class="form-control" placeholder="שם הקבוצה או המפעל" @bind="NewTeam.TeamName" />
+        </div>
+
+        <div class="form-group">
+            <label class="input-label">סוג</label>
+            <select class="form-control" @bind="TeamType">
+                <option value="" disabled selected>בחר סוג</option>
+                <option value="Team">קבוצה</option>
+                <option value="מפעל">מפעל</option>
+            </select>
+        </div>
+
+        <button class="btn-submit" @onclick="AddEntity" disabled="@IsSubmitting">
+            @(IsSubmitting ? "מוסיף..." : "הוסף למערכת")
+        </button>
+    </div>
+}
+else if (ActiveTab == "LoadTeams")
+{
+    @if (IsLoading)
+    {
+        <div class="loading-indicator">
+            <div class="spinner"></div>
+            <p>טוען רשימת קבוצות...</p>
+        </div>
+    }
+    else if (Teams.Count == 0)
+    {
+        <p class="no-teams">אין קבוצות ומפעלים במערכת</p>
+    }
+    else
+    {
+        <div class="overflow-x-auto">
+            <table class="teams-table">
+                <thead>
+                    <tr>
+                        <th>מזהה</th>
+                        <th>שם</th>
+                        <th>סוג</th>
+                        <th>סטטוס</th>
+                        <th>פעולות</th>
+                    </tr>
+                </thead>
+                <tbody>
+                    @foreach (var team in Teams)
+                    {
+                        <tr class="@(team.IsActive ? "" : "inactive-team")">
+                            <td>@team.TeamID</td>
+                            <td>@team.TeamName</td>
+                            <td>@(string.IsNullOrEmpty(team.Description) ? "-" : team.Description)</td>
+                            <td>
+                                <span class="status-indicator @(team.IsActive ? "active" : "inactive")">
+                                    @(team.IsActive ? "פעיל" : "לא פעיל")
+                                </span>
+                            </td>
+                            <td class="actions">
+                                <button class="btn-icon" title="ערוך" @onclick="() => EditTeam(team)">
+                                    ✏️
+                                </button>
+                                <button class="btn-icon" title="@(team.IsActive ? "השבת" : "הפעל")" @onclick="() => ToggleTeamStatus(team)">
+                                    @(team.IsActive ? "🔴" : "🟢")
+                                </button>
+                            </td>
+                        </tr>
+                    }
+                </tbody>
+            </table>
+        </div>
+    }
+}
+
+<style>
+    .tab-button {
+        padding: 10px 20px;
+        border-radius: 8px;
+        color: white;
+        font-weight: bold;
+        transition: all 0.3s;
+    }
+
+    .form-group {
+        margin-bottom: 1rem;
+    }
+
+    .input-label {
+        display: block;
+        font-weight: bold;
+        margin-bottom: 4px;
+        color: var(--grey);
+        font-size: 14px;
+    }
+
+    .form-control {
+        width: 100%;
+        padding: 10px;
+        border-radius: 6px;
+        border: none;
+        background-color: #444;
+        color: white;
+        transition: all 0.3s;
+    }
+
+        .form-control:focus {
+            outline: 2px solid var(--primary-red);
+            background-color: #555;
+        }
+
+    .btn-submit {
+        background-color: var(--primary-red);
+        color: white;
+        width: 100%;
+        padding: 10px;
+        border: none;
+        border-radius: 6px;
+        font-weight: bold;
+        cursor: pointer;
+        transition: all 0.3s;
+        margin-top: 10px;
+    }
+
+        .btn-submit:hover:not(:disabled) {
+            background-color: #b71c1c;
+        }
+
+        .btn-submit:disabled {
+            opacity: 0.6;
+            cursor: not-allowed;
+        }
+
+    .alert-success {
+        background-color: rgba(40, 167, 69, 0.2);
+        color: #28a745;
+        padding: 10px;
+        border-radius: 6px;
+        border: 1px solid rgba(40, 167, 69, 0.3);
+        text-align: center;
+        margin-bottom: 1rem;
+    }
+
+    .alert-danger {
+        background-color: rgba(220, 53, 69, 0.2);
+        color: #dc3545;
+        padding: 10px;
+        border-radius: 6px;
+        border: 1px solid rgba(220, 53, 69, 0.3);
+        text-align: center;
+        margin-bottom: 1rem;
+    }
+
+    .teams-container {
+        margin-top: 20px;
+    }
+
+    .teams-table {
+        width: 100%;
+        border-collapse: collapse;
+        color: white;
+    }
+
+        .teams-table th,
+        .teams-table td {
+            padding: 12px 15px;
+            text-align: right;
+        }
+
+        .teams-table th {
+            background-color: #333;
+            font-weight: bold;
+            border-bottom: 2px solid #555;
+        }
+
+        .teams-table tbody tr {
+            border-bottom: 1px solid #444;
+            transition: background-color 0.3s;
+        }
+
+            .teams-table tbody tr:hover {
+                background-color: #333;
+            }
+
+    .inactive-team {
+        opacity: 0.6;
+    }
+
+    .status-indicator {
+        display: inline-block;
+        padding: 3px 8px;
+        border-radius: 12px;
+        font-size: 0.85rem;
+    }
+
+        .status-indicator.active {
+            background-color: rgba(40, 167, 69, 0.2);
+            color: #2bd555;
+        }
+
+        .status-indicator.inactive {
+            background-color: rgba(220, 53, 69, 0.2);
+            color: #ff5a5a;
+        }
+
+    .btn-icon {
+        background: none;
+        border: none;
+        cursor: pointer;
+        font-size: 18px;
+        margin: 0 5px;
+        padding: 5px;
+    }
+
+    .actions {
+        display: flex;
+        justify-content: center;
+    }
+
+    .no-teams {
+        text-align: center;
+        padding: 30px;
+        font-style: italic;
+        color: #999;
+    }
+
+    .loading-indicator {
+        display: flex;
+        flex-direction: column;
+        align-items: center;
+        justify-content: center;
+        padding: 30px 0;
+    }
+
+    .spinner {
+        width: 40px;
+        height: 40px;
+        border: 4px solid rgba(255, 255, 255, 0.3);
+        border-radius: 50%;
+        border-top-color: var(--primary-red);
+        animation: spin 1s linear infinite;
+        margin-bottom: 15px;
+    }
+
+    keyframes spin {
+        to
+
+    {
+        transform: rotate(360deg);
+    }
+
+    }
+</style>
+
+@code {
+    private TeamModel NewTeam = new()
+    {
+        TeamName = string.Empty,
+        IsActive = true
+    };
+
+    private string TeamType = string.Empty;
+    private string? Message;
+    private bool IsError = false;
+    private bool IsSubmitting = false;
+    private bool IsLoading = false;
+    private string ActiveTab = "add";
+    private List<TeamModel> Teams = new();
+
+    private async Task AddEntity()
+    {
+        IsSubmitting = true;
+        Message = string.Empty;
+        IsError = false;
+
+        try
+        {
+            if (string.IsNullOrWhiteSpace(NewTeam.TeamName))
+            {
+                Message = "יש להזין שם";
+                IsError = true;
+                return;
+            }
+
+            if (string.IsNullOrWhiteSpace(TeamType))
+            {
+                Message = "יש לבחור סוג";
+                IsError = true;
+                return;
+            }
+
+            NewTeam.Description = TeamType;
+
+            var result = await TeamService.AddTeam(NewTeam);
+
+            if (result)
+            {
+                Message = "צוות נוסף בהצלחה!";
+                IsError = false;
+
+                NewTeam = new()
+                {
+                    TeamName = string.Empty,
+                    IsActive = true
+                };
+                TeamType = string.Empty;
+
+                await LoadTeams();
+            }
+            else
+            {
+                Message = "שגיאה בהוספת צוות";
+                IsError = true;
+            }
+        }
+        catch (Exception ex)
+        {
+            Message = $"שגיאה: {ex.Message}";
+            IsError = true;
+        }
+        finally
+        {
+            IsSubmitting = false;
+        }
+    }
+
+    private async Task LoadTeams()
+    {
+        IsLoading = true;
+        Message = null;
+        IsError = false;
+
+        try
+        {
+            Logger.LogInformation("Loading teams...");
+            Teams = await TeamService.GetAllTeamsAsync() ?? new List<TeamModel>();
+            Logger.LogInformation($"Loaded {Teams.Count} teams.");
+        }
+        catch (Exception ex)
+        {
+            Message = $"שגיאה בטעינת הקבוצות: {ex.Message}";
+            IsError = true;
+            Logger.LogError(ex, "Error loading teams.");
+        }
+        finally
+        {
+            IsLoading = false;
+            StateHasChanged(); // Ensure the UI is updated
+        }
+    }
+
+
+    private void OnTabChanged(string tab)
+    {
+        if (ActiveTab == tab) return; // Prevent redundant calls if the tab is already active
+
+        ActiveTab = tab;
+
+        if (tab == "LoadTeams" && Teams.Count == 0) // Only load teams if the list is empty
+        {
+            _ = LoadTeams(); // Call LoadTeams asynchronously
+        }
+    }
+
+
+    private void EditTeam(TeamModel team)
+    {
+        Message = $"עריכת צוות {team.TeamName} - פונקציונליות בפיתוח";
+        IsError = false;
+    }
+
+    private async Task ToggleTeamStatus(TeamModel team)
+    {
+        try
+        {
+            team.IsActive = !team.IsActive;
+            var result = await TeamService.UpdateTeamAsync(team);
+
+            if (result)
+            {
+                Message = $"סטטוס הצוות {team.TeamName} עודכן ל{(team.IsActive ? "פעיל" : "לא פעיל")}";
+                IsError = false;
+                await LoadTeams();
+            }
+            else
+            {
+                Message = "שגיאה בעדכון סטטוס הצוות";
+                IsError = true;
+            }
+        }
+        catch (Exception ex)
+        {
+            Message = $"שגיאה: {ex.Message}";
+            IsError = true;
+        }
+    }
+}

@@ -1,6 +1,7 @@
 ﻿using System.Net.Http.Json;
 using Blazor_WebAssembly.Models.Checkout;
 using Blazor_WebAssembly.Services.Interfaces;
+using Domain_Project.DTOs.Domain_Project.DTOs.Domain_Project.Models;
 
 namespace Blazor_WebAssembly.Services.Implementations
 {
@@ -10,19 +11,20 @@ namespace Blazor_WebAssembly.Services.Implementations
 
         public CheckoutService(HttpClient httpClient)
         {
-            _httpClient = httpClient;
-            _httpClient.BaseAddress = new Uri("https://localhost:7235/api/");
+            _httpClient = httpClient ?? throw new ArgumentNullException(nameof(httpClient));
         }
 
         public async Task<List<EquipmentCheckoutModel>> GetAllCheckoutsAsync()
         {
             try
             {
-                return await _httpClient.GetFromJsonAsync<List<EquipmentCheckoutModel>>("checkout") ?? new List<EquipmentCheckoutModel>();
+                return await _httpClient.GetFromJsonAsync<List<EquipmentCheckoutModel>>("checkout")
+                       ?? new List<EquipmentCheckoutModel>();
             }
-            catch (Exception)
+            catch (Exception ex)
             {
-                // Log the exception if needed
+                // Log the exception (replace with actual logging)
+                Console.Error.WriteLine($"Error fetching all checkouts: {ex.Message}");
                 return new List<EquipmentCheckoutModel>();
             }
         }
@@ -31,12 +33,14 @@ namespace Blazor_WebAssembly.Services.Implementations
         {
             try
             {
-                return await _httpClient.GetFromJsonAsync<EquipmentCheckoutModel>($"checkout/{id}") ?? new EquipmentCheckoutModel();
+                return await _httpClient.GetFromJsonAsync<EquipmentCheckoutModel>($"checkout/{id}")
+                       ?? new EquipmentCheckoutModel();
             }
-            catch (Exception)
+            catch (Exception ex)
             {
-                // Log the exception if needed
-                return new EquipmentCheckoutModel(); // Return a default object instead of null
+                // Log the exception (replace with actual logging)
+                Console.Error.WriteLine($"Error fetching checkout by ID {id}: {ex.Message}");
+                return new EquipmentCheckoutModel();
             }
         }
 
@@ -47,9 +51,10 @@ namespace Blazor_WebAssembly.Services.Implementations
                 var response = await _httpClient.PostAsJsonAsync("checkout", checkout);
                 return response.IsSuccessStatusCode;
             }
-            catch (Exception)
+            catch (Exception ex)
             {
-                // Log the exception if needed
+                // Log the exception (replace with actual logging)
+                Console.Error.WriteLine($"Error creating checkout: {ex.Message}");
                 return false;
             }
         }
@@ -61,9 +66,10 @@ namespace Blazor_WebAssembly.Services.Implementations
                 var response = await _httpClient.PostAsync($"checkout/{checkoutId}/return", null);
                 return response.IsSuccessStatusCode;
             }
-            catch (Exception)
+            catch (Exception ex)
             {
-                // Log the exception if needed
+                // Log the exception (replace with actual logging)
+                Console.Error.WriteLine($"Error returning equipment for checkout ID {checkoutId}: {ex.Message}");
                 return false;
             }
         }
@@ -72,11 +78,13 @@ namespace Blazor_WebAssembly.Services.Implementations
         {
             try
             {
-                return await _httpClient.GetFromJsonAsync<List<EquipmentCheckoutModel>>("checkout/active") ?? new List<EquipmentCheckoutModel>();
+                return await _httpClient.GetFromJsonAsync<List<EquipmentCheckoutModel>>("checkout/active")
+                       ?? new List<EquipmentCheckoutModel>();
             }
-            catch (Exception)
+            catch (Exception ex)
             {
-                // Log the exception if needed
+                // Log the exception (replace with actual logging)
+                Console.Error.WriteLine($"Error fetching active checkouts: {ex.Message}");
                 return new List<EquipmentCheckoutModel>();
             }
         }
@@ -85,16 +93,41 @@ namespace Blazor_WebAssembly.Services.Implementations
         {
             try
             {
-                return await _httpClient.GetFromJsonAsync<List<EquipmentCheckoutModel>>("checkout/overdue") ?? new List<EquipmentCheckoutModel>();
+                return await _httpClient.GetFromJsonAsync<List<EquipmentCheckoutModel>>("checkout/overdue")
+                       ?? new List<EquipmentCheckoutModel>();
             }
-            catch (Exception)
+            catch (Exception ex)
             {
-                // Log the exception if needed
+                // Log the exception (replace with actual logging)
+                Console.Error.WriteLine($"Error fetching overdue checkouts: {ex.Message}");
                 return new List<EquipmentCheckoutModel>();
             }
         }
 
-        public Task CheckoutEquipmentAsync(int teamId, int equipmentId)
+        public async Task CheckoutEquipmentAsync(int teamId, int equipmentId)
+        {
+            try
+            {
+                var response = await _httpClient.PostAsJsonAsync("checkout/equipment", new
+                {
+                    TeamID = teamId,
+                    EquipmentID = equipmentId
+                });
+
+                if (!response.IsSuccessStatusCode)
+                {
+                    throw new HttpRequestException($"Failed to checkout equipment. Status code: {response.StatusCode}");
+                }
+            }
+            catch (Exception ex)
+            {
+                // Log the exception (replace with actual logging)
+                Console.Error.WriteLine($"Error checking out equipment for TeamID {teamId} and EquipmentID {equipmentId}: {ex.Message}");
+                throw;
+            }
+        }
+
+        public Task<List<CheckoutRecordDto>> GetCheckoutHistoryAsync()
         {
             throw new NotImplementedException();
         }

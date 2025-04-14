@@ -213,6 +213,7 @@ namespace Domain_Project.DTOs
                 };
                 public DateTime CheckedOutAt { get; set; } = DateTime.UtcNow;
                 public DateTime? ReturnedAt { get; set; }
+                public int RecordID { get; set; }
             }
             public class AssignRoleDto
             {

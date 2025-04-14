@@ -1,82 +1,160 @@
 ﻿@using Blazor_WebAssembly.Services.Interfaces
 @using Domain_Project.DTOs
 @using Blazor_WebAssembly.Models.Equipment
+@using Domain_Project.DTOs.Domain_Project.DTOs.Domain_Project.Models
+@using Blazor_WebAssembly.Models.Team
 @inject ITeamService TeamService
 @inject IEquipmentService EquipmentService
 @inject ICheckoutService CheckoutService
+@inject ILogger<EquipmentCheckout> Logger
 
-<h2 class="text-center text-xl font-bold mb-6 text-white">הוצאת ציוד לצוות</h2>
+<h2 class="text-center text-xl font-bold mb-6 text-white">ניהול ציוד</h2>
 
-<div class="checkout-container">
-    @if (isLoading)
-    {
-        <div class="loading-container">
-            <div class="spinner"></div>
-            <p>טוען נתונים...</p>
-        </div>
-    }
-    else if (!string.IsNullOrEmpty(errorMessage))
-    {
-        <div class="alert-danger mb-4">
-            <p>@errorMessage</p>
-            <button class="btn-action mt-2" @onclick="LoadData">נסה שנית</button>
-        </div>
-    }
-    else
-    {
-        <div class="form-group">
-            <label class="input-label">בחר צוות</label>
-            <select @bind="SelectedTeamId" class="form-control">
-                <option value="">בחר צוות</option>
-                @if (EligibleTeams != null)
-                {
-                    @foreach (var team in EligibleTeams)
-                    {
-                        <option value="@team.TeamID">@team.TeamName</option>
-                    }
-                }
-            </select>
-        </div>
-
-        <div class="form-group">
-            <label class="input-label">בחר ציוד</label>
-            <select @bind="SelectedEquipmentId" class="form-control">
-                <option value="">בחר ציוד</option>
-                @if (Equipment != null)
-                {
-                    @foreach (var item in Equipment)
-                    {
-                        <option value="@item.EquipmentID">@item.Name (@item.Status)</option>
-                    }
-                }
-            </select>
-        </div>
-
-        <button class="btn-submit" @onclick="CheckoutItem" disabled="@(isSubmitting || SelectedTeamId == null || SelectedEquipmentId == null)">
-            @if (isSubmitting)
-            {
-                <span>מוציא ציוד...</span>
-            }
-            else
-            {
-                <span>הוצא ציוד</span>
-            }
-        </button>
-
-        @if (!string.IsNullOrEmpty(Message))
-        {
-            <div class="alert-success mt-4">@Message</div>
-        }
-    }
+<div class="tabs mb-4">
+    <button class="tab @(ActiveTab == "checkout" ? "active" : "")" @onclick='() => OnTabChanged("checkout")'>
+        הוצאת ציוד
+    </button>
+    <button class="tab @(ActiveTab == "history" ? "active" : "")" @onclick='() => OnTabChanged("history")'>
+        היסטורית הוצעות והחזרות
+    </button>
 </div>
 
+@if (ActiveTab == "checkout")
+{
+    <div class="checkout-container">
+        @if (isLoading)
+        {
+            <div class="loading-container">
+                <div class="spinner"></div>
+                <p>טוען נתונים...</p>
+            </div>
+        }
+        else if (!string.IsNullOrEmpty(errorMessage))
+        {
+            <div class="alert-danger mb-4">
+                <p>@errorMessage</p>
+                <button class="btn-action mt-2" @onclick="LoadData">נסה שנית</button>
+            </div>
+        }
+        else
+        {
+            <div class="form-group">
+                <label class="input-label">בחר צוות</label>
+                <select @bind="SelectedTeamId" class="form-control">
+                    <option value="">בחר צוות</option>
+                    @if (EligibleTeams != null)
+                    {
+                        @foreach (var team in EligibleTeams)
+                        {
+                            <option value="@team.TeamID">@team.TeamName</option>
+                        }
+                    }
+                </select>
+            </div>
+
+            <div class="form-group">
+                <label class="input-label">בחר ציוד</label>
+                <select @bind="SelectedEquipmentId" class="form-control">
+                    <option value="">בחר ציוד</option>
+                    @if (Equipment != null)
+                    {
+                        @foreach (var item in Equipment)
+                        {
+                            <option value="@item.EquipmentID">@item.Name (@item.Status)</option>
+                        }
+                    }
+                </select>
+            </div>
+
+            <button class="btn-submit" @onclick="CheckoutItem" disabled="@(isSubmitting || SelectedTeamId == null || SelectedEquipmentId == null)">
+                @if (isSubmitting)
+                {
+                    <span>מוציא ציוד...</span>
+                }
+                else
+                {
+                    <span>הוצא ציוד</span>
+                }
+            </button>
+
+            @if (!string.IsNullOrEmpty(Message))
+            {
+                <div class="alert-success mt-4">@Message</div>
+            }
+        }
+    </div>
+}
+else if (ActiveTab == "history")
+{
+    <div class="history-container">
+        @if (isLoadingHistory)
+        {
+            <div class="loading-container">
+                <div class="spinner"></div>
+                <p>טוען היסטורית הוצעות והחזרות...</p>
+            </div>
+        }
+        else if (CheckoutHistory.Count == 0)
+        {
+            <p class="no-history">אין היסטורית הוצעות והחזרות</p>
+        }
+        else
+        {
+            <table class="history-table">
+                <thead>
+                    <tr>
+                        <th>צוות</th>
+                        <th>ציוד</th>
+                        <th>תאריך הוצאה</th>
+                        <th>תאריך החזרה</th>
+                        <th>סטטוס</th>
+                    </tr>
+                </thead>
+                <tbody>
+                    @foreach (var record in CheckoutHistory)
+                    {
+                        <tr>
+                            <td>@record.Team.TeamName</td>
+                            <td>@record.Equipment.Name</td>
+                            <td>@record.CheckedOutAt.ToString("dd/MM/yyyy")</td>
+                            <td>@(record.ReturnedAt.HasValue? record.ReturnedAt.Value.ToString("dd/MM/yyyy") : "-")</td>
+                            <td>@(record.ReturnedAt.HasValue ? "הוחזר" : "לא הוחזר")</td>
+                        </tr>
+                    }
+                </tbody>
+            </table>
+        }
+    </div>
+}
+
 <style>
-    .checkout-container {
+    .tabs {
+        display: flex;
+        border-bottom: 2px solid #444;
+        margin-bottom: 20px;
+    }
+
+    .tab {
+        padding: 10px 20px;
+        background: none;
+        border: none;
+        color: white;
+        font-weight: bold;
+        cursor: pointer;
+        transition: all 0.3s;
+    }
+
+        .tab.active {
+            border-bottom: 3px solid #d32f2f;
+            color: #d32f2f;
+        }
+
+    .checkout-container, .history-container {
         background-color: #2a2a2a;
         padding: 20px;
         border-radius: 8px;
         box-shadow: 0 0 15px rgba(0, 0, 0, 0.3);
-        max-width: 500px;
+        max-width: 800px;
         margin: 0 auto;
     }
 
@@ -171,21 +249,69 @@
     }
 
     }
+
+    .history-table {
+        width: 100%;
+        border-collapse: collapse;
+        color: white;
+    }
+
+        .history-table th,
+        .history-table td {
+            padding: 12px 15px;
+            text-align: center;
+        }
+
+        .history-table th {
+            background-color: #333;
+            font-weight: bold;
+            border-bottom: 2px solid #555;
+        }
+
+        .history-table tbody tr {
+            border-bottom: 1px solid #444;
+            transition: background-color 0.3s;
+        }
+
+            .history-table tbody tr:hover {
+                background-color: #333;
+            }
+
+    .no-history {
+        text-align: center;
+        padding: 30px;
+        font-style: italic;
+        color: #999;
+    }
 </style>
 
 @code {
-    private List<TeamDto> EligibleTeams = new();
+    private string ActiveTab = "checkout";
+    private List<TeamModel> EligibleTeams = new();
     private List<EquipmentModel> Equipment = new();
+    private List<CheckoutRecordDto> CheckoutHistory = new();
     private int? SelectedTeamId;
     private int? SelectedEquipmentId;
     private string? Message;
     private string? errorMessage;
     private bool isLoading = true;
+    private bool isLoadingHistory = false;
     private bool isSubmitting = false;
 
     protected override async Task OnInitializedAsync()
     {
+        Logger.LogInformation("Initializing EquipmentCheckout component...");
         await LoadData();
+    }
+
+    private async Task OnTabChanged(string tab)
+    {
+        Logger.LogInformation($"Tab changed to: {tab}");
+        ActiveTab = tab;
+        if (tab == "history")
+        {
+            await LoadHistory();
+        }
     }
 
     private async Task LoadData()
@@ -197,35 +323,54 @@
 
         try
         {
-            // Load teams and equipment in parallel
-            var teamsTask = TeamService.GetTeamsAsync();
+            Logger.LogInformation("Loading teams and equipment...");
+            var teamsTask = TeamService.GetAllTeamsAsync();
             var equipmentTask = EquipmentService.GetAvailableEquipmentAsync();
 
             await Task.WhenAll(teamsTask, equipmentTask);
 
-            // Safely assign results
             var teams = await teamsTask;
+            EligibleTeams = teams != null ? teams : new List<TeamModel>();
+
             var equipment = await equipmentTask;
+            Equipment = equipment != null ? equipment : new List<EquipmentModel>();
 
-            // Only update if we got valid data
-            if (teams != null)
-                EligibleTeams = teams;
-
-            if (equipment != null)
-                Equipment = equipment;
-
-            // Reset selection
+            Logger.LogInformation("Teams and equipment loaded successfully.");
             SelectedTeamId = null;
             SelectedEquipmentId = null;
         }
         catch (Exception ex)
         {
             errorMessage = $"שגיאה בטעינת נתונים: {ex.Message}";
-            Console.WriteLine($"Error loading data: {ex.Message}");
+            Logger.LogError(ex, "Error loading data.");
         }
         finally
         {
             isLoading = false;
+            StateHasChanged();
+        }
+    }
+
+    private async Task LoadHistory()
+    {
+        isLoadingHistory = true;
+        CheckoutHistory.Clear();
+        StateHasChanged();
+
+        try
+        {
+            Logger.LogInformation("Loading checkout history...");
+            var history = await CheckoutService.GetCheckoutHistoryAsync();
+            CheckoutHistory = history ?? new List<CheckoutRecordDto>();
+            Logger.LogInformation("Checkout history loaded successfully.");
+        }
+        catch (Exception ex)
+        {
+            Logger.LogError(ex, "Error loading checkout history.");
+        }
+        finally
+        {
+            isLoadingHistory = false;
             StateHasChanged();
         }
     }
@@ -241,24 +386,21 @@
 
         try
         {
+            Logger.LogInformation($"Checking out equipment (TeamID: {SelectedTeamId}, EquipmentID: {SelectedEquipmentId})...");
             await CheckoutService.CheckoutEquipmentAsync(SelectedTeamId.Value, SelectedEquipmentId.Value);
-
-            // Assuming successful checkout if no exception is thrown
             Message = "הציוד נרשם כהוצאה בהצלחה!";
+            Logger.LogInformation("Equipment checked out successfully.");
 
-            // Refresh equipment list
             var freshEquipment = await EquipmentService.GetAvailableEquipmentAsync();
-            if (freshEquipment != null)
-                Equipment = freshEquipment;
+            Equipment = freshEquipment ?? new List<EquipmentModel>();
 
-            // Reset selections
             SelectedTeamId = null;
             SelectedEquipmentId = null;
         }
         catch (Exception ex)
         {
             Message = $"שגיאה: {ex.Message}";
-            Console.WriteLine($"Error checking out equipment: {ex}");
+            Logger.LogError(ex, "Error checking out equipment.");
         }
         finally
         {
@@ -267,4 +409,3 @@
         }
     }
 }
-

@@ -4,6 +4,7 @@ using Microsoft.AspNetCore.Authentication.JwtBearer;
 using Microsoft.AspNetCore.Authentication.MicrosoftAccount;
 using Microsoft.Extensions.Configuration;
 using Microsoft.Extensions.DependencyInjection;
+using Microsoft.Extensions.Options;
 using Microsoft.IdentityModel.Tokens;
 using System;
 using System.Text;
@@ -38,12 +39,12 @@ namespace API_Project.Configuration
                 options.TokenValidationParameters = new TokenValidationParameters
                 {
                     ValidateIssuer = true,
-                    ValidIssuer = authSettings.Issuer,
                     ValidateAudience = true,
-                    ValidAudience = authSettings.Audience,
                     ValidateLifetime = true,
-                    IssuerSigningKey = new SymmetricSecurityKey(Encoding.UTF8.GetBytes(authSettings.SecretKey)),
-                    ValidateIssuerSigningKey = true
+                    ValidateIssuerSigningKey = true,
+                    ValidIssuer = authSettings.Issuer,
+                    ValidAudience = authSettings.Audience,
+                    IssuerSigningKey = new SymmetricSecurityKey(Encoding.UTF8.GetBytes(authSettings.SecretKey))
                 };
             });
             return services;
@@ -53,50 +54,67 @@ namespace API_Project.Configuration
         {
             // Avoid BuildServiceProvider() which can cause memory leaks
             var authSettings = builder.Configuration.GetSection("Authentication").Get<AuthenticationSettings>()
-                ?? throw new ArgumentNullException("AuthenticationSettings");
+        ?? throw new ArgumentNullException("AuthenticationSettings");
 
+            // Configure JWT as the default for API authentication
             builder.Services.AddAuthentication(options =>
             {
-                options.DefaultScheme = CookieAuthenticationDefaults.AuthenticationScheme;
-                options.DefaultChallengeScheme = GoogleDefaults.AuthenticationScheme;
-                options.DefaultAuthenticateScheme = CookieAuthenticationDefaults.AuthenticationScheme;
+                options.DefaultAuthenticateScheme = JwtBearerDefaults.AuthenticationScheme;
+                options.DefaultChallengeScheme = JwtBearerDefaults.AuthenticationScheme;
+                options.DefaultScheme = JwtBearerDefaults.AuthenticationScheme;
             })
-            .AddCookie(options =>
+            .AddJwtBearer(options =>
             {
-                // Cookie authentication configuration
-                options.Cookie.HttpOnly = true;
-                options.Cookie.SecurePolicy = CookieSecurePolicy.Always;
-                options.Cookie.SameSite = SameSiteMode.None;
-                options.Cookie.Name = "EquipmentMgmt.Auth";
-                options.LoginPath = "/login";
-                options.ExpireTimeSpan = TimeSpan.FromMinutes(60);
-                options.SlidingExpiration = true;
-                options.Cookie.IsEssential = true;
-
-                options.Events = new CookieAuthenticationEvents
+                options.TokenValidationParameters = new TokenValidationParameters
                 {
-                    OnRedirectToLogin = context =>
+                    ValidateIssuer = true,
+                    ValidIssuer = authSettings.Issuer,
+                    ValidateAudience = true,
+                    ValidAudience = authSettings.Audience,
+                    ValidateLifetime = true,
+                    ValidateIssuerSigningKey = true,
+                    IssuerSigningKey = new SymmetricSecurityKey(
+                        Encoding.UTF8.GetBytes(authSettings.SecretKey))
+                };
+
+                // Enhanced debugging
+                options.Events = new JwtBearerEvents
+                {
+                    OnAuthenticationFailed = context =>
                     {
-                        if (context.Request.Path.StartsWithSegments("/api") ||
-                            context.Request.Headers["X-Requested-With"] == "XMLHttpRequest")
+                        Console.WriteLine($"JWT Authentication failed: {context.Exception?.GetType().Name}: {context.Exception?.Message}");
+                        if (context.Exception is SecurityTokenSignatureKeyNotFoundException)
                         {
-                            context.Response.StatusCode = 401;
-                            return Task.CompletedTask;
+                            Console.WriteLine($"Key used: {authSettings.SecretKey}");
                         }
-                        context.Response.Redirect(context.RedirectUri);
+                        return Task.CompletedTask;
+                    },
+                    OnTokenValidated = context =>
+                    {
+                        Console.WriteLine($"Token validated successfully for: {context.Principal?.Identity?.Name}");
+                        foreach (var claim in context.Principal?.Claims ?? Array.Empty<System.Security.Claims.Claim>())
+                        {
+                            Console.WriteLine($"Claim: {claim.Type} = {claim.Value}");
+                        }
                         return Task.CompletedTask;
                     }
                 };
             })
-            .AddGoogle(options =>
-            {
-                // Google authentication configuration
+            // Add other authentication handlers with explicit scheme names
+            .AddCookie(CookieAuthenticationDefaults.AuthenticationScheme, options => {
+                // Cookie configuration
+                options.Cookie.HttpOnly = true;
+                options.Cookie.SecurePolicy = CookieSecurePolicy.Always;
+                // Other cookie options...
+            })
+            .AddGoogle(GoogleDefaults.AuthenticationScheme, options => {
+                // Google configuration
                 options.ClientId = builder.Configuration["Authentication:Google:ClientId"]
                     ?? throw new ArgumentNullException("Authentication:Google:ClientId");
                 options.ClientSecret = builder.Configuration["Authentication:Google:ClientSecret"]
                     ?? throw new ArgumentNullException("Authentication:Google:ClientSecret");
             })
-            .AddMicrosoftAccount(options =>
+           .AddMicrosoftAccount(options =>
             {
                 // Microsoft account configuration
                 options.ClientId = builder.Configuration["Authentication:Microsoft:ClientId"]
@@ -114,9 +132,33 @@ namespace API_Project.Configuration
                     ?? throw new ArgumentNullException("Authentication:AzureAd:ClientSecret");
                 options.ResponseType = "code";
             })
-            .AddJwtBearer(JwtBearerDefaults.AuthenticationScheme, options =>
+            .AddJwtBearer(options =>
             {
-                // JWT Bearer configuration
+                // Enable events for detailed logging
+                options.Events = new JwtBearerEvents
+                {
+                    OnAuthenticationFailed = context =>
+                    {
+                        Console.WriteLine($"JWT Authentication failed: {context.Exception}");
+                        return Task.CompletedTask;
+                    },
+                    OnTokenValidated = context =>
+                    {
+                        Console.WriteLine($"Token validated for: {context.Principal?.Identity?.Name}");
+                        return Task.CompletedTask;
+                    },
+                    OnChallenge = context =>
+                    {
+                        Console.WriteLine($"JWT Challenge: {context.Error}, {context.ErrorDescription}");
+                        return Task.CompletedTask;
+                    },
+                    OnMessageReceived = context =>
+                    {
+                        Console.WriteLine("JWT Token received");
+                        return Task.CompletedTask;
+                    }
+                };
+
                 options.TokenValidationParameters = new TokenValidationParameters
                 {
                     ValidateIssuer = true,
@@ -124,13 +166,13 @@ namespace API_Project.Configuration
                     ValidateAudience = true,
                     ValidAudience = authSettings.Audience,
                     ValidateLifetime = true,
-                    IssuerSigningKey = new SymmetricSecurityKey(Encoding.UTF8.GetBytes(authSettings.SecretKey)),
-                    ValidateIssuerSigningKey = true
+                    ValidateIssuerSigningKey = true,
+                    IssuerSigningKey = new SymmetricSecurityKey(
+                        Encoding.UTF8.GetBytes(authSettings.SecretKey))
                 };
             });
 
-            builder.Services.AddAuthorization(options =>
-            {
+            builder.Services.AddAuthorization(options => {
                 // Authorization policies
                 options.AddPolicy("AdminPolicy", policy => policy.RequireRole("Admin"));
                 options.AddPolicy("UserPolicy", policy => policy.RequireRole("User"));

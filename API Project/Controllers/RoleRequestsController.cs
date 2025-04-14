@@ -1,4 +1,5 @@
 ﻿using Domain_Project.Models;
+using Domain_Project.Interfaces;
 using Microsoft.AspNetCore.Authorization;
 using Microsoft.AspNetCore.Mvc;
 using System.ComponentModel.DataAnnotations;

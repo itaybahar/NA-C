@@ -1,0 +1,227 @@
+﻿@using Blazor_WebAssembly.Services.Interfaces
+@using Domain_Project.DTOs
+@using Domain_Project.Interfaces
+@inject IUserService UserService
+@inject IAuthService AuthService
+@inject ILogger<UserRoleManager> Logger
+
+<div class="role-manager">
+    <div class="form-group mb-4">
+        <label class="input-label">בחר משתמש</label>
+        <select @bind="selectedUserId" class="form-control">
+            <option value="0">בחר משתמש</option>
+            @if (users != null)
+            {
+                @foreach (var user in users.Where(u => u.Role != "Admin" || currentUserIsAdmin))
+                {
+                    <option value="@user.UserID">@user.Username (@user.Email)</option>
+                }
+            }
+        </select>
+    </div>
+
+    @if (selectedUserId > 0)
+    {
+        <div class="form-group mb-4">
+            <label class="input-label">בחר תפקיד</label>
+            <select @bind="selectedRole" class="form-control">
+                <option value="">בחר תפקיד</option>
+                <option value="User">משתמש</option>
+                <option value="WarehouseOperator">פ.מחסן</option>
+                <option value="WarehouseManager">א.מחסן</option>
+                @if (currentUserIsAdmin)
+                {
+                    <option value="Admin">Admin</option>
+                }
+            </select>
+        </div>
+
+        <button class="btn-action" @onclick="UpdateUserRole" disabled="@isProcessing">
+            @if (isProcessing)
+            {
+                <span>מעדכן...</span>
+            }
+            else
+            {
+                <span>עדכן הרשאות</span>
+            }
+        </button>
+    }
+
+    @if (!string.IsNullOrEmpty(message))
+    {
+        <div class="@(isError ? "alert-danger" : "alert-success") mt-3 p-2">
+            @message
+        </div>
+    }
+</div>
+
+<style>
+    .input-label {
+        display: block;
+        font-weight: bold;
+        margin-bottom: 0.5rem;
+        color: #cccccc;
+    }
+
+    .form-control {
+        width: 100%;
+        padding: 10px;
+        border-radius: 6px;
+        border: none;
+        background-color: #444;
+        color: #ffffff;
+        transition: all 0.3s;
+    }
+
+        .form-control:focus {
+            outline: 2px solid #d32f2f;
+            background-color: #555;
+        }
+
+    .btn-action {
+        background-color: #d32f2f;
+        color: #ffffff;
+        width: 100%;
+        padding: 10px;
+        border: none;
+        border-radius: 6px;
+        font-weight: bold;
+        cursor: pointer;
+        transition: all 0.3s;
+    }
+
+        .btn-action:disabled {
+            opacity: 0.6;
+            cursor: not-allowed;
+        }
+
+        .btn-action:hover:not(:disabled) {
+            background-color: #b71c1c;
+        }
+
+    .alert-success {
+        background-color: rgba(40, 167, 69, 0.2);
+        color: #28a745;
+        border-radius: 6px;
+        border: 1px solid rgba(40, 167, 69, 0.3);
+        text-align: center;
+    }
+
+    .alert-danger {
+        background-color: rgba(220, 53, 69, 0.2);
+        color: #dc3545;
+        border-radius: 6px;
+        border: 1px solid rgba(220, 53, 69, 0.3);
+        text-align: center;
+    }
+</style>
+
+@code {
+    [Parameter]
+    public List<UserDto> users { get; set; } = new();
+
+    private int selectedUserId;
+    private string selectedRole = "";
+    private bool isProcessing = false;
+    private string message = "";
+    private bool isError = false;
+    private bool currentUserIsAdmin = false;
+
+    protected override async Task OnInitializedAsync()
+    {
+        Logger.LogInformation("Initializing UserRoleManager component...");
+        currentUserIsAdmin = await AuthService.IsUserInRoleAsync("Admin");
+        Logger.LogInformation($"Current user is admin: {currentUserIsAdmin}");
+    }
+
+    private async Task UpdateUserRole()
+    {
+        if (selectedUserId <= 0 || string.IsNullOrEmpty(selectedRole))
+        {
+            Logger.LogWarning("UpdateUserRole called with invalid input: selectedUserId or selectedRole is empty.");
+            return;
+        }
+
+        isProcessing = true;
+        message = "";
+        StateHasChanged();
+
+        try
+        {
+            Logger.LogInformation($"Updating role for user ID {selectedUserId} to {selectedRole}...");
+
+            // Get the selected user
+            var user = users.FirstOrDefault(u => u.UserID == selectedUserId);
+            if (user == null)
+            {
+                SetErrorMessage("משתמש לא נמצא");
+                Logger.LogWarning($"User with ID {selectedUserId} not found.");
+                return;
+            }
+
+            // If trying to modify an Admin without being an Admin
+            if (user.Role == "Admin" && !currentUserIsAdmin)
+            {
+                SetErrorMessage("אין לך הרשאה לשנות הרשאות של מנהל מערכת");
+                Logger.LogWarning("Unauthorized attempt to modify an Admin role.");
+                return;
+            }
+
+            // Update user role
+            await UserService.UpdateUserRoleAsync(selectedUserId, selectedRole);
+            Logger.LogInformation($"Role for user ID {selectedUserId} updated to {selectedRole} successfully.");
+
+            // Update the local list
+            var updatedUser = users.FirstOrDefault(u => u.UserID == selectedUserId);
+            if (updatedUser != null)
+            {
+                updatedUser.Role = selectedRole;
+                Logger.LogInformation($"Local user list updated for user ID {selectedUserId}.");
+            }
+
+            message = $"הרשאות המשתמש עודכנו בהצלחה ל: {GetHebrewRoleName(selectedRole)}";
+            isError = false;
+
+            // Reset selection
+            selectedUserId = 0;
+            selectedRole = "";
+        }
+        catch (Exception ex)
+        {
+            SetErrorMessage($"שגיאה בעדכון הרשאות: {ex.Message}");
+            Logger.LogError(ex, $"Error updating role for user ID {selectedUserId}.");
+        }
+        finally
+        {
+            isProcessing = false;
+            StateHasChanged();
+        }
+    }
+
+    private void SetErrorMessage(string msg)
+    {
+        message = msg;
+        isError = true;
+        isProcessing = false;
+        Logger.LogError($"Error: {msg}");
+        StateHasChanged();
+    }
+
+    private string GetHebrewRoleName(string role)
+    {
+        return role switch
+        {
+            "User" => "משתמש",
+            "WarehouseOperator" => "פ.מחסן",
+            "WarehouseManager" => "א.מחסן",
+            "Admin" => "Admin",
+            _ => role
+        };
+    }
+}
+
+
+
+
+

@@ -1,7 +1,10 @@
 ﻿using Blazor_WebAssembly.Models.Equipment;
 using Blazor_WebAssembly.Services.Interfaces;
+using Domain_Project.DTOs.Domain_Project.DTOs.Domain_Project.Models;
+using Domain_Project.Models;
 using System.Net.Http.Json;
 using System.Text.Json;
+
 
 namespace Blazor_WebAssembly.Services.Implementations
 {
@@ -38,45 +41,10 @@ namespace Blazor_WebAssembly.Services.Implementations
                         PropertyNameCaseInsensitive = true
                     };
 
-                    using var document = JsonDocument.Parse(content);
-
-                    // Check if response has $values format (common in .NET serialization)
-                    if (document.RootElement.TryGetProperty("$values", out var valuesElement))
+                    // Check if the response is a direct array
+                    var equipmentList = JsonSerializer.Deserialize<List<EquipmentModel>>(content, options);
+                    if (equipmentList != null)
                     {
-                        var equipmentList = new List<EquipmentModel>();
-
-                        foreach (var item in valuesElement.EnumerateArray())
-                        {
-                            try
-                            {
-                                equipmentList.Add(ParseEquipmentFromJson(item));
-                            }
-                            catch (Exception ex)
-                            {
-                                Console.WriteLine($"Error parsing item: {ex.Message}");
-                            }
-                        }
-
-                        Console.WriteLine($"Successfully parsed {equipmentList.Count} items");
-                        return equipmentList;
-                    }
-                    else if (document.RootElement.ValueKind == JsonValueKind.Array)
-                    {
-                        // If it's a direct array response
-                        var equipmentList = new List<EquipmentModel>();
-
-                        foreach (var item in document.RootElement.EnumerateArray())
-                        {
-                            try
-                            {
-                                equipmentList.Add(ParseEquipmentFromJson(item));
-                            }
-                            catch (Exception ex)
-                            {
-                                Console.WriteLine($"Error parsing item: {ex.Message}");
-                            }
-                        }
-
                         Console.WriteLine($"Successfully parsed {equipmentList.Count} items");
                         return equipmentList;
                     }
@@ -164,9 +132,7 @@ namespace Blazor_WebAssembly.Services.Implementations
                 Status = element.TryGetProperty("status", out var statusElement) ? statusElement.GetString() ?? string.Empty : string.Empty,
                 Quantity = element.TryGetProperty("quantity", out var qtyElement) ? qtyElement.GetInt32() : 0,
                 StorageLocation = element.TryGetProperty("storageLocation", out var locElement) ? locElement.GetString() ?? string.Empty : string.Empty,
-                Description = element.TryGetProperty("description", out var descElement) ? descElement.GetString() : null,
-                SerialNumber = element.TryGetProperty("serialNumber", out var serialElement) ? serialElement.GetString() : null,
-                Value = element.TryGetProperty("value", out var valueElement) && valueElement.ValueKind != JsonValueKind.Null ? valueElement.GetInt32() : 0
+                CheckoutRecords = new List<CheckoutRecordDto>() // Initialize as empty list
             };
         }
 
