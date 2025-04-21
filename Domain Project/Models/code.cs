@@ -125,6 +125,7 @@ namespace Domain_Project.Models
         public required string StorageLocation { get; set; } = string.Empty;
 
         public required List<CheckoutRecord> CheckoutRecords { get; set; } = new List<CheckoutRecord>();
+        public int CategoryId { get; set; }
     }
 
     public class EquipmentCheckout
@@ -438,5 +439,17 @@ namespace Domain_Project.Models
                 }
             };
         }
+        public class CheckoutRecordDto
+        {
+            public string Id { get; set; }
+            public string EquipmentId { get; set; }
+            public Equipment Equipment { get; set; }
+            public int TeamId { get; set; }
+            public Team Team { get; set; }
+            public DateTime CheckedOutAt { get; set; }
+            public DateTime? ReturnedAt { get; set; }
+            public int RecordID { get; set; }
+        }
+
     }
 }

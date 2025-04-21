@@ -14,6 +14,7 @@
 		<PackageReference Include="Microsoft.AspNetCore.Authentication.MicrosoftAccount" Version="9.0.4" />
 		<PackageReference Include="Microsoft.AspNetCore.Authentication.OpenIdConnect" Version="9.0.4" />
 		<PackageReference Include="Microsoft.AspNetCore.Authorization" Version="9.0.3" />
+		<PackageReference Include="Microsoft.AspNetCore.JsonPatch" Version="9.0.4" />
 
 		<!-- EF Core 9 (Matching all versions) -->
 		<PackageReference Include="Microsoft.EntityFrameworkCore" Version="9.0.3" />

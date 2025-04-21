@@ -1,8 +1,8 @@
 ﻿@using Blazor_WebAssembly.Services.Interfaces
 @using Domain_Project.DTOs
 @using Blazor_WebAssembly.Models.Equipment
-@using Domain_Project.DTOs.Domain_Project.DTOs.Domain_Project.Models
 @using Blazor_WebAssembly.Models.Team
+@using Domain_Project.DTOs.Domain_Project.DTOs.Domain_Project.Models
 @inject ITeamService TeamService
 @inject IEquipmentService EquipmentService
 @inject ICheckoutService CheckoutService
@@ -16,6 +16,9 @@
     </button>
     <button class="tab @(ActiveTab == "history" ? "active" : "")" @onclick='() => OnTabChanged("history")'>
         היסטורית הוצעות והחזרות
+    </button>
+    <button class="tab @(ActiveTab == "log" ? "active" : "")" @onclick='() => OnTabChanged("log")'>
+        לוג פעולות
     </button>
 </div>
 
@@ -40,11 +43,12 @@
         {
             <div class="form-group">
                 <label class="input-label">בחר צוות</label>
+                <input class="form-control search-bar" placeholder="חפש צוות" @bind="TeamSearchQuery" @oninput="FilterTeams" />
                 <select @bind="SelectedTeamId" class="form-control">
                     <option value="">בחר צוות</option>
-                    @if (EligibleTeams != null)
+                    @if (FilteredTeams != null)
                     {
-                        @foreach (var team in EligibleTeams)
+                        @foreach (var team in FilteredTeams)
                         {
                             <option value="@team.TeamID">@team.TeamName</option>
                         }
@@ -54,14 +58,19 @@
 
             <div class="form-group">
                 <label class="input-label">בחר ציוד</label>
+                <input class="form-control search-bar" placeholder="חפש ציוד" @bind="EquipmentSearchQuery" @oninput="FilterEquipment" />
                 <select @bind="SelectedEquipmentId" class="form-control">
                     <option value="">בחר ציוד</option>
-                    @if (Equipment != null)
+                    @if (FilteredEquipment != null && FilteredEquipment.Any())
                     {
-                        @foreach (var item in Equipment)
+                        @foreach (var item in FilteredEquipment)
                         {
                             <option value="@item.EquipmentID">@item.Name (@item.Status)</option>
                         }
+                    }
+                    else
+                    {
+                        <option disabled>אין ציוד זמין</option>
                     }
                 </select>
             </div>
@@ -126,48 +135,44 @@ else if (ActiveTab == "history")
         }
     </div>
 }
+else if (ActiveTab == "log")
+{
+    <div class="log-container">
+        <h3 class="text-center text-lg font-bold mb-4 text-white">לוג פעולות</h3>
+        @if (ActionLogs.Count == 0)
+        {
+            <p class="no-log">אין לוג פעולות להצגה</p>
+        }
+        else
+        {
+            <ul class="log-list">
+                @foreach (var log in ActionLogs)
+                {
+                    <li class="log-item">
+                        <span class="log-timestamp">@log.Timestamp.ToString("HH:mm:ss")</span>
+                        <span class="log-message">@log.Message</span>
+                    </li>
+                }
+            </ul>
+        }
+    </div>
+}
 
 <style>
-    .tabs {
-        display: flex;
-        border-bottom: 2px solid #444;
-        margin-bottom: 20px;
-    }
-
-    .tab {
-        padding: 10px 20px;
-        background: none;
+    .search-bar {
+        margin-bottom: 10px;
+        padding: 10px;
+        border-radius: 6px;
         border: none;
+        background-color: #444;
         color: white;
-        font-weight: bold;
-        cursor: pointer;
         transition: all 0.3s;
     }
 
-        .tab.active {
-            border-bottom: 3px solid #d32f2f;
-            color: #d32f2f;
+        .search-bar:focus {
+            outline: 2px solid #d32f2f;
+            background-color: #555;
         }
-
-    .checkout-container, .history-container {
-        background-color: #2a2a2a;
-        padding: 20px;
-        border-radius: 8px;
-        box-shadow: 0 0 15px rgba(0, 0, 0, 0.3);
-        max-width: 800px;
-        margin: 0 auto;
-    }
-
-    .form-group {
-        margin-bottom: 1.5rem;
-    }
-
-    .input-label {
-        display: block;
-        font-weight: bold;
-        margin-bottom: 0.5rem;
-        color: #cccccc;
-    }
 
     .form-control {
         width: 100%;
@@ -175,7 +180,7 @@ else if (ActiveTab == "history")
         border-radius: 6px;
         border: none;
         background-color: #444;
-        color: #ffffff;
+        color: white;
         transition: all 0.3s;
     }
 
@@ -183,113 +188,16 @@ else if (ActiveTab == "history")
             outline: 2px solid #d32f2f;
             background-color: #555;
         }
-
-    .btn-submit, .btn-action {
-        background-color: #d32f2f;
-        color: #ffffff;
-        width: 100%;
-        padding: 10px;
-        border: none;
-        border-radius: 6px;
-        font-weight: bold;
-        cursor: pointer;
-        transition: all 0.3s;
-    }
-
-        .btn-submit:disabled {
-            opacity: 0.6;
-            cursor: not-allowed;
-        }
-
-        .btn-submit:hover:not(:disabled), .btn-action:hover {
-            background-color: #b71c1c;
-        }
-
-    .alert-success {
-        background-color: rgba(40, 167, 69, 0.2);
-        color: #28a745;
-        padding: 10px;
-        border-radius: 6px;
-        border: 1px solid rgba(40, 167, 69, 0.3);
-        text-align: center;
-    }
-
-    .alert-danger {
-        background-color: rgba(220, 53, 69, 0.2);
-        color: #dc3545;
-        padding: 10px;
-        border-radius: 6px;
-        border: 1px solid rgba(220, 53, 69, 0.3);
-        text-align: center;
-    }
-
-    .loading-container {
-        display: flex;
-        flex-direction: column;
-        align-items: center;
-        justify-content: center;
-        padding: 2rem;
-    }
-
-    .spinner {
-        width: 40px;
-        height: 40px;
-        border: 4px solid rgba(255, 255, 255, 0.3);
-        border-radius: 50%;
-        border-top-color: #d32f2f;
-        animation: spin 1s ease-in-out infinite;
-        margin-bottom: 1rem;
-    }
-
-    keyframes spin {
-        to
-
-    {
-        transform: rotate(360deg);
-    }
-
-    }
-
-    .history-table {
-        width: 100%;
-        border-collapse: collapse;
-        color: white;
-    }
-
-        .history-table th,
-        .history-table td {
-            padding: 12px 15px;
-            text-align: center;
-        }
-
-        .history-table th {
-            background-color: #333;
-            font-weight: bold;
-            border-bottom: 2px solid #555;
-        }
-
-        .history-table tbody tr {
-            border-bottom: 1px solid #444;
-            transition: background-color 0.3s;
-        }
-
-            .history-table tbody tr:hover {
-                background-color: #333;
-            }
-
-    .no-history {
-        text-align: center;
-        padding: 30px;
-        font-style: italic;
-        color: #999;
-    }
 </style>
 
 @code {
     private string ActiveTab = "checkout";
     private List<TeamModel> EligibleTeams = new();
+    private List<TeamModel> FilteredTeams = new();
     private List<EquipmentModel> Equipment = new();
+    private List<EquipmentModel> FilteredEquipment = new();
     private List<CheckoutRecordDto> CheckoutHistory = new();
+    private List<ActionLog> ActionLogs = new();
     private int? SelectedTeamId;
     private int? SelectedEquipmentId;
     private string? Message;
@@ -297,6 +205,8 @@ else if (ActiveTab == "history")
     private bool isLoading = true;
     private bool isLoadingHistory = false;
     private bool isSubmitting = false;
+    private string TeamSearchQuery = string.Empty;
+    private string EquipmentSearchQuery = string.Empty;
 
     protected override async Task OnInitializedAsync()
     {
@@ -325,17 +235,19 @@ else if (ActiveTab == "history")
         {
             Logger.LogInformation("Loading teams and equipment...");
             var teamsTask = TeamService.GetAllTeamsAsync();
-            var equipmentTask = EquipmentService.GetAvailableEquipmentAsync();
+            var equipmentTask = EquipmentService.GetAllEquipmentAsync(); // Use the same method as EquipmentList
 
             await Task.WhenAll(teamsTask, equipmentTask);
 
             var teams = await teamsTask;
-            EligibleTeams = teams != null ? teams : new List<TeamModel>();
+            EligibleTeams = teams ?? new List<TeamModel>();
+            FilteredTeams = new List<TeamModel>(EligibleTeams);
 
             var equipment = await equipmentTask;
-            Equipment = equipment != null ? equipment : new List<EquipmentModel>();
+            Equipment = equipment ?? new List<EquipmentModel>();
+            FilteredEquipment = new List<EquipmentModel>(Equipment);
 
-            Logger.LogInformation("Teams and equipment loaded successfully.");
+            Logger.LogInformation($"Loaded {Equipment.Count} equipment items.");
             SelectedTeamId = null;
             SelectedEquipmentId = null;
         }
@@ -343,11 +255,36 @@ else if (ActiveTab == "history")
         {
             errorMessage = $"שגיאה בטעינת נתונים: {ex.Message}";
             Logger.LogError(ex, "Error loading data.");
+            AddLog($"שגיאה בטעינת נתונים: {ex.Message}");
         }
         finally
         {
             isLoading = false;
             StateHasChanged();
+        }
+    }
+
+    private void FilterTeams()
+    {
+        FilteredTeams = EligibleTeams
+            .Where(t => t.TeamName.Contains(TeamSearchQuery, StringComparison.OrdinalIgnoreCase))
+            .ToList();
+
+        if (SelectedTeamId.HasValue && !FilteredTeams.Any(t => t.TeamID == SelectedTeamId))
+        {
+            SelectedTeamId = null;
+        }
+    }
+
+    private void FilterEquipment()
+    {
+        FilteredEquipment = Equipment
+            .Where(e => e.Name.Contains(EquipmentSearchQuery, StringComparison.OrdinalIgnoreCase))
+            .ToList();
+
+        if (SelectedEquipmentId.HasValue && !FilteredEquipment.Any(e => e.EquipmentID == SelectedEquipmentId))
+        {
+            SelectedEquipmentId = null;
         }
     }
 
@@ -367,6 +304,7 @@ else if (ActiveTab == "history")
         catch (Exception ex)
         {
             Logger.LogError(ex, "Error loading checkout history.");
+            AddLog($"שגיאה בטעינת היסטורית הוצעות: {ex.Message}");
         }
         finally
         {
@@ -390,9 +328,11 @@ else if (ActiveTab == "history")
             await CheckoutService.CheckoutEquipmentAsync(SelectedTeamId.Value, SelectedEquipmentId.Value);
             Message = "הציוד נרשם כהוצאה בהצלחה!";
             Logger.LogInformation("Equipment checked out successfully.");
+            AddLog($"הציוד נרשם כהוצאה בהצלחה! (TeamID: {SelectedTeamId}, EquipmentID: {SelectedEquipmentId})");
 
-            var freshEquipment = await EquipmentService.GetAvailableEquipmentAsync();
+            var freshEquipment = await EquipmentService.GetAllEquipmentAsync(); // Refresh equipment list
             Equipment = freshEquipment ?? new List<EquipmentModel>();
+            FilteredEquipment = new List<EquipmentModel>(Equipment);
 
             SelectedTeamId = null;
             SelectedEquipmentId = null;
@@ -401,6 +341,7 @@ else if (ActiveTab == "history")
         {
             Message = $"שגיאה: {ex.Message}";
             Logger.LogError(ex, "Error checking out equipment.");
+            AddLog($"שגיאה בהוצאת ציוד: {ex.Message}");
         }
         finally
         {
@@ -408,4 +349,25 @@ else if (ActiveTab == "history")
             StateHasChanged();
         }
     }
+
+    private void AddLog(string message)
+    {
+        ActionLogs.Insert(0, new ActionLog
+        {
+            Timestamp = DateTime.Now,
+            Message = message
+        });
+
+        if (ActionLogs.Count > 50)
+        {
+            ActionLogs.RemoveAt(ActionLogs.Count - 1);
+        }
+    }
+
+    private class ActionLog
+    {
+        public DateTime Timestamp { get; set; }
+        public string Message { get; set; } = string.Empty;
+    }
 }
+

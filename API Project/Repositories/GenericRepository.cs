@@ -52,6 +52,38 @@ namespace API_Project.Repositories
             _dbSet.Remove(entity);
             await _context.SaveChangesAsync();
         }
+        // Added new method for deleting by ID
+        public virtual async Task<bool> DeleteByIdAsync(int id)
+        {
+            try
+            {
+                var entity = await _dbSet.FindAsync(id);
+                if (entity == null)
+                {
+                    return false; // Entity not found
+                }
+
+                _dbSet.Remove(entity);
+                await _context.SaveChangesAsync();
+                return true; // Successfully deleted
+            }
+            catch (DbUpdateException ex)
+            {
+                // Log the exception
+                Console.WriteLine($"Database error when deleting entity with ID {id}: {ex.Message}");
+                if (ex.InnerException != null)
+                {
+                    Console.WriteLine($"Inner exception: {ex.InnerException.Message}");
+                }
+                throw; // Re-throw to be handled by caller
+            }
+            catch (Exception ex)
+            {
+                // Log any other exceptions
+                Console.WriteLine($"Error deleting entity with ID {id}: {ex.Message}");
+                throw; // Re-throw to be handled by caller
+            }
+        }
 
         public virtual async Task SaveChangesAsync(T entity)
         {

@@ -131,5 +131,10 @@ namespace Blazor_WebAssembly.Services.Implementations
         {
             throw new NotImplementedException();
         }
+
+        public Task<bool> CheckoutEquipmentAsync(EquipmentCheckoutModel checkoutModel)
+        {
+            throw new NotImplementedException();
+        }
     }
 }

@@ -33,12 +33,32 @@
 </CascadingAuthenticationState>
 
 @code {
-    protected override async Task OnAfterRenderAsync(bool firstRender)
+    protected override async Task OnInitializedAsync()
     {
-        if (firstRender)
+        try
         {
-            // Initialize the logger JavaScript script
+            // Initialize the logger
             await JSRuntime.InvokeVoidAsync("blazorConsoleLog.init");
+
+            // Log a message
+            await JSRuntime.InvokeVoidAsync("blazorConsoleLog.log", "This is a log message from Blazor!");
+
+            // Log a warning
+            await JSRuntime.InvokeVoidAsync("blazorConsoleLog.warn", "This is a warning message from Blazor!");
+
+            // Log an error
+            await JSRuntime.InvokeVoidAsync("blazorConsoleLog.error", "This is an error message from Blazor!");
+
+            // Log a message to the server
+            await JSRuntime.InvokeVoidAsync("blazorConsoleLog.logToServer", "This is a server log message.", "Info");
+        }
+        catch (JSException jsEx)
+        {
+            Console.WriteLine($"JavaScript initialization failed: {jsEx.Message}");
+        }
+        catch (Exception ex)
+        {
+            Console.WriteLine($"An unexpected error occurred: {ex.Message}");
         }
     }
 }

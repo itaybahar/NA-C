@@ -26,23 +26,30 @@ namespace API_Project
         {
             var builder = WebApplication.CreateBuilder(args);
 
+            // Configure logging before any other services
+            ConfigureLogging(builder);
+
             // Configure Kestrel with improved certificate handling
             ConfigureKestrel(builder);
 
             // Configure application services
             ConfigureServices(builder);
 
-            builder.Logging.ClearProviders();
-            builder.Logging.AddConsole();
-            builder.Logging.AddDebug();
-            builder.Logging.SetMinimumLevel(LogLevel.Information);
-
+            // Build the application (only once)
             var app = builder.Build();
 
             // Configure the HTTP request pipeline
             ConfigurePipeline(app);
 
             app.Run();
+        }
+
+        private static void ConfigureLogging(WebApplicationBuilder builder)
+        {
+            builder.Logging.ClearProviders();
+            builder.Logging.AddConsole();
+            builder.Logging.AddDebug();
+            builder.Logging.SetMinimumLevel(LogLevel.Information);
         }
 
         private static void ConfigureKestrel(WebApplicationBuilder builder)
@@ -103,8 +110,11 @@ namespace API_Project
 
         private static void ConfigureServices(WebApplicationBuilder builder)
         {
-            var authSettings = builder.Configuration.GetSection("Authentication").Get<AuthenticationSettings>()
-                ?? throw new ArgumentNullException("AuthenticationSettings");
+            var authSettings = builder.Configuration.GetSection("Authentication").Get<AuthenticationSettings>();
+            if (authSettings == null)
+            {
+                throw new InvalidOperationException("AuthenticationSettings section is missing or misconfigured in appsettings.json.");
+            }
             builder.Services.AddSingleton(authSettings);
 
             builder.Services.AddControllers()
@@ -133,15 +143,17 @@ namespace API_Project
             })
             .AddJwtBearer(options =>
             {
-                var authSettings = builder.Configuration.GetSection("Authentication").Get<AuthenticationSettings>()
-                    ?? throw new ArgumentNullException("AuthenticationSettings");
+                if (string.IsNullOrEmpty(authSettings.SecretKey))
+                {
+                    throw new InvalidOperationException("SecretKey is missing in AuthenticationSettings.");
+                }
 
                 options.TokenValidationParameters = new TokenValidationParameters
                 {
                     ValidateIssuer = true,
-                    ValidIssuer = "YourIssuer", // MUST match exactly the token's issuer
+                    ValidIssuer = authSettings.Issuer,
                     ValidateAudience = true,
-                    ValidAudience = "YourAudience", // MUST match exactly the token's audience
+                    ValidAudience = authSettings.Audience,
                     ValidateLifetime = true,
                     ValidateIssuerSigningKey = true,
                     IssuerSigningKey = new SymmetricSecurityKey(
@@ -177,9 +189,15 @@ namespace API_Project
 
         private static void ConfigureDatabase(WebApplicationBuilder builder)
         {
+            var connectionString = builder.Configuration.GetConnectionString("DefaultConnection");
+            if (string.IsNullOrEmpty(connectionString))
+            {
+                throw new InvalidOperationException("Database connection string 'DefaultConnection' is not configured in appsettings.json.");
+            }
+
             builder.Services.AddDbContext<EquipmentManagementContext>(options =>
                 options.UseMySql(
-                    builder.Configuration.GetConnectionString("DefaultConnection"),
+                    connectionString,
                     new MySqlServerVersion(new Version(8, 0, 21)),
                     mySqlOptions => mySqlOptions.EnableRetryOnFailure(
                         maxRetryCount: 5,
@@ -218,29 +236,37 @@ namespace API_Project
 
         private static void RegisterServices(WebApplicationBuilder builder)
         {
+            // Repository registrations
             builder.Services.AddScoped<IEquipmentRepository, EquipmentRepository>();
             builder.Services.AddScoped(typeof(IGenericRepository<>), typeof(GenericRepository<>));
             builder.Services.AddScoped<IUserRepository, UserRepository>();
             builder.Services.AddScoped<IRoleChangeRequestRepository, RoleChangeRequestRepository>();
             builder.Services.AddScoped<ITeamRepository, TeamRepository>();
             builder.Services.AddScoped<ICheckoutRepository, CheckoutRepository>();
+            builder.Services.AddScoped<IBlacklistRepository, BlacklistRepository>();
+            builder.Services.AddScoped<IUnitOfWork, UnitOfWorkRepository>();
 
+            // Service registrations with proper logger injection
             builder.Services.AddScoped<Services.AuthenticationService>();
             builder.Services.AddScoped<Domain_Project.Interfaces.IAuthenticationService>(sp =>
-                new AuthenticationServiceAdapter(sp.GetRequiredService<Services.AuthenticationService>(),
-                                               sp.GetRequiredService<IHttpClientFactory>().CreateClient("Auth")));
+                new AuthenticationServiceAdapter(
+                    sp.GetRequiredService<Services.AuthenticationService>(),
+                    sp.GetRequiredService<IHttpClientFactory>().CreateClient("Auth")));
 
             builder.Services.AddScoped<IRoleRequestService, RoleRequestService>();
             builder.Services.AddScoped<IEmailService, EmailService>();
             builder.Services.AddScoped<ITeamService, TeamService>();
-            builder.Services.AddScoped<IEquipmentService>(sp =>
-                new EquipmentService(sp.GetRequiredService<IEquipmentRepository>(),
-                                    sp.GetRequiredService<IHttpClientFactory>().CreateClient("API")));
-            builder.Services.AddScoped<IUnitOfWork, UnitOfWorkRepository>();
-            builder.Services.AddScoped<IBlacklistRepository, BlacklistRepository>();
             builder.Services.AddScoped<IBlacklistService, BlacklistService>();
 
-        }
+            // Important fix: Register EquipmentService with DbContext and logger
+            builder.Services.AddScoped<IEquipmentService>(sp =>
+                new EquipmentService(
+                    sp.GetRequiredService<IEquipmentRepository>(),
+                    sp.GetRequiredService<EquipmentManagementContext>(),
+                    sp.GetRequiredService<IHttpClientFactory>().CreateClient("API"),
+                    sp.GetRequiredService<ILogger<EquipmentService>>()));
+        } // This closing brace was missing
+
 
         private static void ConfigureRateLimiting(WebApplicationBuilder builder)
         {
@@ -355,8 +381,6 @@ namespace API_Project
                 });
             });
         }
-
-
 
         private static void ConfigurePipeline(WebApplication app)
         {

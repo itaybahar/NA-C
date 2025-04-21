@@ -1,6 +1,7 @@
 ﻿@page "/admin/dashboard"
 @using Microsoft.AspNetCore.Authorization
 @using Blazor_WebAssembly_Project.Components.helpers
+@inject ILogger<AdminDashBoard> Logger
 @attribute [Authorize(Roles = "Admin")]
 
 <PageTitle>Dashboard - מנהל מערכת</PageTitle>
@@ -15,14 +16,14 @@
             </div>
 
             <div class="navbar-tabs">
-                <button class="nav-tab @(ActiveTab == "equipment" ? "active" : "")" @onclick='() => ActiveTab = "equipment"'>רשימת ציוד</button>
-                <button class="nav-tab @(ActiveTab == "blacklist" ? "active" : "")" @onclick='() => ActiveTab = "blacklist"'>רשימה שחורה</button>
-                <button class="nav-tab @(ActiveTab == "request" ? "active" : "")" @onclick='() => ActiveTab = "request"'>בקשות הרשאה</button>
-                <button class="nav-tab @(ActiveTab == "teams" ? "active" : "")" @onclick='() => ActiveTab = "teams"'>ניהול צוותים</button>
-                <button class="nav-tab @(ActiveTab == "users" ? "active" : "")" @onclick='() => ActiveTab = "users"'>ניהול משתמשים</button>
-                <button class="nav-tab @(ActiveTab == "checkout" ? "active" : "")" @onclick='() => ActiveTab = "checkout"'>הוצאת ציוד</button>
-                <button class="nav-tab @(ActiveTab == "return" ? "active" : "")" @onclick='() => ActiveTab = "return"'>החזרת ציוד</button>
-                <button class="nav-tab @(ActiveTab == "add" ? "active" : "")" @onclick='() => ActiveTab = "add"'>➕ הוספת ציוד</button>
+                <button class="nav-tab @(ActiveTab == "equipment" ? "active" : "")" @onclick='() => ChangeTab("equipment")'>רשימת ציוד</button>
+                <button class="nav-tab @(ActiveTab == "blacklist" ? "active" : "")" @onclick='() => ChangeTab("blacklist")'>רשימה שחורה</button>
+                <button class="nav-tab @(ActiveTab == "request" ? "active" : "")" @onclick='() => ChangeTab("request")'>בקשות הרשאה</button>
+                <button class="nav-tab @(ActiveTab == "teams" ? "active" : "")" @onclick='() => ChangeTab("teams")'>ניהול צוותים</button>
+                <button class="nav-tab @(ActiveTab == "users" ? "active" : "")" @onclick='() => ChangeTab("users")'>ניהול משתמשים</button>
+                <button class="nav-tab @(ActiveTab == "checkout" ? "active" : "")" @onclick='() => ChangeTab("checkout")'>הוצאת ציוד</button>
+                <button class="nav-tab @(ActiveTab == "return" ? "active" : "")" @onclick='() => ChangeTab("return")'>החזרת ציוד</button>
+                <button class="nav-tab @(ActiveTab == "add" ? "active" : "")" @onclick='() => ChangeTab("add")'>➕ הוספת ציוד</button>
             </div>
         </div>
     </div>
@@ -255,4 +256,10 @@
 
 @code {
     private string ActiveTab = "equipment";
+
+    private void ChangeTab(string tabName)
+    {
+        Logger.LogInformation($"Changing tab to: {tabName}");
+        ActiveTab = tabName;
+    }
 }

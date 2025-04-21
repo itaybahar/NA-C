@@ -1,62 +1,117 @@
 ﻿@using Blazor_WebAssembly.Services.Interfaces
 @using Domain_Project.DTOs
-@using Domain_Project.Interfaces
 @inject IUserService UserService
 @inject IAuthService AuthService
 @inject ILogger<UserRoleManager> Logger
 
-<div class="role-manager">
-    <div class="form-group mb-4">
-        <label class="input-label">בחר משתמש</label>
-        <select @bind="selectedUserId" class="form-control">
-            <option value="0">בחר משתמש</option>
-            @if (users != null)
-            {
-                @foreach (var user in users.Where(u => u.Role != "Admin" || currentUserIsAdmin))
-                {
-                    <option value="@user.UserID">@user.Username (@user.Email)</option>
-                }
-            }
-        </select>
+<div class="tabs-container">
+    <div class="tabs">
+        <button class="tab @(ActiveTab == "manageRoles" ? "active" : "")" @onclick='() => SetActiveTab("manageRoles")'>
+            ניהול הרשאות
+        </button>
+        <button class="tab @(ActiveTab == "otherTab" ? "active" : "")" @onclick='() => SetActiveTab("otherTab")'>
+            טאב אחר
+        </button>
     </div>
 
-    @if (selectedUserId > 0)
-    {
-        <div class="form-group mb-4">
-            <label class="input-label">בחר תפקיד</label>
-            <select @bind="selectedRole" class="form-control">
-                <option value="">בחר תפקיד</option>
-                <option value="User">משתמש</option>
-                <option value="WarehouseOperator">פ.מחסן</option>
-                <option value="WarehouseManager">א.מחסן</option>
-                @if (currentUserIsAdmin)
+    <div class="tab-content">
+        @if (ActiveTab == "manageRoles")
+        {
+            <div class="role-manager">
+                <div class="form-group mb-4">
+                    <label class="input-label">בחר משתמש</label>
+                    <select @bind="selectedUserId" class="form-control">
+                        <option value="0">בחר משתמש</option>
+                        @if (users != null)
+                        {
+                            @foreach (var user in users.Where(u => u.Role != "Admin" || currentUserIsAdmin))
+                            {
+                                <option value="@user.UserID">@user.Username (@user.Email)</option>
+                            }
+                        }
+                    </select>
+                </div>
+
+                @if (selectedUserId > 0)
                 {
-                    <option value="Admin">Admin</option>
+                    <div class="form-group mb-4">
+                        <label class="input-label">בחר תפקיד</label>
+                        <select @bind="selectedRole" class="form-control">
+                            <option value="">בחר תפקיד</option>
+                            <option value="User">משתמש</option>
+                            <option value="WarehouseOperator">פ.מחסן</option>
+                            <option value="WarehouseManager">א.מחסן</option>
+                            @if (currentUserIsAdmin)
+                            {
+                                <option value="Admin">Admin</option>
+                            }
+                        </select>
+                    </div>
+
+                    <button class="btn-action" @onclick="UpdateUserRole" disabled="@IsUpdateDisabled">
+                        @if (isProcessing)
+                        {
+                            <span>מעדכן...</span>
+                        }
+                        else
+                        {
+                            <span>עדכן הרשאות</span>
+                        }
+                    </button>
                 }
-            </select>
-        </div>
 
-        <button class="btn-action" @onclick="UpdateUserRole" disabled="@isProcessing">
-            @if (isProcessing)
-            {
-                <span>מעדכן...</span>
-            }
-            else
-            {
-                <span>עדכן הרשאות</span>
-            }
-        </button>
-    }
-
-    @if (!string.IsNullOrEmpty(message))
-    {
-        <div class="@(isError ? "alert-danger" : "alert-success") mt-3 p-2">
-            @message
-        </div>
-    }
+                @if (!string.IsNullOrEmpty(message))
+                {
+                    <div class="@(isError ? "alert-danger" : "alert-success") mt-3 p-2">
+                        @message
+                    </div>
+                }
+            </div>
+        }
+        else if (ActiveTab == "otherTab")
+        {
+            <div>
+                <p>תוכן של טאב אחר</p>
+            </div>
+        }
+    </div>
 </div>
 
 <style>
+    .tabs-container {
+        margin-bottom: 1.5rem;
+    }
+
+    .tabs {
+        display: flex;
+        gap: 1rem;
+        margin-bottom: 1rem;
+    }
+
+    .tab {
+        padding: 10px 20px;
+        border: none;
+        border-radius: 6px;
+        background-color: #444;
+        color: white;
+        cursor: pointer;
+        transition: all 0.3s;
+    }
+
+        .tab.active {
+            background-color: #d32f2f;
+        }
+
+        .tab:hover:not(.active) {
+            background-color: #555;
+        }
+
+    .tab-content {
+        padding: 1rem;
+        background-color: #333;
+        border-radius: 6px;
+    }
+
     .input-label {
         display: block;
         font-weight: bold;
@@ -121,12 +176,15 @@
     [Parameter]
     public List<UserDto> users { get; set; } = new();
 
+    private string ActiveTab = "manageRoles";
     private int selectedUserId;
     private string selectedRole = "";
     private bool isProcessing = false;
     private string message = "";
     private bool isError = false;
     private bool currentUserIsAdmin = false;
+
+    private bool IsUpdateDisabled => selectedUserId <= 0 || string.IsNullOrEmpty(selectedRole) || isProcessing;
 
     protected override async Task OnInitializedAsync()
     {
@@ -135,9 +193,15 @@
         Logger.LogInformation($"Current user is admin: {currentUserIsAdmin}");
     }
 
+    private void SetActiveTab(string tabName)
+    {
+        ActiveTab = tabName;
+        Logger.LogInformation($"Active tab changed to: {tabName}");
+    }
+
     private async Task UpdateUserRole()
     {
-        if (selectedUserId <= 0 || string.IsNullOrEmpty(selectedRole))
+        if (IsUpdateDisabled)
         {
             Logger.LogWarning("UpdateUserRole called with invalid input: selectedUserId or selectedRole is empty.");
             return;
@@ -173,19 +237,14 @@
             Logger.LogInformation($"Role for user ID {selectedUserId} updated to {selectedRole} successfully.");
 
             // Update the local list
-            var updatedUser = users.FirstOrDefault(u => u.UserID == selectedUserId);
-            if (updatedUser != null)
-            {
-                updatedUser.Role = selectedRole;
-                Logger.LogInformation($"Local user list updated for user ID {selectedUserId}.");
-            }
+            user.Role = selectedRole;
+            Logger.LogInformation($"Local user list updated for user ID {selectedUserId}.");
 
             message = $"הרשאות המשתמש עודכנו בהצלחה ל: {GetHebrewRoleName(selectedRole)}";
             isError = false;
 
             // Reset selection
-            selectedUserId = 0;
-            selectedRole = "";
+            ResetForm();
         }
         catch (Exception ex)
         {
@@ -197,6 +256,12 @@
             isProcessing = false;
             StateHasChanged();
         }
+    }
+
+    private void ResetForm()
+    {
+        selectedUserId = 0;
+        selectedRole = "";
     }
 
     private void SetErrorMessage(string msg)
@@ -220,8 +285,4 @@
         };
     }
 }
-
-
-
-
 
