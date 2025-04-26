@@ -17,5 +17,6 @@ namespace Blazor_WebAssembly.Services.Interfaces
         Task<bool> SendPasswordResetEmail(string email);
         // ✅ חדש: מחזיר את הטוקן הנוכחי
         Task<string> GetTokenAsync();
+        Task<bool> IsAuthenticatedAsync();
     }
 }

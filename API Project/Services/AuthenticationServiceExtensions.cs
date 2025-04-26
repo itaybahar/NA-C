@@ -42,8 +42,8 @@ namespace API_Project.Configuration
                     ValidateAudience = true,
                     ValidateLifetime = true,
                     ValidateIssuerSigningKey = true,
-                    ValidIssuer = authSettings.Issuer,
-                    ValidAudience = authSettings.Audience,
+                    ValidIssuer = "your-issuer",
+                    ValidAudience = "your-audience",
                     IssuerSigningKey = new SymmetricSecurityKey(Encoding.UTF8.GetBytes(authSettings.SecretKey))
                 };
             });
@@ -68,9 +68,11 @@ namespace API_Project.Configuration
                 options.TokenValidationParameters = new TokenValidationParameters
                 {
                     ValidateIssuer = true,
-                    ValidIssuer = authSettings.Issuer,
+                    //ValidIssuer = authSettings.Issuer,
                     ValidateAudience = true,
-                    ValidAudience = authSettings.Audience,
+                    //ValidAudience = authSettings.Audience,
+                    ValidIssuer = "your-issuer",
+                    ValidAudience = "your-audience",
                     ValidateLifetime = true,
                     ValidateIssuerSigningKey = true,
                     IssuerSigningKey = new SymmetricSecurityKey(

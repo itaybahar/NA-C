@@ -11,19 +11,20 @@
     <div class="top-navbar">
         <div class="navbar-container">
             <div class="navbar-branding">
-                <img src="images/logo_png.png" alt="לוגו השבט" class="navbar-logo" />
-                <span class="navbar-title">Admin שבט הנשיא</span>
+                <img src="images/pailM.png" alt="Logo" class="navbar-logo" />
+                <span class="navbar-title">ADMIN </span>
             </div>
 
             <div class="navbar-tabs">
-                <button class="nav-tab @(ActiveTab == "equipment" ? "active" : "")" @onclick='() => ChangeTab("equipment")'>רשימת ציוד</button>
-                <button class="nav-tab @(ActiveTab == "blacklist" ? "active" : "")" @onclick='() => ChangeTab("blacklist")'>רשימה שחורה</button>
-                <button class="nav-tab @(ActiveTab == "request" ? "active" : "")" @onclick='() => ChangeTab("request")'>בקשות הרשאה</button>
-                <button class="nav-tab @(ActiveTab == "teams" ? "active" : "")" @onclick='() => ChangeTab("teams")'>ניהול צוותים</button>
-                <button class="nav-tab @(ActiveTab == "users" ? "active" : "")" @onclick='() => ChangeTab("users")'>ניהול משתמשים</button>
-                <button class="nav-tab @(ActiveTab == "checkout" ? "active" : "")" @onclick='() => ChangeTab("checkout")'>הוצאת ציוד</button>
-                <button class="nav-tab @(ActiveTab == "return" ? "active" : "")" @onclick='() => ChangeTab("return")'>החזרת ציוד</button>
-                <button class="nav-tab @(ActiveTab == "add" ? "active" : "")" @onclick='() => ChangeTab("add")'>➕ הוספת ציוד</button>
+                <div class="sliding-bar" style="right: @SlidingBarPosition%; width: @SlidingBarWidth%;"></div>
+                <button class="nav-tab @(ActiveTab == "equipment" ? "active" : "")" @onclick='() => ChangeTab("equipment", 0)'>רשימת ציוד</button>
+                <button class="nav-tab @(ActiveTab == "blacklist" ? "active" : "")" @onclick='() => ChangeTab("blacklist", 1)'>רשימה שחורה</button>
+                <button class="nav-tab @(ActiveTab == "request" ? "active" : "")" @onclick='() => ChangeTab("request", 2)'>בקשות הרשאה</button>
+                <button class="nav-tab @(ActiveTab == "teams" ? "active" : "")" @onclick='() => ChangeTab("teams", 3)'>ניהול צוותים</button>
+                <button class="nav-tab @(ActiveTab == "users" ? "active" : "")" @onclick='() => ChangeTab("users", 4)'>ניהול משתמשים</button>
+                <button class="nav-tab @(ActiveTab == "checkout" ? "active" : "")" @onclick='() => ChangeTab("checkout", 5)'>הוצאת ציוד</button>
+                <button class="nav-tab @(ActiveTab == "return" ? "active" : "")" @onclick='() => ChangeTab("return", 6)'>החזרת ציוד</button>
+                <button class="nav-tab @(ActiveTab == "add" ? "active" : "")" @onclick='() => ChangeTab("add", 7)'>➕ הוספת ציוד</button>
             </div>
         </div>
     </div>
@@ -85,14 +86,14 @@
 
     /* Top navbar with logo and tabs */
     .top-navbar {
-        background-color: #1a1a1a;
+        background-color: #3C3C3C;
         height: var(--navbar-height);
         position: fixed;
         top: 0;
         left: 0;
         right: 0;
         z-index: 100;
-        box-shadow: 0 2px 5px rgba(0,0,0,0.2);
+        box-shadow: 0 2px 5px rgba(0, 0, 0, 0.2);
     }
 
     .navbar-container {
@@ -117,21 +118,59 @@
 
     .navbar-title {
         color: var(--primary-red);
-        font-weight: bold;
-        font-size: 18px;
+        font-weight: 900; /* Keep the text bold */
+        font-size: 20px; /* Adjust the size as needed */
         white-space: nowrap;
+        font-family: 'Press Start 2P', sans-serif; /* Use the pixelated font */
+        text-transform: uppercase; /* Optional: Make the text uppercase */
+        text-shadow: -1px -1px 0 #000, /* Top-left */
+        1px -1px 0 #000, /* Top-right */
+        -1px 1px 0 #000, /* Bottom-left */
+        1px 1px 0 #000; /* Bottom-right */
     }
+
+    font -face {
+        font-family: 'PixelHebrew';
+        src: url('/fonts/PixelHebrew.ttf') format('truetype');
+    }
+
+    .navbar-title {
+        color: var(--primary-red);
+        font-weight: 900;
+        font-size: 20px;
+        white-space: nowrap;
+        font-family: 'Press Start 2P', 'PixelHebrew', sans-serif; /* Fallback to Hebrew font */
+        text-transform: uppercase;
+        text-shadow: -1px -1px 0 #000, /* Top-left */
+        1px -1px 0 #000, /* Top-right */
+        -1px 1px 0 #000, /* Bottom-left */
+        1px 1px 0 #000; /* Bottom-right */
+    }
+
+
+
+
 
     .navbar-tabs {
         display: flex;
         align-items: center;
         height: 100%;
+        position: relative;
         overflow-x: auto;
         white-space: nowrap;
         flex-grow: 1;
     }
 
+    .sliding-bar {
+        position: absolute;
+        bottom: 0;
+        height: 3px;
+        background-color: var(--primary-red);
+        transition: all 0.3s ease-in-out;
+    }
+
     .nav-tab {
+        flex: 1;
         padding: 0 15px;
         height: 100%;
         background: none;
@@ -140,18 +179,17 @@
         cursor: pointer;
         font-weight: bold;
         transition: 0.3s;
-        border-bottom: 3px solid transparent;
         display: flex;
         align-items: center;
+        justify-content: center;
     }
 
         .nav-tab.active {
-            border-bottom: 3px solid var(--primary-red);
             color: var(--primary-red);
         }
 
         .nav-tab:hover:not(.active) {
-            background-color: rgba(255,255,255,0.05);
+            background-color: rgba(255, 255, 255, 0.05);
         }
 
     /* Content area */
@@ -167,99 +205,44 @@
         border-radius: 8px;
         padding: 25px;
         min-height: calc(100vh - var(--navbar-height) - 40px);
-        box-shadow: 0 0 15px rgba(0,0,0,0.3);
-    }
-
-        /* Component styling overrides */
-        .content-area :deep(*) {
-            color: var(--white);
-        }
-
-        .content-area :deep(input),
-        .content-area :deep(select),
-        .content-area :deep(textarea) {
-            background-color: #333;
-            border: 1px solid #555;
-            color: var(--white);
-            border-radius: 6px;
-            padding: 8px;
-        }
-
-        .content-area :deep(button) {
-            background-color: var(--primary-red);
-            color: white;
-            border: none;
-            border-radius: 6px;
-            padding: 8px 16px;
-            cursor: pointer;
-            font-weight: bold;
-        }
-
-        .content-area :deep(button:hover) {
-            background-color: #b71c1c;
-        }
-
-        .content-area :deep(table) {
-            width: 100%;
-            border-collapse: collapse;
-        }
-
-        .content-area :deep(th),
-        .content-area :deep(td) {
-            padding: 12px;
-            text-align: right;
-            border-bottom: 1px solid #555;
-        }
-
-        .content-area :deep(th) {
-            background-color: #333;
-        }
-
-        .content-area :deep(tr:hover) {
-            background-color: #3a3a3a;
-        }
-
-    /* Responsive adjustments */
-    media (max-width: 768px) {
-        .navbar-container {
-            flex-direction: column;
-            align-items: flex-start;
-            padding: 10px;
-        }
-
-        .top-navbar {
-            height: auto;
-        }
-
-        .navbar-branding {
-            margin-bottom: 10px;
-            width: 100%;
-            justify-content: space-between;
-        }
-
-        .navbar-tabs {
-            width: 100%;
-            overflow-x: auto;
-        }
-
-        .nav-tab {
-            padding: 10px;
-            font-size: 14px;
-            height: 40px;
-        }
-
-        .content-container {
-            margin-top: 110px;
-        }
+        box-shadow: 0 0 15px rgba(0, 0, 0, 0.3);
     }
 </style>
 
 @code {
     private string ActiveTab = "equipment";
+    private double SlidingBarPosition = 0; // Position in percentage
+    private double SlidingBarWidth = 12.5; // Width in percentage (100% / 8 buttons)
 
-    private void ChangeTab(string tabName)
+    protected override void OnInitialized()
+    {
+        // Set the initial position of the sliding bar based on the default active tab
+        int defaultTabIndex = GetTabIndex(ActiveTab);
+        SlidingBarPosition = defaultTabIndex * SlidingBarWidth; // Correct for RTL
+    }
+
+    private void ChangeTab(string tabName, int tabIndex)
     {
         Logger.LogInformation($"Changing tab to: {tabName}");
         ActiveTab = tabName;
+
+        // Calculate the sliding bar position based on the tab index
+        SlidingBarPosition = tabIndex * SlidingBarWidth; // Correct for RTL
+    }
+
+    private int GetTabIndex(string tabName)
+    {
+        return tabName switch
+        {
+            "equipment" => 0,
+            "blacklist" => 1,
+            "request" => 2,
+            "teams" => 3,
+            "users" => 4,
+            "checkout" => 5,
+            "return" => 6,
+            "add" => 7,
+            _ => 0
+        };
     }
 }

@@ -140,9 +140,6 @@ namespace API_Project.Migrations
                     b.Property<DateTime>("ExpectedReturnDate")
                         .HasColumnType("datetime(6)");
 
-                    b.Property<int>("IssuedBy")
-                        .HasColumnType("int");
-
                     b.Property<string>("Notes")
                         .HasColumnType("longtext");
 

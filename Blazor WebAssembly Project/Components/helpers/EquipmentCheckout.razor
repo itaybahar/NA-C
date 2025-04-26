@@ -2,11 +2,19 @@
 @using Domain_Project.DTOs
 @using Blazor_WebAssembly.Models.Equipment
 @using Blazor_WebAssembly.Models.Team
-@using Domain_Project.DTOs.Domain_Project.DTOs.Domain_Project.Models
+@using Microsoft.AspNetCore.Components.Authorization
+@using System.Security.Claims
+@using Blazored.LocalStorage
+
+
 @inject ITeamService TeamService
 @inject IEquipmentService EquipmentService
 @inject ICheckoutService CheckoutService
 @inject ILogger<EquipmentCheckout> Logger
+@inject AuthenticationStateProvider AuthenticationStateProvider
+@inject NavigationManager NavigationManager
+@inject ILocalStorageService LocalStorageService
+
 
 <h2 class="text-center text-xl font-bold mb-6 text-white">ניהול ציוד</h2>
 
@@ -20,78 +28,88 @@
     <button class="tab @(ActiveTab == "log" ? "active" : "")" @onclick='() => OnTabChanged("log")'>
         לוג פעולות
     </button>
+    <button class="btn btn-primary" @onclick="LogAuthenticationState">בדוק מצב התחברות</button>
+
+
 </div>
 
 @if (ActiveTab == "checkout")
 {
-    <div class="checkout-container">
-        @if (isLoading)
-        {
-            <div class="loading-container">
-                <div class="spinner"></div>
-                <p>טוען נתונים...</p>
-            </div>
-        }
-        else if (!string.IsNullOrEmpty(errorMessage))
-        {
-            <div class="alert-danger mb-4">
-                <p>@errorMessage</p>
-                <button class="btn-action mt-2" @onclick="LoadData">נסה שנית</button>
-            </div>
-        }
-        else
-        {
-            <div class="form-group">
-                <label class="input-label">בחר צוות</label>
-                <input class="form-control search-bar" placeholder="חפש צוות" @bind="TeamSearchQuery" @oninput="FilterTeams" />
-                <select @bind="SelectedTeamId" class="form-control">
-                    <option value="">בחר צוות</option>
-                    @if (FilteredTeams != null)
-                    {
-                        @foreach (var team in FilteredTeams)
+        <div class="checkout-container">
+            @if (!isAuthenticated)
+            {
+                <div class="alert alert-warning">
+                    <p>יש להתחבר כדי להשתמש באפשרות זו.</p>
+                    <button class="btn-action" @onclick="LogAuthenticationState">בדוק מצב התחברות</button>
+                </div>
+            }
+            else if (isLoading)
+            {
+                <div class="loading-container">
+                    <div class="spinner"></div>
+                    <p>טוען נתונים...</p>
+                </div>
+            }
+            else if (!string.IsNullOrEmpty(errorMessage))
+            {
+                <div class="alert-danger mb-4">
+                    <p>@errorMessage</p>
+                    <button class="btn-action mt-2" @onclick="LoadData">נסה שנית</button>
+                </div>
+            }
+            else
+            {
+                <div class="form-group">
+                    <label class="input-label">בחר צוות</label>
+                    <input class="form-control search-bar" placeholder="חפש צוות" @bind="TeamSearchQuery" @oninput="FilterTeams" />
+                    <select @bind="SelectedTeamId" class="form-control">
+                        <option value="">בחר צוות</option>
+                        @if (FilteredTeams != null)
                         {
-                            <option value="@team.TeamID">@team.TeamName</option>
+                            @foreach (var team in FilteredTeams)
+                            {
+                                <option value="@team.TeamID">@team.TeamName</option>
+                            }
                         }
-                    }
-                </select>
-            </div>
+                    </select>
+                </div>
 
-            <div class="form-group">
-                <label class="input-label">בחר ציוד</label>
-                <input class="form-control search-bar" placeholder="חפש ציוד" @bind="EquipmentSearchQuery" @oninput="FilterEquipment" />
-                <select @bind="SelectedEquipmentId" class="form-control">
-                    <option value="">בחר ציוד</option>
-                    @if (FilteredEquipment != null && FilteredEquipment.Any())
-                    {
-                        @foreach (var item in FilteredEquipment)
+                <div class="form-group">
+                    <label class="input-label">בחר ציוד</label>
+                    <input class="form-control search-bar" placeholder="חפש ציוד" @bind="EquipmentSearchQuery" @oninput="FilterEquipment" />
+                    <select @bind="SelectedEquipmentId" class="form-control">
+                        <option value="">בחר ציוד</option>
+                        @if (FilteredEquipment != null && FilteredEquipment.Any())
                         {
-                            <option value="@item.EquipmentID">@item.Name (@item.Status)</option>
+                            @foreach (var item in FilteredEquipment)
+                            {
+                                <option value="@item.EquipmentID">@item.Name (@item.Status)</option>
+                            }
                         }
+                        else
+                        {
+                            <option disabled>אין ציוד זמין</option>
+                        }
+                    </select>
+                </div>
+
+                <button class="btn-submit" @onclick="CheckoutItem" disabled="@(isSubmitting || SelectedTeamId == null || SelectedEquipmentId == null)">
+                    @if (isSubmitting)
+                    {
+                        <span>מוציא ציוד...</span>
                     }
                     else
                     {
-                        <option disabled>אין ציוד זמין</option>
+                        <span>הוצא ציוד</span>
                     }
-                </select>
-            </div>
+                </button>
 
-            <button class="btn-submit" @onclick="CheckoutItem" disabled="@(isSubmitting || SelectedTeamId == null || SelectedEquipmentId == null)">
-                @if (isSubmitting)
+                @if (!string.IsNullOrEmpty(Message))
                 {
-                    <span>מוציא ציוד...</span>
+                    <div class="alert-success mt-4">@Message</div>
                 }
-                else
-                {
-                    <span>הוצא ציוד</span>
-                }
-            </button>
-
-            @if (!string.IsNullOrEmpty(Message))
-            {
-                <div class="alert-success mt-4">@Message</div>
             }
-        }
-    </div>
+        </div>
 }
 else if (ActiveTab == "history")
 {
@@ -117,21 +135,55 @@ else if (ActiveTab == "history")
                         <th>תאריך הוצאה</th>
                         <th>תאריך החזרה</th>
                         <th>סטטוס</th>
+                        <th>משתמש</th>
+                        <th>תפקיד</th>
                     </tr>
                 </thead>
                 <tbody>
                     @foreach (var record in CheckoutHistory)
                     {
                         <tr>
-                            <td>@record.Team.TeamName</td>
-                            <td>@record.Equipment.Name</td>
+                            <td>@record.TeamName</td>
+                            <td>@record.EquipmentName</td>
                             <td>@record.CheckedOutAt.ToString("dd/MM/yyyy")</td>
                             <td>@(record.ReturnedAt.HasValue? record.ReturnedAt.Value.ToString("dd/MM/yyyy") : "-")</td>
                             <td>@(record.ReturnedAt.HasValue ? "הוחזר" : "לא הוחזר")</td>
+                            <td>@record.UserName</td>
+                            <td>@record.UserRole</td>
                         </tr>
                     }
                 </tbody>
             </table>
+
+            <style>
+                .history-table {
+                    width: 100%;
+                    border-collapse: collapse;
+                    margin-top: 20px;
+                    text-align: center;
+                    color: white;
+                }
+
+                    .history-table th, .history-table td {
+                        border: 1px solid #555;
+                        padding: 12px 15px; /* Adjusted padding for even spacing */
+                        text-align: center; /* Center-align text for better readability */
+                    }
+
+                    .history-table th {
+                        background-color: #333;
+                        font-weight: bold;
+                        text-transform: uppercase;
+                    }
+
+                    .history-table tr:nth-child(even) {
+                        background-color: #3a3a3a; /* Alternating row color for better clarity */
+                    }
+
+                    .history-table tr:hover {
+                        background-color: #555; /* Highlight row on hover */
+                    }
+            </style>
         }
     </div>
 }
@@ -207,12 +259,167 @@ else if (ActiveTab == "log")
     private bool isSubmitting = false;
     private string TeamSearchQuery = string.Empty;
     private string EquipmentSearchQuery = string.Empty;
+    private int? CurrentUserId; // Added to store the current user ID
+    public RenderFragment ChildContent { get; set; }
+    private bool isAuthenticated = false;
+
 
     protected override async Task OnInitializedAsync()
     {
         Logger.LogInformation("Initializing EquipmentCheckout component...");
+
+        // Check authentication status first
+        var authState = await AuthenticationStateProvider.GetAuthenticationStateAsync();
+        isAuthenticated = authState.User.Identity?.IsAuthenticated == true;
+
+        Logger.LogInformation($"Initial authentication state: {(isAuthenticated ? "Authenticated" : "Not authenticated")}");
+
+        // First load data
         await LoadData();
+
+        // Then check authentication status in more detail
+        if (isAuthenticated)
+        {
+            // User is authenticated, proceed to load user info
+            await LoadUserInfo();
+        }
+        else
+        {
+            // User is not authenticated, but we'll set a default user ID
+            // for development/testing purposes
+            CurrentUserId = 1; // Default test user ID
+            Logger.LogWarning("User not authenticated - using default user ID for development");
+        }
     }
+
+    private async Task HandleLogin()
+    {
+        // Save the current URL so we can return after login
+        await LocalStorageService.SetItemAsync("returnUrl", NavigationManager.Uri);
+
+        // Navigate to the login page
+        NavigationManager.NavigateTo("authentication/login", forceLoad: false);
+    }
+
+    // Add this method to check authentication and redirect if needed
+    private async Task EnsureAuthenticated()
+    {
+        var authState = await AuthenticationStateProvider.GetAuthenticationStateAsync();
+
+        if (!authState.User.Identity?.IsAuthenticated == true)
+        {
+            // Store current URL to return after login
+            await LocalStorageService.SetItemAsync("returnUrl", NavigationManager.Uri);
+
+            // Show message
+            Message = "אתה צריך להיות מחובר כדי לבצע פעולה זו";
+
+            // Log the authentication issue
+            Logger.LogWarning("User not authenticated - redirecting to login");
+
+            // Redirect to login page
+            NavigationManager.NavigateTo("authentication/login", forceLoad: false);
+            return;
+        }
+    }
+
+    // New method to get user info including user ID
+    private async Task LoadUserInfo()
+    {
+        try
+        {
+            var authState = await AuthenticationStateProvider.GetAuthenticationStateAsync();
+            var user = authState.User;
+
+            Logger.LogInformation($"********************* user info: {user.ToString()} ********************");
+
+            if (user.Identity?.IsAuthenticated == true)
+            {
+                // Log all claims to understand what's available
+                foreach (var claim in user.Claims)
+                {
+                    Logger.LogInformation($"Available claim: {claim.Type} = {claim.Value}");
+                }
+
+                // Try standard identity claim types first
+                var userIdClaim = user.FindFirst(ClaimTypes.NameIdentifier) ??
+                                  user.FindFirst("sub") ??
+                                  user.FindFirst("userId") ??
+                                  user.FindFirst("UserID");
+
+                if (userIdClaim != null)
+                {
+                    Logger.LogInformation($"Found user ID claim: {userIdClaim.Type} = {userIdClaim.Value}");
+
+                    if (int.TryParse(userIdClaim.Value, out int userId))
+                    {
+                        CurrentUserId = userId;
+                        Logger.LogInformation($"Successfully parsed user ID: {CurrentUserId}");
+                    }
+                    else
+                    {
+                        Logger.LogWarning($"Could not parse user ID '{userIdClaim.Value}' as integer");
+
+                        // Set a hardcoded user ID for testing/development
+                        CurrentUserId = 1;
+                        Logger.LogWarning($"Using hardcoded user ID: {CurrentUserId}");
+                    }
+                }
+                else
+                {
+                    // If no standard claim is found, check for non-standard or custom claims
+                    var possibleIdClaims = user.Claims.Where(c =>
+                        c.Type.Contains("id", StringComparison.OrdinalIgnoreCase) ||
+                        c.Type.Contains("identifier", StringComparison.OrdinalIgnoreCase)).ToList();
+
+                    if (possibleIdClaims.Any())
+                    {
+                        foreach (var claim in possibleIdClaims)
+                        {
+                            Logger.LogInformation($"Potential ID claim found: {claim.Type} = {claim.Value}");
+                        }
+
+                        var firstPotentialClaim = possibleIdClaims.First();
+                        if (int.TryParse(firstPotentialClaim.Value, out int potentialUserId))
+                        {
+                            CurrentUserId = potentialUserId;
+                            Logger.LogInformation($"Using potential user ID claim: {CurrentUserId}");
+                        }
+                        else
+                        {
+                            // Hardcoded for testing/development
+                            CurrentUserId = 1;
+                            Logger.LogWarning($"Using hardcoded user ID: {CurrentUserId}");
+                        }
+                    }
+                    else
+                    {
+                        // Hardcoded for testing/development
+                        CurrentUserId = 1;
+                        Logger.LogWarning($"No suitable user ID claim found. Using hardcoded user ID: {CurrentUserId}");
+                    }
+                }
+            }
+            else
+            {
+                Logger.LogWarning("User is not authenticated");
+
+                // Hardcoded for testing/development when not authenticated
+                CurrentUserId = 1;
+                Logger.LogWarning($"User not authenticated. Using hardcoded user ID: {CurrentUserId}");
+            }
+        }
+        catch (Exception ex)
+        {
+            Logger.LogError(ex, "Error loading user information");
+
+            // Ensure we have a fallback even if there's an exception
+            CurrentUserId = 1;
+            Logger.LogWarning($"Exception occurred. Using hardcoded user ID: {CurrentUserId}");
+        }
+    }
+
+
 
     private async Task OnTabChanged(string tab)
     {
@@ -298,7 +505,27 @@ else if (ActiveTab == "log")
         {
             Logger.LogInformation("Loading checkout history...");
             var history = await CheckoutService.GetCheckoutHistoryAsync();
-            CheckoutHistory = history ?? new List<CheckoutRecordDto>();
+
+            if (history != null)
+            {
+                CheckoutHistory = history.Select(h => new CheckoutRecordDto
+                {
+                    Id = h.Id,
+                    EquipmentId = h.EquipmentId,
+                    TeamId = h.TeamId,
+                    CheckedOutAt = h.CheckedOutAt,
+                    ReturnedAt = h.ReturnedAt,
+                    EquipmentName = h.EquipmentName,
+                    TeamName = h.TeamName,
+                    UserName = h.UserName,
+                    UserRole = h.UserRole
+                }).ToList();
+            }
+            else
+            {
+                CheckoutHistory = new List<CheckoutRecordDto>();
+            }
+
             Logger.LogInformation("Checkout history loaded successfully.");
         }
         catch (Exception ex)
@@ -318,19 +545,68 @@ else if (ActiveTab == "log")
         if (!SelectedTeamId.HasValue || !SelectedEquipmentId.HasValue)
             return;
 
+        // Check authentication first
+        var authState = await AuthenticationStateProvider.GetAuthenticationStateAsync();
+        if (!authState.User.Identity?.IsAuthenticated == true)
+        {
+            // Redirect to login before allowing checkout
+            await EnsureAuthenticated();
+            return;
+        }
+
+        // Log current claims to debug
+        foreach (var claim in authState.User.Claims)
+        {
+            Logger.LogInformation($"User claim: {claim.Type} = {claim.Value}");
+        }
+
+        // Get user ID with better fallback mechanism
+        if (!CurrentUserId.HasValue)
+        {
+            var nameIdentifierClaim = authState.User.FindFirst(ClaimTypes.NameIdentifier);
+            var userIdClaim = authState.User.FindFirst("UserID") ??
+                              authState.User.FindFirst("userId") ??
+                              authState.User.FindFirst("sub");
+
+            if (nameIdentifierClaim != null && int.TryParse(nameIdentifierClaim.Value, out int parsedId))
+            {
+                CurrentUserId = parsedId;
+                Logger.LogInformation($"Using NameIdentifier claim for user ID: {parsedId}");
+            }
+            else if (userIdClaim != null && int.TryParse(userIdClaim.Value, out parsedId))
+            {
+                CurrentUserId = parsedId;
+                Logger.LogInformation($"Using custom UserID claim for user ID: {parsedId}");
+            }
+            else
+            {
+                // Last resort fallback for testing
+                CurrentUserId = 1;
+                Logger.LogWarning("No user ID found in claims. Using default ID 1 for testing");
+            }
+        }
+
         isSubmitting = true;
         Message = null;
         StateHasChanged();
 
         try
         {
-            Logger.LogInformation($"Checking out equipment (TeamID: {SelectedTeamId}, EquipmentID: {SelectedEquipmentId})...");
-            await CheckoutService.CheckoutEquipmentAsync(SelectedTeamId.Value, SelectedEquipmentId.Value);
+            Logger.LogInformation($"Checking out equipment (TeamID: {SelectedTeamId}, EquipmentID: {SelectedEquipmentId}, UserID: {CurrentUserId})");
+
+            // Pass the user ID as an integer
+            await CheckoutService.CheckoutEquipmentAsync(
+                    SelectedTeamId.Value,
+                    SelectedEquipmentId.Value,
+                    CurrentUserId.Value
+            );
+
             Message = "הציוד נרשם כהוצאה בהצלחה!";
             Logger.LogInformation("Equipment checked out successfully.");
-            AddLog($"הציוד נרשם כהוצאה בהצלחה! (TeamID: {SelectedTeamId}, EquipmentID: {SelectedEquipmentId})");
+            AddLog($"הציוד נרשם כהוצאה בהצלחה! (TeamID: {SelectedTeamId}, EquipmentID: {SelectedEquipmentId}, UserID: {CurrentUserId})");
 
-            var freshEquipment = await EquipmentService.GetAllEquipmentAsync(); // Refresh equipment list
+            // Refresh equipment list
+            var freshEquipment = await EquipmentService.GetAllEquipmentAsync();
             Equipment = freshEquipment ?? new List<EquipmentModel>();
             FilteredEquipment = new List<EquipmentModel>(Equipment);
 
@@ -348,6 +624,43 @@ else if (ActiveTab == "log")
             isSubmitting = false;
             StateHasChanged();
         }
+    }
+
+    private async Task LogAuthenticationState()
+    {
+        var authState = await AuthenticationStateProvider.GetAuthenticationStateAsync();
+
+        // Debug logging
+        if (authState.User.Identity != null)
+        {
+            Logger.LogInformation($"Identity exists. IsAuthenticated: {authState.User.Identity.IsAuthenticated}");
+            Logger.LogInformation($"Name: {authState.User.Identity.Name ?? "null"}");
+            Logger.LogInformation($"Authentication type: {authState.User.Identity.AuthenticationType ?? "null"}");
+
+            foreach (var claim in authState.User.Claims)
+            {
+                Logger.LogInformation($"Claim: {claim.Type} = {claim.Value}");
+            }
+
+            isAuthenticated = authState.User.Identity.IsAuthenticated;
+            if (isAuthenticated)
+            {
+                Message = "אתה מחובר כמשתמש: " + authState.User.Identity.Name;
+            }
+            else
+            {
+                Message = "אתה לא מחובר למערכת";
+            }
+        }
+        else
+        {
+            Logger.LogWarning("User identity is null");
+            Message = "זהות המשתמש ריקה";
+            isAuthenticated = false;
+        }
+
+        // Force UI update
+        StateHasChanged();
     }
 
     private void AddLog(string message)

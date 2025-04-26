@@ -1,4 +1,7 @@
 ﻿@inject IJSRuntime JSRuntime
+@inject AuthenticationStateProvider AuthStateProvider
+@inject IJSRuntime JSRuntime
+@inject NavigationManager NavigationManager
 
 <CascadingAuthenticationState>
     <Router AppAssembly="@typeof(Program).Assembly">
@@ -35,6 +38,31 @@
 @code {
     protected override async Task OnInitializedAsync()
     {
+        var authState = await AuthStateProvider.GetAuthenticationStateAsync();
+
+        if (authState.User.Identity?.IsAuthenticated == true)
+        {
+            await JSRuntime.InvokeVoidAsync(
+                "console.log",
+                $"User authenticated: {authState.User.Identity.Name}"
+            );
+
+            // Log all claims to console
+            foreach (var claim in authState.User.Claims)
+            {
+                await JSRuntime.InvokeVoidAsync(
+                    "console.log",
+                    $"Claim: {claim.Type} = {claim.Value}"
+                );
+            }
+        }
+        else
+        {
+            await JSRuntime.InvokeVoidAsync(
+                "console.log",
+                "User not authenticated"
+            );
+        }
         try
         {
             // Initialize the logger

@@ -196,7 +196,6 @@ namespace API_Project.Migrations
                     EquipmentID = table.Column<int>(type: "int", nullable: false),
                     TeamID = table.Column<int>(type: "int", nullable: false),
                     CheckedOutBy = table.Column<int>(type: "int", nullable: false),
-                    IssuedBy = table.Column<int>(type: "int", nullable: false),
                     CheckoutDate = table.Column<DateTime>(type: "datetime(6)", nullable: false),
                     ExpectedReturnDate = table.Column<DateTime>(type: "datetime(6)", nullable: false),
                     ActualReturnDate = table.Column<DateTime>(type: "datetime(6)", nullable: true),

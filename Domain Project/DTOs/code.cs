@@ -1,6 +1,7 @@
 ﻿using Domain_Project.Models;
 using System;
 using System.ComponentModel.DataAnnotations;
+using System.Text.Json.Serialization;
 
 namespace Domain_Project.DTOs
 {
@@ -12,6 +13,19 @@ namespace Domain_Project.DTOs
         public required string FirstName { get; set; }
         public required string LastName { get; set; }
         public required string Role { get; set; }
+    }
+    public class CheckoutRecordDto
+    {
+        public required string Id { get; set; }
+        public required string EquipmentId { get; set; }
+        public int TeamId { get; set; }
+        public int UserId { get; set; }
+        public string? EquipmentName { get; set; }
+        public string? TeamName { get; set; }
+        public string? UserName { get; set; }
+        public string? UserRole { get; set; }
+        public DateTime CheckedOutAt { get; set; }
+        public DateTime? ReturnedAt { get; set; }
     }
 
     public class UserLoginDto
@@ -57,6 +71,9 @@ namespace Domain_Project.DTOs
                 public int Quantity { get; set; }
 
                 public string StorageLocation { get; set; } = string.Empty;
+                public DateTime? LastUpdatedDate { get; internal set; }
+                public int CategoryId { get; internal set; }
+                public string? ModelNumber { get; internal set; }
             }
 
             public class EquipmentCheckoutDto
@@ -201,20 +218,7 @@ namespace Domain_Project.DTOs
                     return TeamID > 0 && UserID > 0;
                 }
             }
-            public class CheckoutRecordDto
-            {
-                public string Id { get; set; } = Guid.NewGuid().ToString();
-                public required string EquipmentId { get; set; }
-                public required Equipment Equipment { get; set; }
-                public required int TeamId { get; set; }  // Changed from string to int to match Team.TeamID
-                public required Team Team { get; set; } = new Team
-                {
-                    TeamName = string.Empty
-                };
-                public DateTime CheckedOutAt { get; set; } = DateTime.UtcNow;
-                public DateTime? ReturnedAt { get; set; }
-                public int RecordID { get; set; }
-            }
+ 
             public class AssignRoleDto
             {
                 public string Role { get; set; } = string.Empty;

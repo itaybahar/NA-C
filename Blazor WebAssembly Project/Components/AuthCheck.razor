@@ -1,0 +1,33 @@
+﻿@using Microsoft.AspNetCore.Components.Authorization
+@inject AuthenticationStateProvider AuthenticationStateProvider
+@inject NavigationManager NavigationManager
+
+@if (!isAuthenticated)
+{
+    <div class="alert alert-warning">
+        <p>יש להתחבר כדי להשתמש באפשרות זו.</p>
+        <button class="btn btn-primary" @onclick="GoToLogin">התחבר</button>
+    </div>
+}
+else
+{
+    @ChildContent
+}
+
+@code {
+    [Parameter]
+    public RenderFragment ChildContent { get; set; }
+
+    private bool isAuthenticated = false;
+
+    protected override async Task OnInitializedAsync()
+    {
+        var authState = await AuthenticationStateProvider.GetAuthenticationStateAsync();
+        isAuthenticated = authState.User.Identity?.IsAuthenticated == true;
+    }
+
+    private void GoToLogin()
+    {
+        NavigationManager.NavigateTo("authentication/login", forceLoad: false);
+    }
+}

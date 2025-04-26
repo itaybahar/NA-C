@@ -68,6 +68,30 @@ namespace Blazor_WebAssembly.Services
 
             if (keyValuePairs is null) return claims;
 
+            // Add all claims from the token as-is
+            foreach (var kvp in keyValuePairs)
+            {
+                Console.WriteLine($"JWT claim: {kvp.Key} = {kvp.Value}");
+
+                // Special handling for user ID
+                if (kvp.Key.Equals("userid", StringComparison.OrdinalIgnoreCase) ||
+                    kvp.Key.Equals("id", StringComparison.OrdinalIgnoreCase) ||
+                    kvp.Key.Equals("sub", StringComparison.OrdinalIgnoreCase))
+                {
+                    // Add as standard NameIdentifier
+                    claims.Add(new Claim(ClaimTypes.NameIdentifier, kvp.Value.ToString()));
+
+                    // Also add as UserID for direct matching
+                    claims.Add(new Claim("UserID", kvp.Value.ToString()));
+                }
+                else
+                {
+                    // Handle other claims
+                    claims.Add(new Claim(kvp.Key, kvp.Value.ToString()));
+                }
+            }
+
+            // Map standard claims
             if (keyValuePairs.TryGetValue("sub", out var sub))
                 claims.Add(new Claim(ClaimTypes.NameIdentifier, sub.ToString() ?? string.Empty));
 
@@ -77,6 +101,7 @@ namespace Blazor_WebAssembly.Services
             if (keyValuePairs.TryGetValue("email", out var email))
                 claims.Add(new Claim(ClaimTypes.Email, email.ToString() ?? string.Empty));
 
+            // Handle roles
             if (keyValuePairs.TryGetValue("role", out var roles) || keyValuePairs.TryGetValue(ClaimTypes.Role, out roles))
             {
                 if (roles is JsonElement element)
@@ -88,7 +113,7 @@ namespace Blazor_WebAssembly.Services
                     }
                     else
                     {
-                        claims.Add(new Claim(ClaimTypes.Role, roles.ToString() ?? string.Empty));
+                        claims.Add(new Claim(ClaimTypes.Role, element.ToString() ?? string.Empty));
                     }
                 }
                 else
@@ -99,6 +124,7 @@ namespace Blazor_WebAssembly.Services
 
             return claims;
         }
+
 
         private byte[] ParseBase64WithoutPadding(string base64)
         {

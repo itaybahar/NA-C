@@ -232,8 +232,10 @@ namespace API_Project.Services
         {
             var claims = new List<Claim>
             {
-                new Claim(ClaimTypes.Name, user.Username),
                 new Claim(ClaimTypes.NameIdentifier, user.UserID.ToString()),
+                new Claim("UserID", user.UserID.ToString()), // Duplicate as a custom claim for backup
+                new Claim(ClaimTypes.Name, user.Username),
+                new Claim(ClaimTypes.Email, user.Email),
                 new Claim(ClaimTypes.Role, user.Role ?? "User")
             };
 
@@ -255,7 +257,9 @@ namespace API_Project.Services
             var claims = new List<Claim>
             {
                 new Claim(ClaimTypes.Name, user.Username),
-                new Claim(ClaimTypes.NameIdentifier, user.UserID.ToString())
+                new Claim(ClaimTypes.NameIdentifier, user.UserID.ToString()),
+                new Claim("UserID", user.UserID.ToString()), // Custom UserID claim
+                new Claim(ClaimTypes.Role, user.Role ?? "User")
             };
 
             if (!string.IsNullOrEmpty(user.Role))

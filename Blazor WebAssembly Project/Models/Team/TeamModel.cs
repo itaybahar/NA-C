@@ -6,6 +6,7 @@ namespace Blazor_WebAssembly.Models.Team
 {
     public class TeamModel
     {
+        [JsonPropertyName("teamID")]
         public int TeamID { get; set; }
 
         [Required(ErrorMessage = "Team name is required")]

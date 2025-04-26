@@ -8,6 +8,7 @@ using Microsoft.Extensions.Logging.Abstractions;
 using System;
 using System.Collections.Generic;
 using System.Linq;
+using System.Text.Json;
 using System.Threading.Tasks;
 
 namespace API_Project.Services
@@ -18,15 +19,18 @@ namespace API_Project.Services
         private readonly ILogger<EquipmentService> _logger;
         private readonly IEquipmentRepository? _equipmentRepository;
         private readonly HttpClient? _httpClient;
+        private JsonSerializerOptions? _jsonOptions;
+        private string? _apiEndpoint;
 
-        // Constructor for direct database access
+        public JsonSerializerOptions JsonOptions { get; internal set; }
+
         // Constructor for direct database access
         public EquipmentService(EquipmentManagementContext dbContext, ILogger<EquipmentService> logger)
         {
             _dbContext = dbContext ?? throw new ArgumentNullException(nameof(dbContext));
             _logger = logger ?? throw new ArgumentNullException(nameof(logger));
         }
-        // Constructor for repository and API access
+
         // Constructor for repository and API access
         public EquipmentService(
             IEquipmentRepository equipmentRepository,
@@ -35,7 +39,7 @@ namespace API_Project.Services
             ILogger<EquipmentService> logger)
         {
             _equipmentRepository = equipmentRepository ?? throw new ArgumentNullException(nameof(equipmentRepository));
-            _dbContext = dbContext ?? throw new ArgumentNullException(nameof(dbContext)); // This was missing
+            _dbContext = dbContext ?? throw new ArgumentNullException(nameof(dbContext));
             _httpClient = httpClient ?? throw new ArgumentNullException(nameof(httpClient));
             _logger = logger ?? throw new ArgumentNullException(nameof(logger));
         }
@@ -51,7 +55,27 @@ namespace API_Project.Services
                     throw new InvalidOperationException("Database context is not initialized");
                 }
 
-                return await _dbContext.Equipment.ToListAsync();
+                // Only select columns that exist in the database
+                return await _dbContext.Equipment
+                    .Select(e => new Equipment
+                    {
+                        Id = e.Id,
+                        Name = e.Name,
+                        Description = e.Description,
+                        SerialNumber = e.SerialNumber,
+                        PurchaseDate = e.PurchaseDate,
+                        Value = e.Value,
+                        Status = e.Status,
+                        Notes = e.Notes,
+                        LastUpdatedDate = e.LastUpdatedDate,
+                        Quantity = e.Quantity,
+                        StorageLocation = e.StorageLocation,
+                        CategoryId = e.CategoryId,
+                        // Don't include ModelNumber in the projection
+                        CheckoutRecords = new List<CheckoutRecord>(), // Empty list to satisfy the required property
+                        ModelNumber = "Unknown" // Hardcode a value since we can't get it from DB
+                    })
+                    .ToListAsync();
             }
             catch (Exception ex)
             {
@@ -59,6 +83,7 @@ namespace API_Project.Services
                 throw;
             }
         }
+
 
         public async Task AddEquipmentAsync(EquipmentDto equipmentDto)
         {
@@ -85,7 +110,8 @@ namespace API_Project.Services
                     Value = equipmentDto.Value,
                     Quantity = equipmentDto.Quantity,
                     StorageLocation = equipmentDto.StorageLocation,
-                    CheckoutRecords = new List<CheckoutRecord>()
+                    CheckoutRecords = new List<CheckoutRecord>(),
+                    ModelNumber = equipmentDto.SerialNumber ?? "Unknown"
                 };
 
                 _dbContext.Equipment.Add(equipment);
@@ -97,6 +123,7 @@ namespace API_Project.Services
                 throw;
             }
         }
+
         public async Task<bool> DeleteEquipmentAsync(int id)
         {
             try
@@ -115,7 +142,6 @@ namespace API_Project.Services
                     return false;
                 }
 
-                // Fix: Use Remove instead of RemoveEquipmentAsync
                 _dbContext.Equipment.Remove(equipment);
                 await _dbContext.SaveChangesAsync();
                 return true;
@@ -127,29 +153,37 @@ namespace API_Project.Services
             }
         }
 
-
-
         public async Task<IEnumerable<Equipment>> GetAllEquipmentAsync()
         {
             try
             {
-                _logger.LogInformation("Fetching all equipment (IEnumerable)");
-
-                if (_dbContext == null)
+                if (_httpClient == null || _apiEndpoint == null)
                 {
-                    throw new InvalidOperationException("Database context is not initialized");
+                    throw new InvalidOperationException("HttpClient or API endpoint is not initialized");
                 }
 
-                if (_dbContext.Equipment == null)
-                {
-                    throw new InvalidOperationException("Equipment DbSet is not available");
-                }
+                _logger.LogInformation($"Fetching from: {_httpClient.BaseAddress}{_apiEndpoint}");
 
-                return await _dbContext.Equipment.ToListAsync();
+                var response = await _httpClient.GetAsync(_apiEndpoint, HttpCompletionOption.ResponseHeadersRead);
+                _logger.LogInformation($"Response status: {response.StatusCode}");
+
+                var content = await response.Content.ReadAsStringAsync();
+                _logger.LogInformation($"Response content: {content}");
+
+                if (response.IsSuccessStatusCode)
+                {
+                    var equipment = JsonSerializer.Deserialize<List<Equipment>>(content, _jsonOptions);
+                    return equipment ?? new List<Equipment>();
+                }
+                else
+                {
+                    _logger.LogWarning($"API request failed with status: {response.StatusCode}");
+                    return new List<Equipment>();
+                }
             }
             catch (Exception ex)
             {
-                _logger.LogError(ex, "Error fetching all equipment (IEnumerable)");
+                _logger.LogError(ex, "Exception in GetAllEquipmentAsync");
                 throw;
             }
         }
@@ -163,11 +197,6 @@ namespace API_Project.Services
                 if (_dbContext == null)
                 {
                     throw new InvalidOperationException("Database context is not initialized");
-                }
-
-                if (_dbContext.Equipment == null)
-                {
-                    throw new InvalidOperationException("Equipment DbSet is not available");
                 }
 
                 return await _dbContext.Equipment
@@ -192,11 +221,6 @@ namespace API_Project.Services
                     throw new InvalidOperationException("Database context is not initialized");
                 }
 
-                if (_dbContext.Equipment == null)
-                {
-                    throw new InvalidOperationException("Equipment DbSet is not available");
-                }
-
                 return await _dbContext.Equipment
                     .Where(e => e.Status == "Available" || e.Status == "זמין")
                     .ToListAsync();
@@ -219,11 +243,6 @@ namespace API_Project.Services
                     throw new InvalidOperationException("Database context is not initialized");
                 }
 
-                if (_dbContext.Equipment == null)
-                {
-                    throw new InvalidOperationException("Equipment DbSet is not available");
-                }
-
                 return await _dbContext.Equipment
                     .Where(e => e.CategoryId == categoryId)
                     .ToListAsync();
@@ -244,11 +263,6 @@ namespace API_Project.Services
                 if (_dbContext == null)
                 {
                     throw new InvalidOperationException("Database context is not initialized");
-                }
-
-                if (_dbContext.Equipment == null)
-                {
-                    throw new InvalidOperationException("Equipment DbSet is not available");
                 }
 
                 return await _dbContext.Equipment.FindAsync(id);
@@ -274,11 +288,6 @@ namespace API_Project.Services
                 if (_dbContext == null)
                 {
                     throw new InvalidOperationException("Database context is not initialized");
-                }
-
-                if (_dbContext.Equipment == null)
-                {
-                    throw new InvalidOperationException("Equipment DbSet is not available");
                 }
 
                 var existingEquipment = await _dbContext.Equipment.FindAsync(equipmentDto.Id);

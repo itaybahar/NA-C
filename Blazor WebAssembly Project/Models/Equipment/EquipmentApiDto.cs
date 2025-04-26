@@ -1,20 +1,23 @@
-﻿using Domain_Project.DTOs.Domain_Project.DTOs.Domain_Project.Models;
+﻿// Add this to Blazor WebAssembly Project/Models/Equipment/EquipmentApiDto.cs
 using System.Text.Json.Serialization;
-using Blazor_WebAssembly.Models.Checkout;
 
 namespace Blazor_WebAssembly.Models.Equipment
 {
-    public class EquipmentModel
+    public class EquipmentApiDto
     {
         [JsonPropertyName("id")]
-        public int EquipmentID { get; set; }
+        public int Id { get; set; }
 
         [JsonPropertyName("name")]
-        public required string Name { get; set; } = string.Empty;
+        public string Name { get; set; } = string.Empty;
 
+        [JsonPropertyName("description")]
         public string? Description { get; set; }
 
+        [JsonPropertyName("serialNumber")]
         public string? SerialNumber { get; set; }
+
+        [JsonPropertyName("value")]
         public decimal Value { get; set; }
 
         [JsonPropertyName("status")]
@@ -26,7 +29,12 @@ namespace Blazor_WebAssembly.Models.Equipment
         [JsonPropertyName("storageLocation")]
         public string StorageLocation { get; set; } = string.Empty;
 
-        [JsonPropertyName("checkoutRecords")]
-        public List<CheckoutRecord> CheckoutRecords { get; set; } = new(); // Added setter and default initialization
+        [JsonPropertyName("categoryId")]
+        public int CategoryId { get; set; }
+
+        [JsonPropertyName("modelNumber")]
+        public string? ModelNumber { get; set; }
+
+        // No checkoutRecords property since it's not in the API response
     }
 }

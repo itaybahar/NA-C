@@ -12,13 +12,11 @@ namespace Blazor_WebAssembly.Services.Implementations
         private readonly string _apiEndpoint = "api/equipment";
         private readonly JsonSerializerOptions _jsonOptions;
 
-        // In your EquipmentService.cs, add this constructor modification
         public EquipmentService(HttpClient httpClient)
         {
             _httpClient = httpClient;
 
             // Ensure we have the correct base address
-            // Only do this if not already set in Program.cs
             if (_httpClient.BaseAddress == null ||
                 (!_httpClient.BaseAddress.ToString().Contains("localhost:5191") &&
                  !_httpClient.BaseAddress.ToString().Contains("localhost:7235")))
@@ -32,10 +30,10 @@ namespace Blazor_WebAssembly.Services.Implementations
             {
                 PropertyNameCaseInsensitive = true,
                 PropertyNamingPolicy = JsonNamingPolicy.CamelCase,
-                WriteIndented = true
+                WriteIndented = true,
+                IgnoreReadOnlyProperties = true // Add this line
             };
         }
-
 
         public async Task<List<EquipmentModel>> GetAllEquipmentAsync()
         {
@@ -43,44 +41,83 @@ namespace Blazor_WebAssembly.Services.Implementations
             {
                 Console.WriteLine($"Fetching from: {_httpClient.BaseAddress}{_apiEndpoint}");
 
-                // Use HttpClient.GetFromJsonAsync for cleaner code
-                var response = await _httpClient.GetAsync(_apiEndpoint);
+                // Explicitly set Accept header for JSON
+                var request = new HttpRequestMessage(HttpMethod.Get, _apiEndpoint);
+                request.Headers.Accept.Add(new System.Net.Http.Headers.MediaTypeWithQualityHeaderValue("application/json"));
+
+                var response = await _httpClient.SendAsync(request, HttpCompletionOption.ResponseHeadersRead);
                 Console.WriteLine($"Response status: {response.StatusCode}");
 
-                if (response.IsSuccessStatusCode)
+                var content = await response.Content.ReadAsStringAsync();
+
+                if (!response.IsSuccessStatusCode)
                 {
-                    var content = await response.Content.ReadAsStringAsync();
-                    Console.WriteLine($"Response content: {content}");
+                    Console.WriteLine($"API request failed with status: {response.StatusCode}");
+                    Console.WriteLine($"Error content: {content}");
+                    return new List<EquipmentModel>();
+                }
 
-                    // Try several deserialization approaches
-                    try
+                Console.WriteLine("Successful response received, content length: " + content.Length);
+
+                if (string.IsNullOrWhiteSpace(content))
+                {
+                    Console.WriteLine("Warning: Empty response content");
+                    return new List<EquipmentModel>();
+                }
+                // Use our new DTO to avoid the checkoutRecords issue
+                try
+                {
+                    var apiEquipment = JsonSerializer.Deserialize<List<EquipmentApiDto>>(content, _jsonOptions);
+
+                    if (apiEquipment != null && apiEquipment.Count > 0)
                     {
-                        // Attempt 1: Direct deserialization
-                        var equipment = JsonSerializer.Deserialize<List<EquipmentModel>>(content, _jsonOptions);
-                        if (equipment != null && equipment.Count > 0)
+                        // Map API DTOs to our EquipmentModel
+                        return apiEquipment.Select(dto => new EquipmentModel
                         {
-                            Console.WriteLine($"Successfully parsed {equipment.Count} items (direct)");
-                            return equipment;
-                        }
+                            EquipmentID = dto.Id,
+                            Name = dto.Name,
+                            Description = dto.Description,
+                            SerialNumber = dto.SerialNumber,
+                            Value = dto.Value,
+                            Status = dto.Status,
+                            Quantity = dto.Quantity,
+                            StorageLocation = dto.StorageLocation,
+                            CheckoutRecords = new List<CheckoutRecord>() // Empty list since API doesn't provide this
+                        }).ToList();
+                    }
+                }
+                catch (JsonException jex)
+                {
+                    Console.WriteLine($"JSON deserialization error: {jex.Message}");
+                }
+                // Try several deserialization approaches with better error handling
+                try
+                {
+                    // Safely examine the JSON structure first
+                    using var document = JsonDocument.Parse(content);
+                    var rootElement = document.RootElement;
 
-                        // Attempt 2: Check for $values property (common in ASP.NET Core serialization)
-                        using var document = JsonDocument.Parse(content);
-                        if (document.RootElement.TryGetProperty("$values", out var valuesElement))
+                    Console.WriteLine($"JSON root type: {rootElement.ValueKind}");
+
+                    // Strategy 1: Try direct deserialization if it's an array
+                    if (rootElement.ValueKind == JsonValueKind.Array)
+                    {
+                        try
                         {
-                            var serialized = valuesElement.GetRawText();
-                            var valuesList = JsonSerializer.Deserialize<List<EquipmentModel>>(serialized, _jsonOptions);
-                            if (valuesList != null && valuesList.Count > 0)
+                            var equipment = JsonSerializer.Deserialize<List<EquipmentModel>>(content, _jsonOptions);
+                            if (equipment != null && equipment.Count > 0)
                             {
-                                Console.WriteLine($"Successfully parsed {valuesList.Count} items (values)");
-                                return valuesList;
+                                Console.WriteLine($"Successfully parsed {equipment.Count} items (direct)");
+                                return equipment;
                             }
                         }
-
-                        // Attempt 3: Handle array directly
-                        if (document.RootElement.ValueKind == JsonValueKind.Array)
+                        catch (JsonException jex)
                         {
+                            Console.WriteLine($"Direct deserialization failed: {jex.Message}");
+
+                            // Try manual parsing since direct deserialization failed
                             var equipmentList = new List<EquipmentModel>();
-                            foreach (var element in document.RootElement.EnumerateArray())
+                            foreach (var element in rootElement.EnumerateArray())
                             {
                                 try
                                 {
@@ -88,7 +125,7 @@ namespace Blazor_WebAssembly.Services.Implementations
                                 }
                                 catch (Exception ex)
                                 {
-                                    Console.WriteLine($"Error parsing item: {ex.Message}");
+                                    Console.WriteLine($"Error parsing array item: {ex.Message}");
                                 }
                             }
 
@@ -99,26 +136,95 @@ namespace Blazor_WebAssembly.Services.Implementations
                             }
                         }
                     }
-                    catch (Exception ex)
+                    // Strategy 2: Check for $values property (common in ASP.NET Core serialization)
+                    else if (rootElement.ValueKind == JsonValueKind.Object &&
+                            rootElement.TryGetProperty("$values", out var valuesElement))
                     {
-                        Console.WriteLine($"Deserialization error: {ex.Message}");
+                        if (valuesElement.ValueKind == JsonValueKind.Array)
+                        {
+                            var serialized = valuesElement.GetRawText();
+                            try
+                            {
+                                var valuesList = JsonSerializer.Deserialize<List<EquipmentModel>>(serialized, _jsonOptions);
+                                if (valuesList != null && valuesList.Count > 0)
+                                {
+                                    Console.WriteLine($"Successfully parsed {valuesList.Count} items (values)");
+                                    return valuesList;
+                                }
+                            }
+                            catch (JsonException jex)
+                            {
+                                Console.WriteLine($"$values deserialization failed: {jex.Message}");
+
+                                // Try manual parsing
+                                var equipmentList = new List<EquipmentModel>();
+                                foreach (var element in valuesElement.EnumerateArray())
+                                {
+                                    try
+                                    {
+                                        equipmentList.Add(ParseEquipmentFromJson(element));
+                                    }
+                                    catch (Exception ex)
+                                    {
+                                        Console.WriteLine($"Error parsing $values item: {ex.Message}");
+                                    }
+                                }
+
+                                if (equipmentList.Count > 0)
+                                {
+                                    Console.WriteLine($"Successfully parsed {equipmentList.Count} items (manual from $values)");
+                                    return equipmentList;
+                                }
+                            }
+                        }
+                    }
+                    // Strategy 3: Try if it's a single object that should be wrapped in a list
+                    else if (rootElement.ValueKind == JsonValueKind.Object)
+                    {
+                        try
+                        {
+                            var singleItem = ParseEquipmentFromJson(rootElement);
+                            Console.WriteLine("Parsed a single equipment item");
+                            return new List<EquipmentModel> { singleItem };
+                        }
+                        catch (Exception ex)
+                        {
+                            Console.WriteLine($"Error parsing single item: {ex.Message}");
+                        }
                     }
 
-                    Console.WriteLine("No valid equipment data found in response");
-                    return new List<EquipmentModel>();
+                    // If we get here, we failed all parsing attempts
+                    Console.WriteLine("Unable to parse response content. JSON structure:");
+                    Console.WriteLine(JsonSerializer.Serialize(
+                        JsonDocument.Parse(content),
+                        new JsonSerializerOptions { WriteIndented = true }
+                    ));
                 }
-                else
+                catch (JsonException jex)
                 {
-                    Console.WriteLine($"API request failed with status: {response.StatusCode}");
-                    // Try to read error message
-                    var errorContent = await response.Content.ReadAsStringAsync();
-                    Console.WriteLine($"Error content: {errorContent}");
-                    return new List<EquipmentModel>();
+                    Console.WriteLine($"Invalid JSON: {jex.Message}");
+                    Console.WriteLine($"First 100 chars of content: {content.Substring(0, Math.Min(100, content.Length))}");
                 }
+                catch (Exception ex)
+                {
+                    Console.WriteLine($"Deserialization error: {ex.Message}");
+                    Console.WriteLine($"Exception type: {ex.GetType().Name}");
+                }
+
+                Console.WriteLine("No valid equipment data found in response");
+                return new List<EquipmentModel>();
+            }
+            catch (HttpRequestException httpEx)
+            {
+                Console.WriteLine($"HTTP request failed: {httpEx.Message}");
+                Console.WriteLine($"Status code: {httpEx.StatusCode}");
+                Console.WriteLine($"Inner exception: {httpEx.InnerException?.Message ?? "none"}");
+                return new List<EquipmentModel>();
             }
             catch (Exception ex)
             {
                 Console.WriteLine($"Exception in GetAllEquipmentAsync: {ex.Message}");
+                Console.WriteLine($"Exception type: {ex.GetType().Name}");
                 Console.WriteLine($"Stack trace: {ex.StackTrace}");
                 return new List<EquipmentModel>();
             }
@@ -206,7 +312,7 @@ namespace Blazor_WebAssembly.Services.Implementations
                 SerialNumber = GetStringProperty(element, "serialNumber"),
                 Status = GetStringProperty(element, "status"),
                 StorageLocation = GetStringProperty(element, "storageLocation"),
-                CheckoutRecords = new List<CheckoutRecordDto>()
+                CheckoutRecords = new List<CheckoutRecord>()
             };
 
             // Handle numeric properties safely

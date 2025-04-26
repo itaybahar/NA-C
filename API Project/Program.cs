@@ -41,7 +41,6 @@ namespace API_Project
             // Configure the HTTP request pipeline
             ConfigurePipeline(app);
 
-            app.Run();
         }
 
         private static void ConfigureLogging(WebApplicationBuilder builder)
@@ -120,9 +119,10 @@ namespace API_Project
             builder.Services.AddControllers()
                 .AddJsonOptions(options =>
                 {
-                    options.JsonSerializerOptions.PropertyNamingPolicy = JsonNamingPolicy.CamelCase;
+                    options.JsonSerializerOptions.ReferenceHandler = ReferenceHandler.IgnoreCycles;
                     options.JsonSerializerOptions.DefaultIgnoreCondition = JsonIgnoreCondition.WhenWritingNull;
                 });
+
 
             ConfigureDatabase(builder);
             RegisterNamedHttpClients(builder);
@@ -205,8 +205,9 @@ namespace API_Project
                         errorNumbersToAdd: null
                     )
                 )
-                .LogTo(Console.WriteLine, LogLevel.Information)
+                .LogTo(Console.WriteLine, new[] { DbLoggerCategory.Database.Command.Name }, LogLevel.Information)
                 .EnableSensitiveDataLogging()
+                .EnableDetailedErrors()
             );
         }
 
@@ -258,14 +259,21 @@ namespace API_Project
             builder.Services.AddScoped<ITeamService, TeamService>();
             builder.Services.AddScoped<IBlacklistService, BlacklistService>();
 
-            // Important fix: Register EquipmentService with DbContext and logger
+            // Update the EquipmentService registration in RegisterServices method
             builder.Services.AddScoped<IEquipmentService>(sp =>
                 new EquipmentService(
                     sp.GetRequiredService<IEquipmentRepository>(),
                     sp.GetRequiredService<EquipmentManagementContext>(),
                     sp.GetRequiredService<IHttpClientFactory>().CreateClient("API"),
-                    sp.GetRequiredService<ILogger<EquipmentService>>()));
-        } // This closing brace was missing
+                    sp.GetRequiredService<ILogger<EquipmentService>>())
+                {
+                    JsonOptions = new JsonSerializerOptions
+                    {
+                        PropertyNameCaseInsensitive = true,
+                        ReferenceHandler = ReferenceHandler.Preserve
+                    }
+                });
+             }
 
 
         private static void ConfigureRateLimiting(WebApplicationBuilder builder)
@@ -379,12 +387,18 @@ namespace API_Project
                           .AllowAnyHeader()
                           .AllowCredentials(); // Important for authentication
                 });
+                options.AddPolicy("AllowAll", builder =>
+                {
+                    builder.AllowAnyOrigin()
+                           .AllowAnyMethod()
+                           .AllowAnyHeader();
+                });
             });
         }
 
         private static void ConfigurePipeline(WebApplication app)
         {
-            // Development-specific configurations
+            // Development-specific configurations  
             if (app.Environment.IsDevelopment())
             {
                 app.UseDeveloperExceptionPage();
@@ -407,23 +421,23 @@ namespace API_Project
             }
             else
             {
-                // Production-specific configurations
+                // Production-specific configurations  
                 app.UseExceptionHandler("/Error");
                 app.UseHsts();
             }
 
-            // Middleware for request handling
+            // Middleware for request handling  
             app.UseHttpsRedirection();
-            app.UseStaticFiles(); // Serve static files if needed
+            app.UseStaticFiles(); // Serve static files if needed  
             app.UseRouting();
 
-            // CORS configuration
+            // CORS configuration  
             app.UseCors();
-
-            // Rate limiting to prevent abuse
+            app.UseCors("AllowAll");
+            // Rate limiting to prevent abuse  
             app.UseRateLimiter();
 
-            // Cookie policy for secure handling
+            // Cookie policy for secure handling  
             app.UseCookiePolicy(new CookiePolicyOptions
             {
                 MinimumSameSitePolicy = SameSiteMode.None,
@@ -431,43 +445,86 @@ namespace API_Project
                 HttpOnly = HttpOnlyPolicy.Always
             });
 
-            // Authentication and Authorization
+            // Authentication and Authorization  
             app.UseAuthentication();
             app.UseAuthorization();
 
-            // Custom logging for requests and responses
+            // Custom logging for requests and responses  
+            // Custom logging for requests and responses  
             app.Use(async (context, next) =>
             {
-                // Print authorization header
-                if (context.Request.Headers.TryGetValue("Authorization", out var authHeader))
+                try
                 {
-                    Console.WriteLine($"Auth header received: {authHeader}");
+                    // Print authorization header  
+                    if (context.Request.Headers.TryGetValue("Authorization", out var authHeader))
+                    {
+                        Console.WriteLine($"Auth header received: {authHeader}");
+                    }
+                    else
+                    {
+                        Console.WriteLine("No Authorization header present");
+                    }
+
+                    // Print authentication status before processing with additional null checks
+                    Console.WriteLine($"Request path: {context.Request.Path}");
+                    Console.WriteLine($"User authenticated (pre): {(context.User?.Identity != null ? context.User.Identity.IsAuthenticated : "Identity is null")}");
+
+                    await next();
+
+                    // Print authentication status after processing with additional null checks
+                    Console.WriteLine($"User authenticated (post): {(context.User?.Identity != null ? context.User.Identity.IsAuthenticated : "Identity is null")}");
+                    Console.WriteLine($"Response status code: {context.Response.StatusCode}");
                 }
-                else
+                catch (Exception ex)
                 {
-                    Console.WriteLine("No Authorization header present");
+                    // Log any exceptions that occur in the middleware
+                    Console.WriteLine($"Error in auth logging middleware: {ex.Message}");
+                    await next(); // Make sure the pipeline continues even if our logging fails
                 }
-
-                // Print authentication status before processing
-                Console.WriteLine($"Request path: {context.Request.Path}");
-                Console.WriteLine($"User authenticated (pre): {context.User?.Identity?.IsAuthenticated}");
-
-                await next();
-
-                // Print authentication status after processing
-                Console.WriteLine($"User authenticated (post): {context.User?.Identity?.IsAuthenticated}");
-                Console.WriteLine($"Response status code: {context.Response.StatusCode}");
             });
 
-            // Map grouped endpoints for authentication
+
+            // Map grouped endpoints for authentication  
             var authGroup = app.MapGroup("/auth");
             authGroup.MapControllers().RequireRateLimiting("AuthEndpoints");
 
-            // Map all other controllers
+            // Map all other controllers  
             app.MapControllers();
 
-            // Health check endpoint
+            // Health check endpoint  
             app.MapHealthChecks("/health");
+
+            // Ensure database connection before running the app  
+            EnsureDatabaseConnectionAsync(app).GetAwaiter().GetResult();
+
+            app.Run();
+        }
+        private static async Task EnsureDatabaseConnectionAsync(WebApplication app)
+        {
+            using var scope = app.Services.CreateScope();
+            var dbContext = scope.ServiceProvider.GetRequiredService<EquipmentManagementContext>();
+            var logger = scope.ServiceProvider.GetRequiredService<ILogger<Program>>();
+
+            try
+            {
+                logger.LogInformation("Testing database connection...");
+                // Test simple query
+                var canConnect = await dbContext.Database.CanConnectAsync();
+                if (!canConnect)
+                {
+                    logger.LogCritical("Cannot connect to the database!");
+                    throw new ApplicationException("Database connection failed");
+                }
+
+                // Test Equipment table access
+                var equipmentCount = await dbContext.Equipment.CountAsync();
+                logger.LogInformation("Database connection successful. Equipment count: {Count}", equipmentCount);
+            }
+            catch (Exception ex)
+            {
+                logger.LogCritical(ex, "Database connection error: {Message}", ex.Message);
+                throw; // Fail fast if database is not accessible
+            }
         }
     }
 

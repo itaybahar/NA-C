@@ -1,35 +1,31 @@
-﻿using System;
-using System.Collections.Generic;
-using System.Linq;
-using System.Net.Http;
-using System.Net.Http.Json;
-using System.Threading.Tasks;
-using Domain_Project.Models;
-using API_Project.Services;
+﻿using Domain_Project.DTOs;
 
 namespace API_Project.Services
 {
     public class CheckoutService : ICheckoutService
     {
         private readonly HttpClient _httpClient;
-        private readonly string _baseApiPath = "api/checkout";
+        private readonly string _baseApiPath = "api/equipmentcheckout"; // Updated to match the controller name
+
+        public string BaseApiPath { get; private set; }
 
         public CheckoutService(HttpClient httpClient)
         {
             _httpClient = httpClient;
+            // Initialize the BaseApiPath property
+            BaseApiPath = _baseApiPath;
             // Don't set the BaseAddress here since it's already configured in Program.cs
         }
 
-        // Implementation for the internal domain model
         public async Task<List<EquipmentCheckout>> GetAllCheckoutsAsync()
         {
             try
             {
                 return await _httpClient.GetFromJsonAsync<List<EquipmentCheckout>>(_baseApiPath) ?? new List<EquipmentCheckout>();
             }
-            catch (Exception)
+            catch (Exception ex)
             {
-                // Log the exception if needed
+                Console.Error.WriteLine($"Error getting all checkouts: {ex.Message}");
                 return new List<EquipmentCheckout>();
             }
         }
@@ -41,9 +37,9 @@ namespace API_Project.Services
                 return await _httpClient.GetFromJsonAsync<EquipmentCheckout>($"{_baseApiPath}/{id}") ??
                     new EquipmentCheckout { Status = "Unknown" };
             }
-            catch (Exception)
+            catch (Exception ex)
             {
-                // Log the exception if needed
+                Console.Error.WriteLine($"Error getting checkout by ID {id}: {ex.Message}");
                 return new EquipmentCheckout { Status = "Unknown" };
             }
         }
@@ -55,9 +51,9 @@ namespace API_Project.Services
                 var response = await _httpClient.PostAsJsonAsync(_baseApiPath, checkout);
                 return response.IsSuccessStatusCode;
             }
-            catch (Exception)
+            catch (Exception ex)
             {
-                // Log the exception if needed
+                Console.Error.WriteLine($"Error creating checkout: {ex.Message}");
                 return false;
             }
         }
@@ -66,12 +62,12 @@ namespace API_Project.Services
         {
             try
             {
-                var response = await _httpClient.PostAsync($"{_baseApiPath}/{checkoutId}/return", null);
+                var response = await _httpClient.PostAsync($"{_baseApiPath}/return/{checkoutId}", null);
                 return response.IsSuccessStatusCode;
             }
-            catch (Exception)
+            catch (Exception ex)
             {
-                // Log the exception if needed
+                Console.Error.WriteLine($"Error returning equipment (ID: {checkoutId}): {ex.Message}");
                 return false;
             }
         }
@@ -82,9 +78,9 @@ namespace API_Project.Services
             {
                 return await _httpClient.GetFromJsonAsync<List<EquipmentCheckout>>($"{_baseApiPath}/active") ?? new List<EquipmentCheckout>();
             }
-            catch (Exception)
+            catch (Exception ex)
             {
-                // Log the exception if needed
+                Console.Error.WriteLine($"Error getting active checkouts: {ex.Message}");
                 return new List<EquipmentCheckout>();
             }
         }
@@ -95,23 +91,28 @@ namespace API_Project.Services
             {
                 return await _httpClient.GetFromJsonAsync<List<EquipmentCheckout>>($"{_baseApiPath}/overdue") ?? new List<EquipmentCheckout>();
             }
-            catch (Exception)
+            catch (Exception ex)
             {
-                // Log the exception if needed
+                Console.Error.WriteLine($"Error getting overdue checkouts: {ex.Message}");
                 return new List<EquipmentCheckout>();
             }
         }
 
-        public async Task<bool> CheckoutEquipmentAsync(int teamId, int equipmentId)
+        public async Task<bool> CheckoutEquipmentAsync(int teamId, int equipmentId, int userId)
         {
             try
             {
-                var response = await _httpClient.PostAsync($"{_baseApiPath}/team/{teamId}/equipment/{equipmentId}", null);
+                var response = await _httpClient.PostAsJsonAsync($"{_baseApiPath}/checkout", new
+                {
+                    TeamID = teamId,
+                    EquipmentID = equipmentId,
+                    UserName = userId
+                });
                 return response.IsSuccessStatusCode;
             }
-            catch (Exception)
+            catch (Exception ex)
             {
-                // Log the exception if needed
+                Console.Error.WriteLine($"Error checking out equipment (Team: {teamId}, Equipment: {equipmentId}): {ex.Message}");
                 return false;
             }
         }
@@ -120,108 +121,93 @@ namespace API_Project.Services
         {
             try
             {
-                return await _httpClient.GetFromJsonAsync<List<CheckoutRecord>>($"{_baseApiPath}/team/{teamId}/unreturned") ?? new List<CheckoutRecord>();
+                return await _httpClient.GetFromJsonAsync<List<CheckoutRecord>>($"{_baseApiPath}/unreturned/team/{teamId}") ?? new List<CheckoutRecord>();
             }
-            catch (Exception)
+            catch (Exception ex)
             {
-                // Log the exception if needed
+                Console.Error.WriteLine($"Error getting unreturned equipment for team {teamId}: {ex.Message}");
                 return new List<CheckoutRecord>();
             }
         }
 
-        // Explicit interface implementations for the first ICheckoutService interface
-        async Task ICheckoutService.CheckoutItemAsync(string teamId, string equipmentId)
+        public async Task CheckoutItemAsync(string teamId, string equipmentId)
         {
             try
             {
-                await _httpClient.PostAsync($"{_baseApiPath}/team/{teamId}/equipment/{equipmentId}", null);
+                var response = await _httpClient.PostAsync($"{_baseApiPath}/team/{teamId}/equipment/{equipmentId}", null);
+                response.EnsureSuccessStatusCode();
             }
-            catch (Exception)
+            catch (Exception ex)
             {
-                // Log the exception if needed
+                Console.Error.WriteLine($"Error checking out item (Team: {teamId}, Equipment: {equipmentId}): {ex.Message}");
                 throw;
             }
         }
 
-        async Task ICheckoutService.AutoBlacklistOverdueAsync()
+        public async Task AutoBlacklistOverdueAsync()
         {
             try
             {
-                await _httpClient.PostAsync($"{_baseApiPath}/auto-blacklist-overdue", null);
+                var response = await _httpClient.PostAsync($"{_baseApiPath}/auto-blacklist-overdue", null);
+                response.EnsureSuccessStatusCode();
             }
-            catch (Exception)
+            catch (Exception ex)
             {
-                // Log the exception if needed
+                Console.Error.WriteLine($"Error auto-blacklisting overdue checkouts: {ex.Message}");
                 throw;
             }
         }
 
-        // Helper methods for interface compatibility
-
-        // Explicit interface implementations for the second ICheckoutService interface
-        Task<List<EquipmentCheckout>> ICheckoutService.GetAllCheckoutsAsync()
+        // Fix: Changed the return type to match the interface
+        public async Task<List<CheckoutRecordDto>> GetCheckoutHistoryAsync()
         {
-            return ConvertToModelList(GetAllCheckoutsAsync());
-        }
-
-        async Task<EquipmentCheckout> ICheckoutService.GetCheckoutByIdAsync(int id)
-        {
-            var result = await GetCheckoutByIdAsync(id);
-            return ConvertToModel(result);
-        }
-
-        async Task<bool> ICheckoutService.CreateCheckoutAsync(EquipmentCheckout checkout)
-        {
-            return await CreateCheckoutAsync(ConvertFromModel(checkout));
-        }
-
-        Task<List<EquipmentCheckout>> ICheckoutService.GetActiveCheckoutsAsync()
-        {
-            return ConvertToModelList(GetActiveCheckoutsAsync());
-        }
-
-        Task<List<EquipmentCheckout>> ICheckoutService.GetOverdueCheckoutsAsync()
-        {
-            return ConvertToModelList(GetOverdueCheckoutsAsync());
-        }
-
-        // Utility methods to convert between types
-        private async Task<List<EquipmentCheckout>> ConvertToModelList(Task<List<EquipmentCheckout>> checkoutsTask)
-        {
-            var checkouts = await checkoutsTask;
-            return checkouts.Select(c => ConvertToModel(c)).ToList();
-        }
-
-        private EquipmentCheckout ConvertToModel(EquipmentCheckout checkout)
-        {
-            return new EquipmentCheckout
+            try
             {
-                CheckoutID = checkout.CheckoutID,
-                EquipmentID = checkout.EquipmentID,
-                TeamID = checkout.TeamID,
-                CheckedOutBy = checkout.CheckedOutBy,
-                IssuedBy = checkout.IssuedBy,
-                CheckoutDate = checkout.CheckoutDate,
-                ExpectedReturnDate = checkout.ExpectedReturnDate,
-                ActualReturnDate = checkout.ActualReturnDate,
-                Status = checkout.Status
-            };
-        }              
+                var response = await _httpClient.GetAsync("api/checkout/history/detailed");
 
-        private EquipmentCheckout ConvertFromModel(EquipmentCheckout model)
-        {
-            return new EquipmentCheckout
+                if (response.IsSuccessStatusCode)
+                {
+                    // Options to handle potential issues with JSON serialization
+                    var options = new System.Text.Json.JsonSerializerOptions
+                    {
+                        PropertyNameCaseInsensitive = true,
+                        IgnoreReadOnlyProperties = true
+                    };
+
+                    // Get and deserialize the response content
+                    var content = await response.Content.ReadAsStringAsync();
+                    Console.WriteLine($"Checkout history API response: {content}");
+
+                    var history = await response.Content.ReadFromJsonAsync<List<CheckoutRecordDto>>(options);
+                    return history ?? new List<CheckoutRecordDto>();
+                }
+                else
+                {
+                    Console.WriteLine($"Error fetching checkout history. Status code: {response.StatusCode}");
+                    var errorContent = await response.Content.ReadAsStringAsync();
+                    Console.WriteLine($"Error response: {errorContent}");
+                    return new List<CheckoutRecordDto>();
+                }
+            }
+            catch (Exception ex)
             {
-                CheckoutID = model.CheckoutID,
-                EquipmentID = model.EquipmentID,
-                TeamID = model.TeamID,
-                CheckedOutBy = model.CheckedOutBy,
-                IssuedBy = model.IssuedBy,
-                CheckoutDate = model.CheckoutDate,
-                ExpectedReturnDate = model.ExpectedReturnDate,
-                ActualReturnDate = model.ActualReturnDate,
-                Status = model.Status ?? "Unknown"
-            };
+                Console.WriteLine($"Exception in GetCheckoutHistoryAsync: {ex.Message}");
+                return new List<CheckoutRecordDto>();
+            }
+        }
+
+        private Task HandleErrorResponse(HttpResponseMessage response, string operation)
+        {
+            // Log the error
+            Console.Error.WriteLine($"API Error during {operation}: {response.StatusCode} - {response.ReasonPhrase}");
+            return Task.CompletedTask;
+        }
+
+        private Task EnsureAuthorizationHeaderAsync()
+        {
+            // This would typically check for and refresh authentication tokens if needed
+            // For now, we'll just return a completed task
+            return Task.CompletedTask;
         }
     }
 }

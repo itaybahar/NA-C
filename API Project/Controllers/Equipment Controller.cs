@@ -29,9 +29,10 @@ namespace API_Project.Controllers
         }
 
         // GET: api/equipment
+        // In EquipmentController.cs
         [HttpGet]
         [AllowAnonymous]
-        public async Task<ActionResult<IEnumerable<Equipment>>> GetEquipment()
+        public async Task<ActionResult<IEnumerable<object>>> GetEquipment()
         {
             try
             {
@@ -43,15 +44,40 @@ namespace API_Project.Controllers
                     return NotFound("No equipment found.");
                 }
 
+                // Convert to anonymous objects to break circular references
+                var result = equipment.Select(e => new
+                {
+                    e.Id,
+                    e.Name,
+                    e.Description,
+                    e.SerialNumber,
+                    e.PurchaseDate,
+                    e.Value,
+                    e.Status,
+                    e.Quantity,
+                    e.StorageLocation,
+                    e.CategoryId,
+                    e.ModelNumber,
+                    // Don't include CheckoutRecords to avoid circular reference
+                });
+
                 _logger.LogInformation($"Retrieved {equipment.Count} equipment items");
-                return Ok(equipment);
+                return Ok(result);
             }
             catch (Exception ex)
             {
-                _logger.LogError(ex, "Error retrieving equipment");
-                return StatusCode(500, $"Internal server error: {ex.Message}");
+                _logger.LogError(ex, "Error retrieving equipment: {Message}, Stack: {StackTrace}",
+                    ex.Message, ex.StackTrace);
+
+                if (ex.InnerException != null)
+                {
+                    _logger.LogError(ex.InnerException, "Inner exception: {Message}", ex.InnerException.Message);
+                }
+
+                return StatusCode(500, "Internal server error. Please check server logs for details.");
             }
         }
+
 
         // GET: api/equipment/5
         [HttpGet("{id}")]
@@ -62,10 +88,8 @@ namespace API_Project.Controllers
             {
                 _logger.LogInformation($"Getting equipment with ID: {id}");
 
-                await _equipmentService.GetEquipmentByIdAsync(id);
-
-                // Since the service method doesn't return data, get it directly from the context
-                var equipment = await _dbContext.Equipment.FindAsync(id);
+                // Use the service properly and capture its return value
+                var equipment = await _equipmentService.GetEquipmentByIdAsync(id);
 
                 if (equipment == null)
                 {
@@ -77,10 +101,20 @@ namespace API_Project.Controllers
             }
             catch (Exception ex)
             {
-                _logger.LogError(ex, $"Error retrieving equipment with ID: {id}");
-                return StatusCode(500, $"Internal server error: {ex.Message}");
+                // Log the full exception details for better diagnostics
+                _logger.LogError(ex, "Error retrieving equipment with ID: {ID}. Message: {Message}, Stack: {StackTrace}",
+                    id, ex.Message, ex.StackTrace);
+
+                // Include inner exception details if available
+                if (ex.InnerException != null)
+                {
+                    _logger.LogError(ex.InnerException, "Inner exception: {Message}", ex.InnerException.Message);
+                }
+
+                return StatusCode(500, "Internal server error. Please check server logs for details.");
             }
         }
+
 
         // GET: api/equipment/available
         [HttpGet("available")]

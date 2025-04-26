@@ -1,5 +1,8 @@
-﻿using System.ComponentModel.DataAnnotations;
+﻿using Domain_Project.DTOs.Domain_Project.DTOs.Domain_Project.Models;
+using Domain_Project.Models;
+using System.ComponentModel.DataAnnotations;
 using System.ComponentModel.DataAnnotations.Schema;
+using System.Text.Json.Serialization;
 
 namespace Domain_Project.Models
 {
@@ -124,27 +127,57 @@ namespace Domain_Project.Models
         [MaxLength(100)]
         public required string StorageLocation { get; set; } = string.Empty;
 
+        // Add JsonIgnore to break the circular reference
+        //[JsonIgnore]
+        [Required]
         public required List<CheckoutRecord> CheckoutRecords { get; set; } = new List<CheckoutRecord>();
+
         public int CategoryId { get; set; }
+        [NotMapped] // Add this attribute
+        public required string ModelNumber { get; set; } = string.Empty;
+
+
+        public static implicit operator Equipment(EquipmentDto dto)
+        {
+            if (dto == null)
+                throw new ArgumentNullException(nameof(dto));
+
+            return new Equipment
+            {
+                Id = dto.Id,
+                Name = dto.Name,
+                Description = dto.Description,
+                SerialNumber = dto.SerialNumber,
+                PurchaseDate = dto.PurchaseDate,
+                Value = dto.Value,
+                Status = dto.Status ?? "Available",
+                Notes = dto.Notes,
+                LastUpdatedDate = dto.LastUpdatedDate ?? DateTime.UtcNow,
+                Quantity = dto.Quantity,
+                StorageLocation = dto.StorageLocation,
+                CategoryId = dto.CategoryId,
+                ModelNumber = dto.ModelNumber ?? string.Empty,
+                CheckoutRecords = new List<CheckoutRecord>() // Explicitly initializing the required property
+            };
+        }
     }
 
-    public class EquipmentCheckout
+}
+
+
+public class EquipmentCheckout
     {
         [Key]
         public int CheckoutID { get; set; }
 
         [Required]
+        [ForeignKey("EquipmentID")]
         public int EquipmentID { get; set; }
 
         [Required]
         public int TeamID { get; set; }
-
         [Required]
-        public int CheckedOutBy { get; set; }
-
-        [Required]
-        public int IssuedBy { get; set; }
-
+        public int UserID { get; set; }
         public DateTime CheckoutDate { get; set; } = DateTime.Now;
         public DateTime ExpectedReturnDate { get; set; }
         public DateTime? ActualReturnDate { get; set; }
@@ -156,10 +189,7 @@ namespace Domain_Project.Models
         public required string Status { get; set; } = "CheckedOut";
 
         public string? Notes { get; set; }
-
-        [ForeignKey("EquipmentID")]
-        public virtual Equipment? Equipment { get; set; }
-    }
+}
 
     public class CheckoutRecord
     {
@@ -172,6 +202,8 @@ namespace Domain_Project.Models
         {
             TeamName = string.Empty
         };
+        public required int UserId { get; set; }
+        public string User { get; set; } = string.Empty;
 
         public DateTime CheckedOutAt { get; set; } = DateTime.UtcNow;
         public DateTime? ReturnedAt { get; set; }
@@ -182,10 +214,11 @@ namespace Domain_Project.Models
         public int Id { get; set; } // Unique identifier for the checkout
 
         public required int EquipmentId { get; set; } // ID of the equipment being checked out
-        public required Equipment Equipment { get; set; } // Navigation property for the equipment
 
-        public required string TeamId { get; set; } // ID of the team performing the checkout
+        public required int TeamId { get; set; } // ID of the team performing the checkout
         public required Team Team { get; set; } // Navigation property for the team
+
+        public required int UserId { get; set; } // ID of the team performing the checkout
 
         public DateTime CheckoutDate { get; set; } = DateTime.UtcNow; // Date of checkout
         public DateTime? ReturnDate { get; set; } // Date of return, if returned
@@ -377,7 +410,27 @@ namespace Domain_Project.Models
                 }
             };
         }
+    // Similarly, update the CheckoutRecord class
+    public class CheckoutRecord
+    {
+        public string Id { get; set; } = Guid.NewGuid().ToString();
+        public required int EquipmentId { get; set; }
+
+        [JsonIgnore] // Add JsonIgnore here too
+        public required Equipment Equipment { get; set; }
+
+        public required int TeamId { get; set; }
+
+        [JsonIgnore] // Add JsonIgnore to break circular reference with Team
+        public required Team Team { get; set; } = new Team
+        {
+            TeamName = string.Empty
+        };
+
+        public DateTime CheckedOutAt { get; set; } = DateTime.UtcNow;
+        public DateTime? ReturnedAt { get; set; }
     }
+}
 
     public class TeamMember
     {
@@ -439,17 +492,5 @@ namespace Domain_Project.Models
                 }
             };
         }
-        public class CheckoutRecordDto
-        {
-            public string Id { get; set; }
-            public string EquipmentId { get; set; }
-            public Equipment Equipment { get; set; }
-            public int TeamId { get; set; }
-            public Team Team { get; set; }
-            public DateTime CheckedOutAt { get; set; }
-            public DateTime? ReturnedAt { get; set; }
-            public int RecordID { get; set; }
-        }
-
     }
-}
+

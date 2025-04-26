@@ -578,7 +578,6 @@ else
             isAdminOrWarehouseManager = false;
         }
     }
-
     private async Task LoadEquipment()
     {
         try
@@ -589,20 +588,29 @@ else
 
             Logger.LogInformation("Loading equipment data...");
             var result = await EquipmentService.GetAllEquipmentAsync();
-            if (result != null && result.Any())
+
+            // Better logging about the result
+            if (result == null)
             {
-                equipmentList = result;
-                Logger.LogInformation($"Loaded {equipmentList.Count} equipment items.");
+                Logger.LogWarning("Equipment service returned null");
+                equipmentList = new List<EquipmentModel>();
+            }
+            else if (!result.Any())
+            {
+                Logger.LogWarning("Equipment service returned an empty list");
+                equipmentList = new List<EquipmentModel>();
             }
             else
             {
-                Logger.LogWarning("No equipment data found.");
+                equipmentList = result;
+                Logger.LogInformation($"Successfully loaded {equipmentList.Count} equipment items");
             }
         }
         catch (Exception ex)
         {
             errorMessage = $"שגיאה בטעינת הנתונים: {ex.Message}";
             Logger.LogError(ex, "Error loading equipment data.");
+            equipmentList = new List<EquipmentModel>();
         }
         finally
         {
@@ -610,6 +618,7 @@ else
             StateHasChanged();
         }
     }
+
 
     private async Task RefreshData()
     {

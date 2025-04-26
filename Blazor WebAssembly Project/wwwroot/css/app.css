@@ -155,6 +155,17 @@
 .inactive-team {
     opacity: 0.6;
 }
+.navbar-branding {
+    position: absolute;
+    top: 10px; /* Adjust the vertical position */
+    right: 20px; /* Move the logo to the right corner */
+}
+
+.navbar-logo {
+    height: 200px; /* Increase the size of the logo */
+    width: auto; /* Maintain aspect ratio */
+}
+
 
 .status-indicator {
     display: inline-block;
