@@ -4,13 +4,16 @@
 @using Blazor_WebAssembly_Project.Models.Auth
 @inject IAuthService AuthService
 @inject NavigationManager Navigation
+@inject IJSRuntime JSRuntime
+
+<link href="css/Login.css" rel="stylesheet">
 
 <div class="login-container">
     <div class="login-card">
-        <div class="login-header">
-            <img src="images/logo_png.png" alt="Logo" class="logo" />
-            <h1>הרשמה למחסן הנשיא</h1>
-            <p>מלא את הפרטים שלך כדי להירשם</p>
+        <div class="icon-wrapper">
+            <div class="icon-circle">
+                <img src="images/user-top.png" class="user-icon" alt="User Icon" />
+            </div>
         </div>
 
         @if (!string.IsNullOrEmpty(errorMessage))
@@ -18,208 +21,150 @@
             <div class="alert alert-danger">@errorMessage</div>
         }
 
-        <div class="login-tabs">
-            <button class="tab @(activeTab == "regular" ? "active" : "")" @onclick="@(() => activeTab = "regular")">משתמש רגיל</button>
-            <button class="tab @(activeTab == "google" ? "active" : "")" @onclick="@(() => activeTab = "google")">Gmail</button>
-        </div>
-
-        @if (activeTab == "regular")
+        @if (!string.IsNullOrEmpty(successMessage))
         {
-            <EditForm Model="registerModel" OnValidSubmit="HandleRegistration">
-                <DataAnnotationsValidator />
-
-                <div class="form-group">
-                    <InputText @bind-Value="registerModel.Username" placeholder="שם משתמש" class="form-control" />
-                    <ValidationMessage For="@(() => registerModel.Username)" class="validation-message" />
-                </div>
-
-                <div class="form-group">
-                    <InputText @bind-Value="registerModel.Email" placeholder="אימייל" type="email" class="form-control" />
-                    <ValidationMessage For="@(() => registerModel.Email)" class="validation-message" />
-                </div>
-
-                <div class="form-group">
-                    <InputText @bind-Value="registerModel.Password" placeholder="סיסמה" type="password" class="form-control" />
-                    <ValidationMessage For="@(() => registerModel.Password)" class="validation-message" />
-                </div>
-
-                <div class="form-group">
-                    <InputText @bind-Value="registerModel.ConfirmPassword" placeholder="אימות סיסמה" type="password" class="form-control" />
-                    <ValidationMessage For="@(() => registerModel.ConfirmPassword)" class="validation-message" />
-                </div>
-
-                <button type="submit" class="btn-submit" disabled="@isSubmitting">
-                    @(isSubmitting ? "נרשם..." : "הירשם")
-                </button>
-            </EditForm>
+            <div class="alert alert-success">@successMessage</div>
         }
-        else
-        {
-            <div class="google-login">
-                <p>לחץ על הכפתור למטה כדי להירשם עם חשבון Google:</p>
-                <button class="btn-google" @onclick="HandleGoogleRegister">
-                    <img src="images/google-logo.png" alt="Google" />
-                    הירשם עם Gmail
+
+        <EditForm Model="registerModel" OnValidSubmit="HandleRegistration">
+            <DataAnnotationsValidator />
+
+            <div class="input-group">
+                <div class="input-wrapper @(IsUsernameValid ? "valid" : "")">
+                    <div class="input-icon">
+                        <img src="images/user-new-icon.png" alt="User Icon" />
+                    </div>
+                    <div class="input-separator"></div>
+                    <InputText @bind-Value="registerModel.Username" class="input-field" placeholder="שם משתמש" @oninput="ValidateUsername" />
+                </div>
+                @if (IsUsernameValid)
+                {
+                    <div class="validation-indicator valid"></div>
+                    <div class="field-status valid">
+                        <span class="status-message">שם משתמש תקין</span>
+                    </div>
+                }
+                else
+                {
+                    <ValidationMessage For="@(() => registerModel.Username)" />
+                }
+            </div>
+
+            <div class="input-group">
+                <div class="input-wrapper @(IsEmailValid ? "valid" : "")">
+                    <div class="input-icon">
+                        <img src="images/email-icon.png" alt="Email Icon" />
+                    </div>
+                    <div class="input-separator"></div>
+                    <InputText @bind-Value="registerModel.Email" type="email" class="input-field" placeholder="אימייל" @oninput="ValidateEmail" />
+                </div>
+                @if (IsEmailValid)
+                {
+                    <div class="validation-indicator valid"></div>
+                    <div class="field-status valid">
+                        <span class="status-message">כתובת אימייל תקינה</span>
+                    </div>
+                }
+                else
+                {
+                    <ValidationMessage For="@(() => registerModel.Email)" />
+                }
+            </div>
+
+            <div class="input-group">
+                <div class="input-wrapper @(IsPasswordValid ? "valid" : "")">
+                    <div class="input-icon">
+                        <img src="images/lock-icon.png" alt="Lock Icon" />
+                    </div>
+                    <div class="input-separator"></div>
+                    <InputText @bind-Value="registerModel.Password" type="password" class="input-field" placeholder="סיסמה" @oninput="ValidatePassword" @onfocus="ShowPasswordRequirements" @onblur="HidePasswordRequirements" />
+                </div>
+                <div class="input-actions">
+                    <button type="button" class="password-info-button" @onclick="TogglePasswordRequirements">
+                        <span class="password-info-icon">?</span>
+                    </button>
+                </div>
+                @if (IsPasswordValid)
+                {
+                    <div class="validation-indicator valid"></div>
+                    <div class="field-status valid">
+                        <span class="status-message">סיסמה תקינה</span>
+                    </div>
+                }
+                else
+                {
+                    <ValidationMessage For="@(() => registerModel.Password)" />
+                }
+            </div>
+
+            <div class="input-group">
+                <div class="input-wrapper @(IsConfirmPasswordValid ? "valid" : "")">
+                    <div class="input-icon">
+                        <img src="images/lock-icon.png" alt="Lock Icon" />
+                    </div>
+                    <div class="input-separator"></div>
+                    <InputText @bind-Value="registerModel.ConfirmPassword" type="password" class="input-field" placeholder="אימות סיסמה" @oninput="ValidateConfirmPassword" />
+                </div>
+                @if (IsConfirmPasswordValid)
+                {
+                    <div class="validation-indicator valid"></div>
+                    <div class="field-status valid">
+                        <span class="status-message">הסיסמאות תואמות</span>
+                    </div>
+                }
+                else
+                {
+                    <ValidationMessage For="@(() => registerModel.ConfirmPassword)" />
+                }
+            </div>
+
+            <div class="login-button-container">
+                <button type="submit" class="login-button" disabled="@(!IsFormValid || isSubmitting)">
+                    @if (isSubmitting)
+                    {
+                        <span>מתבצעת הרשמה...</span>
+                    }
+                    else
+                    {
+                        <span>הירשם</span>
+                    }
                 </button>
             </div>
-        }
+        </EditForm>
+    </div>
 
-        <div class="login-footer">
-            <p>כבר רשום? <a href="/login">התחבר עכשיו</a></p>
+    <div class="google-and-signup">
+        <div class="google-login">
+            <button class="google-button" @onclick="HandleGoogleRegister" disabled="@isSubmitting">
+                <img src="images/google-logo.png" alt="Google" />
+            </button>
+        </div>
+
+        <div class="signup">
+            <a href="/login">כבר רשום? התחבר עכשיו</a>
         </div>
     </div>
 </div>
 
-<style>
-    :root {
-        --background: #1a1a1a;
-        --primary-red: #d32f2f;
-        --white: #ffffff;
-        --grey: #cccccc;
-    }
-
-    .login-container {
-        background: var(--background);
-        min-height: 100vh;
-        display: flex;
-        justify-content: center;
-        align-items: center;
-        padding: 20px;
-        direction: rtl;
-        color: var(--white);
-        font-family: 'Segoe UI', sans-serif;
-    }
-
-    .login-card {
-        background-color: #2a2a2a;
-        padding: 30px;
-        border-radius: 12px;
-        width: 100%;
-        max-width: 400px;
-        box-shadow: 0 0 15px rgba(0,0,0,0.5);
-    }
-
-    .login-header {
-        text-align: center;
-        margin-bottom: 25px;
-    }
-
-    .logo {
-        width: 90px;
-        height: 90px;
-        margin-bottom: 10px;
-        object-fit: contain;
-    }
-
-    .login-header h1 {
-        color: var(--primary-red);
-        margin: 0;
-        font-size: 24px;
-    }
-
-    .login-header p {
-        color: var(--grey);
-        font-size: 14px;
-    }
-
-    .form-group {
-        margin-bottom: 15px;
-    }
-
-    .form-control {
-        width: 100%;
-        padding: 10px;
-        border-radius: 6px;
-        border: none;
-        background-color: #444;
-        color: var(--white);
-    }
-
-        .form-control:focus {
-            outline: 2px solid var(--primary-red);
-        }
-
-    .validation-message {
-        color: var(--primary-red);
-        font-size: 0.8rem;
-        margin-top: 0.25rem;
-    }
-
-    .btn-submit {
-        background-color: var(--primary-red);
-        color: var(--white);
-        width: 100%;
-        padding: 10px;
-        border: none;
-        border-radius: 6px;
-        font-weight: bold;
-        cursor: pointer;
-    }
-
-        .btn-submit:disabled {
-            opacity: 0.6;
-            cursor: not-allowed;
-        }
-
-    .login-tabs {
-        display: flex;
-        margin-bottom: 20px;
-        border-bottom: 2px solid #444;
-    }
-
-    .tab {
-        flex: 1;
-        padding: 10px;
-        background: none;
-        border: none;
-        color: var(--white);
-        cursor: pointer;
-        font-weight: bold;
-        transition: 0.3s;
-    }
-
-        .tab.active {
-            border-bottom: 3px solid var(--primary-red);
-            color: var(--primary-red);
-        }
-
-    .google-login {
-        text-align: center;
-    }
-
-    .btn-google {
-        margin-top: 10px;
-        background-color: white;
-        color: #333;
-        border: none;
-        border-radius: 6px;
-        padding: 10px 15px;
-        display: flex;
-        align-items: center;
-        justify-content: center;
-        gap: 10px;
-        width: 100%;
-        font-weight: bold;
-        cursor: pointer;
-    }
-
-        .btn-google img {
-            width: 20px;
-            height: 20px;
-        }
-
-    .login-footer {
-        text-align: center;
-        margin-top: 20px;
-        font-size: 14px;
-    }
-
-        .login-footer a {
-            color: var(--primary-red);
-            text-decoration: none;
-            font-weight: bold;
-        }
-</style>
+@if (showPasswordRequirements)
+{
+    <div class="password-requirements-modal">
+        <div class="password-requirements-content">
+            <div class="password-requirements-header">
+                <h3>דרישות סיסמה</h3>
+                <button type="button" class="password-requirements-close" @onclick="HidePasswordRequirements">&times;</button>
+            </div>
+            <div class="password-requirements-body">
+                <ul>
+                    <li class="@(HasMinLength ? "met" : "")">לפחות 6 תווים</li>
+                    <li class="@(HasUpperCase ? "met" : "")">אות גדולה אחת לפחות</li>
+                    <li class="@(HasNumber ? "met" : "")">מספר אחד לפחות</li>
+                    <li class="@(HasSpecialChar ? "met" : "")">תו מיוחד אחד לפחות (!@@#$%^&*)</li>
+                </ul>
+            </div>
+        </div>
+    </div>
+}
 
 @code {
     private RegisterModel registerModel = new()
@@ -232,19 +177,115 @@
     };
 
     private string errorMessage = string.Empty;
+    private string successMessage = string.Empty;
     private bool isSubmitting = false;
-    private string activeTab = "regular";
+    private bool showPasswordRequirements = false;
+
+    // Validation flags
+    private bool IsUsernameValid { get; set; } = false;
+    private bool IsEmailValid { get; set; } = false;
+    private bool IsPasswordValid { get; set; } = false;
+    private bool IsConfirmPasswordValid { get; set; } = false;
+
+    // Password requirement flags
+    private bool HasMinLength { get; set; } = false;
+    private bool HasUpperCase { get; set; } = false;
+    private bool HasNumber { get; set; } = false;
+    private bool HasSpecialChar { get; set; } = false;
+
+    private bool IsFormValid => IsUsernameValid && IsEmailValid && IsPasswordValid && IsConfirmPasswordValid;
+
+    // Methods to show and hide password requirements
+    private void ShowPasswordRequirements() => showPasswordRequirements = true;
+    private void HidePasswordRequirements() => showPasswordRequirements = false;
+    private void TogglePasswordRequirements() => showPasswordRequirements = !showPasswordRequirements;
+
+    protected override void OnInitialized()
+    {
+        // Add event listener for ESC key to close the requirements modal
+        JSRuntime.InvokeVoidAsync("addEscKeyListener", DotNetObjectReference.Create(this));
+    }
+
+    [JSInvokable]
+    public void ClosePasswordRequirements()
+    {
+        showPasswordRequirements = false;
+        StateHasChanged();
+    }
+
+    private void ValidateUsername(ChangeEventArgs e)
+    {
+        var username = e.Value?.ToString();
+        IsUsernameValid = !string.IsNullOrWhiteSpace(username) && username.Length >= 3;
+        StateHasChanged();
+    }
+
+    private void ValidateEmail(ChangeEventArgs e)
+    {
+        var email = e.Value?.ToString();
+        // Basic email validation - you can make this more sophisticated
+        IsEmailValid = !string.IsNullOrWhiteSpace(email) &&
+            email.Contains("@") &&
+            email.Contains(".") &&
+            !email.StartsWith("@") &&
+            !email.EndsWith("@") &&
+            !email.StartsWith(".") &&
+            !email.EndsWith(".");
+        StateHasChanged();
+    }
+
+    private void ValidatePassword(ChangeEventArgs e)
+    {
+        var password = e.Value?.ToString();
+        if (string.IsNullOrWhiteSpace(password))
+        {
+            IsPasswordValid = false;
+            HasMinLength = false;
+            HasUpperCase = false;
+            HasNumber = false;
+            HasSpecialChar = false;
+        }
+        else
+        {
+            HasMinLength = password.Length >= 6;
+            HasUpperCase = password.Any(char.IsUpper);
+            HasNumber = password.Any(char.IsDigit);
+            HasSpecialChar = password.Any(c => !char.IsLetterOrDigit(c));
+
+            IsPasswordValid = HasMinLength && HasUpperCase && HasNumber && HasSpecialChar;
+        }
+
+        // Also validate confirm password if it's not empty
+        if (!string.IsNullOrWhiteSpace(registerModel.ConfirmPassword))
+        {
+            ValidateConfirmPassword(new ChangeEventArgs { Value = registerModel.ConfirmPassword });
+        }
+
+        StateHasChanged();
+    }
+
+    private void ValidateConfirmPassword(ChangeEventArgs? e)
+    {
+        IsConfirmPasswordValid = !string.IsNullOrWhiteSpace(registerModel.Password) &&
+                                 !string.IsNullOrWhiteSpace(registerModel.ConfirmPassword) &&
+                                 registerModel.Password == registerModel.ConfirmPassword;
+        StateHasChanged();
+    }
 
     private async Task HandleRegistration()
     {
         isSubmitting = true;
         errorMessage = string.Empty;
+        successMessage = string.Empty;
+        StateHasChanged();
 
         try
         {
             var result = await AuthService.RegisterAsync(registerModel);
             if (result)
             {
+                successMessage = "הרשמתך התקבלה בהצלחה!";
+                await Task.Delay(1500); // Show success message briefly
                 Navigation.NavigateTo("/login?registered=true");
             }
             else
@@ -267,12 +308,20 @@
                 errorMessage = $"שגיאה: {ex.Message}";
             }
         }
-
-        isSubmitting = false;
+        finally
+        {
+            isSubmitting = false;
+            StateHasChanged();
+        }
     }
 
     private void HandleGoogleRegister()
     {
         Navigation.NavigateTo("https://localhost:5191/auth/login-google", true);
+    }
+
+    public void Dispose()
+    {
+        JSRuntime.InvokeVoidAsync("removeEscKeyListener");
     }
 }

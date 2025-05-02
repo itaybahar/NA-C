@@ -2,8 +2,10 @@
 @using System.ComponentModel.DataAnnotations
 @using Blazor_WebAssembly.Services
 @using Blazor_WebAssembly.Services.Interfaces
+@using Domain_Project.Models
+@using Domain_Project.DTOs
+@using Blazor_WebAssembly.Auth
 @using Blazor_WebAssembly.Models.Auth
-@using System.Web
 @inject IAuthService AuthService
 @inject NavigationManager Navigation
 @inject Blazored.LocalStorage.ILocalStorageService LocalStorage
@@ -11,12 +13,14 @@
 @inject AuthenticationStateProvider AuthStateProvider
 @implements IDisposable
 
+<link href="css/Login.css" rel="stylesheet">
+
 <div class="login-container">
     <div class="login-card">
-        <div class="login-header">
-            <img src="images/logo_png.png" alt="לוגו השבט" class="logo" />
-            <h1>מחסן שבט הנשיא</h1>
-            <p>אנא התחבר כדי להמשיך</p>
+        <div class="icon-wrapper">
+            <div class="icon-circle">
+                <img src="images/user-top.png" class="user-icon" alt="User Icon" />
+            </div>
         </div>
 
         @if (!string.IsNullOrEmpty(ErrorMessage))
@@ -29,292 +33,137 @@
             <div class="alert alert-success">@SuccessMessage</div>
         }
 
-        <div class="login-tabs">
-            <button class="tab @(ActiveTab == "regular" ? "active" : "")" @onclick="@(() => ActiveTab = "regular")">משתמש</button>
-            <button class="tab @(ActiveTab == "google" ? "active" : "")" @onclick="@(() => ActiveTab = "google")">Gmail</button>
-        </div>
-
-        @if (ActiveTab == "regular")
+        @if (!showForgotPassword)
         {
             <EditForm Model="LoginModel" OnValidSubmit="HandleLogin">
                 <DataAnnotationsValidator />
-                <div class="form-group">
-                    <InputText @bind-Value="LoginModel.Username" placeholder="שם משתמש" class="form-control" />
+
+                <div class="input-group">
+                    <div class="input-wrapper">
+                        <div class="input-icon">
+                            <img src="images/user-new-icon.png" alt="User Icon" />
+                        </div>
+                        <div class="input-separator"></div>
+                        <InputText @bind-Value="LoginModel.Username" placeholder="שם משתמש" class="input-field" />
+                    </div>
                     <ValidationMessage For="@(() => LoginModel.Username)" />
                 </div>
 
-                <div class="form-group">
-                    <InputText @bind-Value="LoginModel.Password" type="password" placeholder="סיסמה" class="form-control" />
+                <div class="input-group">
+                    <div class="input-wrapper">
+                        <div class="input-icon">
+                            <img src="images/lock-icon.png" alt="Lock Icon" />
+                        </div>
+                        <div class="input-separator"></div>
+                        <InputText @bind-Value="LoginModel.Password" type="password" placeholder="סיסמה" class="input-field" />
+                    </div>
                     <ValidationMessage For="@(() => LoginModel.Password)" />
                 </div>
 
-                <div class="form-options">
-                    <label><input type="checkbox" @bind="RememberMe" /> זכור אותי</label>
-                    <a href="/forgot-password">שכחת סיסמה?</a>
+                <div class="login-options">
+                    <div class="remember-me">
+                        <input type="checkbox" id="remember-me" @bind="RememberMe" />
+                        <label for="remember-me">זכור אותי</label>
+                    </div>
+                    <button type="button" class="forgot-password-link" @onclick="ToggleForgotPassword">שכחת סיסמה?</button>
                 </div>
 
-                <button type="submit" class="btn-submit" disabled="@IsSubmitting">
-                    @(IsSubmitting ? "מתחבר..." : "התחבר")
-                </button>
+                <div class="login-button-container">
+                    <button type="submit" class="login-button" disabled="@IsSubmitting">
+                        @(IsSubmitting ? "מתחבר..." : "כניסה")
+                    </button>
+                </div>
             </EditForm>
         }
         else
         {
-            <div class="google-login">
-                <p>התחבר עם חשבון גוגל:</p>
-                <button class="btn-google" @onclick="HandleGoogleLogin">
-                    <img src="images/google-logo.png" alt="Google" />
-                    התחבר עם Gmail
-                </button>
+            <div class="forgot-password-form">
+                <h3>איפוס סיסמה</h3>
+                <p>הזן את כתובת האימייל שלך ונשלח לך קישור לאיפוס הסיסמה</p>
+
+                <div class="input-group">
+                    <div class="input-wrapper">
+                        <div class="input-icon">
+                            <img src="images/email-icon.png" alt="Email Icon" />
+                        </div>
+                        <div class="input-separator"></div>
+                        <input type="email" @bind="forgotPasswordEmail" placeholder="אימייל" class="input-field" />
+                    </div>
+                </div>
+
+                <div class="button-group">
+                    <button type="button" class="login-button" @onclick="HandleForgotPassword" disabled="@IsSubmitting">
+                        @(IsSubmitting ? "שולח..." : "שלח קישור איפוס")
+                    </button>
+                    <button type="button" class="back-button" @onclick="ToggleForgotPassword">חזרה להתחברות</button>
+                </div>
             </div>
         }
+    </div>
 
-        <div class="login-footer">
-            <p>אין לך חשבון? <a href="/register">הרשמה</a></p>
+    <div class="google-and-signup">
+        <div class="google-login">
+            <button class="google-button" @onclick="HandleGoogleLogin" disabled="@IsSubmitting">
+                <img src="images/google-logo.png" alt="Google" />
+            </button>
+        </div>
+
+        <div class="signup">
+            <a href="/register">אין לך חשבון? הרשמה</a>
         </div>
     </div>
 </div>
 
-<style>
-    :root {
-        --background: #1a1a1a;
-        --primary-red: #d32f2f;
-        --white: #ffffff;
-        --grey: #cccccc;
-    }
-
-    .login-container {
-        background: var(--background);
-        min-height: 100vh;
-        display: flex;
-        justify-content: center;
-        align-items: center;
-        padding: 20px;
-        direction: rtl;
-        color: var(--white);
-        font-family: 'Segoe UI', sans-serif;
-    }
-
-    .login-card {
-        background-color: #2a2a2a;
-        padding: 30px;
-        border-radius: 12px;
-        width: 100%;
-        max-width: 400px;
-        box-shadow: 0 0 15px rgba(0,0,0,0.5);
-    }
-
-    .login-header {
-        text-align: center;
-        margin-bottom: 25px;
-    }
-
-    .logo {
-        width: 90px;
-        height: 90px;
-        margin-bottom: 10px;
-        object-fit: contain;
-    }
-
-    .login-header h1 {
-        color: var(--primary-red);
-        margin: 0;
-        font-size: 24px;
-    }
-
-    .login-header p {
-        color: var(--grey);
-        font-size: 14px;
-    }
-
-    .form-group {
-        margin-bottom: 15px;
-    }
-
-    .form-control {
-        width: 100%;
-        padding: 10px;
-        border-radius: 6px;
-        border: none;
-        background-color: #444;
-        color: var(--white);
-    }
-
-        .form-control:focus {
-            outline: 2px solid var(--primary-red);
-        }
-
-    .form-options {
-        display: flex;
-        justify-content: space-between;
-        font-size: 14px;
-        margin-bottom: 15px;
-    }
-
-        .form-options a {
-            color: var(--primary-red);
-            text-decoration: none;
-        }
-
-    .btn-submit {
-        background-color: var(--primary-red);
-        color: var(--white);
-        width: 100%;
-        padding: 10px;
-        border: none;
-        border-radius: 6px;
-        font-weight: bold;
-        cursor: pointer;
-    }
-
-        .btn-submit:disabled {
-            opacity: 0.6;
-            cursor: not-allowed;
-        }
-
-    .login-tabs {
-        display: flex;
-        margin-bottom: 20px;
-        border-bottom: 2px solid #444;
-    }
-
-    .tab {
-        flex: 1;
-        padding: 10px;
-        background: none;
-        border: none;
-        color: var(--white);
-        cursor: pointer;
-        font-weight: bold;
-        transition: 0.3s;
-    }
-
-        .tab.active {
-            border-bottom: 3px solid var(--primary-red);
-            color: var(--primary-red);
-        }
-
-    .google-login {
-        text-align: center;
-    }
-
-    .btn-google {
-        margin-top: 10px;
-        background-color: white;
-        color: #333;
-        border: none;
-        border-radius: 6px;
-        padding: 10px 15px;
-        display: flex;
-        align-items: center;
-        justify-content: center;
-        gap: 10px;
-        width: 100%;
-        font-weight: bold;
-        cursor: pointer;
-    }
-
-        .btn-google img {
-            width: 20px;
-            height: 20px;
-        }
-
-    .login-footer {
-        text-align: center;
-        margin-top: 20px;
-        font-size: 14px;
-    }
-
-        .login-footer a {
-            color: var(--primary-red);
-            text-decoration: none;
-            font-weight: bold;
-        }
-
-    .alert {
-        background-color: #ffdddd;
-        color: #990000;
-        padding: 10px;
-        border-radius: 5px;
-        margin-bottom: 15px;
-        text-align: center;
-    }
-
-    .alert-success {
-        background-color: #ddffd6;
-        color: #006600;
-    }
-</style>
-
 @code {
-    private LoginModel LoginModel { get; set; } = new LoginModel
-    {
-        Username = string.Empty,
-        Password = string.Empty
-    };
-
+    private LoginModel LoginModel { get; set; } = new LoginModel { Username = string.Empty, Password = string.Empty };
+    private bool RememberMe { get; set; } = false;
     private string ErrorMessage { get; set; } = string.Empty;
     private string SuccessMessage { get; set; } = string.Empty;
     private bool IsSubmitting { get; set; } = false;
-    private bool RememberMe { get; set; } = false;
-    private string ActiveTab { get; set; } = "regular";
     private bool isInitialized = false;
+    private bool showForgotPassword = false;
+    private string forgotPasswordEmail = string.Empty;
 
     protected override async Task OnInitializedAsync()
     {
         try
         {
-            // Log to browser console for debugging
-            await JSRuntime.InvokeVoidAsync("console.log", "Login page initializing");
-
-            // Parse query parameters
             var uri = new Uri(Navigation.Uri);
-            var query = HttpUtility.ParseQueryString(uri.Query);
+            var query = System.Web.HttpUtility.ParseQueryString(uri.Query);
             var token = query["token"];
             var registered = query["registered"];
             var error = query["error"];
+            var resetRequested = query["reset-requested"];
+            var resetSuccess = query["reset-success"];
 
-            // Handle error messages from redirects
             if (!string.IsNullOrEmpty(error))
-            {
                 ErrorMessage = GetErrorMessage(error);
-                await JSRuntime.InvokeVoidAsync("console.log", "Error from query param: " + error);
-            }
 
-            // Handle token from external auth
+            if (!string.IsNullOrEmpty(resetRequested) && resetRequested == "true")
+                SuccessMessage = "נשלח קישור לאיפוס סיסמה לכתובת האימייל שלך.";
+
+            if (!string.IsNullOrEmpty(resetSuccess) && resetSuccess == "true")
+                SuccessMessage = "הסיסמה שלך אופסה בהצלחה. אנא התחבר עם הסיסמה החדשה.";
+
             if (!string.IsNullOrEmpty(token))
             {
-                await JSRuntime.InvokeVoidAsync("console.log", "Token found, saving to local storage");
                 await LocalStorage.SetItemAsync("authToken", token);
-
-                // Notify the auth state provider that the user is authenticated
-                if (AuthStateProvider is CustomAuthStateProvider customAuthProvider)
-                {
-                    await customAuthProvider.MarkUserAsAuthenticated(token);
-                }
-
+                if (AuthStateProvider is CustomAuthStateProvider authProvider)
+                    await authProvider.MarkUserAsAuthenticated(token);
                 await HandleRedirectAfterLogin();
                 return;
             }
 
-            // Handle registration success
             if (!string.IsNullOrEmpty(registered) && registered == "true")
-            {
-                SuccessMessage = "הרשמתך נקלטה בהצלחה! אנא התחבר כדי להמשיך.";
-            }
+                SuccessMessage = "הרשמתך נקלטה בהצלחה! אנא התחבר.";
 
-            // Check for remembered username
             var rememberedUser = await LocalStorage.GetItemAsync<string>("rememberedUser");
             if (!string.IsNullOrEmpty(rememberedUser))
-            {
                 LoginModel.Username = rememberedUser;
-                await JSRuntime.InvokeVoidAsync("console.log", "Found remembered username: " + rememberedUser);
-            }
         }
         catch (Exception ex)
         {
             ErrorMessage = $"אירעה שגיאה: {ex.Message}";
-            await JSRuntime.InvokeVoidAsync("console.error", "Login initialization error: " + ex.ToString());
         }
         finally
         {
@@ -327,9 +176,11 @@
     {
         return errorCode switch
         {
-            "google-auth-failed" => "התחברות באמצעות Google נכשלה, אנא נסה שוב.",
-            "missing-user-info" => "לא ניתן לאחזר את פרטי המשתמש מחשבון Google.",
-            "token-generation-failed" => "אירעה שגיאה ביצירת אסימון התחברות.",
+            "google-auth-failed" => "התחברות באמצעות Google נכשלה.",
+            "missing-user-info" => "לא נמצאו פרטי משתמש.",
+            "token-generation-failed" => "שגיאת התחברות.",
+            "invalid-reset-token" => "קישור איפוס הסיסמה אינו תקין או שפג תוקפו.",
+            "email-not-found" => "כתובת האימייל לא נמצאה במערכת.",
             _ => $"אירעה שגיאה: {errorCode}"
         };
     }
@@ -337,7 +188,6 @@
     private async Task HandleLogin()
     {
         if (!isInitialized) return;
-
         IsSubmitting = true;
         ErrorMessage = string.Empty;
         SuccessMessage = string.Empty;
@@ -345,53 +195,36 @@
 
         try
         {
-            await JSRuntime.InvokeVoidAsync("console.log", "Starting login process...");
-
-            // Validate model client-side first
             if (string.IsNullOrEmpty(LoginModel.Username) || string.IsNullOrEmpty(LoginModel.Password))
             {
-                ErrorMessage = "שם משתמש וסיסמה הם שדות חובה.";
+                ErrorMessage = "שם משתמש וסיסמה חובה.";
                 return;
             }
 
-            await JSRuntime.InvokeVoidAsync("console.log", "Calling AuthService.LoginAsync...");
-
             var result = await AuthService.LoginAsync(LoginModel);
-
-            await JSRuntime.InvokeVoidAsync("console.log", "Login result received, token exists: " +
-                (!string.IsNullOrEmpty(result?.Token) ? "yes" : "no"));
 
             if (result != null && !string.IsNullOrEmpty(result.Token))
             {
-                // Save user preferences if remember me is checked
-                if (RememberMe)
-                {
-                    await LocalStorage.SetItemAsync("rememberedUser", LoginModel.Username);
-                }
+                await LocalStorage.SetItemAsync("authToken", result.Token);
 
-                // Notify the auth state provider that the user is authenticated
-                if (AuthStateProvider is CustomAuthStateProvider customAuthProvider)
-                {
-                    await customAuthProvider.MarkUserAsAuthenticated(result.Token);
-                    await JSRuntime.InvokeVoidAsync("console.log", "User marked as authenticated");
-                }
-                else
-                {
-                    await JSRuntime.InvokeVoidAsync("console.error",
-                        "AuthStateProvider is not CustomAuthStateProvider: " +
-                        AuthStateProvider.GetType().FullName);
-                }
+                if (result.User != null)
+                    await LocalStorage.SetItemAsync("user", result.User);
+
+                if (RememberMe)
+                    await LocalStorage.SetItemAsync("rememberedUser", LoginModel.Username);
+
+                if (AuthStateProvider is CustomAuthStateProvider authProvider)
+                    await authProvider.MarkUserAsAuthenticated(result.Token);
 
                 await HandleRedirectAfterLogin();
             }
             else
             {
-                ErrorMessage = "שם המשתמש או הסיסמה שגויים.";
+                ErrorMessage = "שם משתמש או סיסמה שגויים.";
             }
         }
         catch (Exception ex)
         {
-            await JSRuntime.InvokeVoidAsync("console.error", "Login error: " + ex.ToString());
             ErrorMessage = $"שגיאה: {ex.Message}";
         }
         finally
@@ -405,17 +238,13 @@
     {
         try
         {
-            await JSRuntime.InvokeVoidAsync("console.log", "Handling redirect after login");
-            var user = await LocalStorage.GetItemAsync<UserDto>("user");
-
+            var user = await LocalStorage.GetItemAsync<Domain_Project.DTOs.UserDto>("user");
             if (user == null)
             {
-                await JSRuntime.InvokeVoidAsync("console.log", "User is null, redirecting to home");
                 Navigation.NavigateTo("/");
                 return;
             }
 
-            await JSRuntime.InvokeVoidAsync("console.log", "User role: " + user.Role);
             switch (user.Role?.ToLower())
             {
                 case "admin":
@@ -432,22 +261,61 @@
                     break;
             }
         }
-        catch (Exception ex)
+        catch
         {
-            await JSRuntime.InvokeVoidAsync("console.error", "Redirect error: " + ex.ToString());
-            // If there's an error in redirection, go to home page
             Navigation.NavigateTo("/");
         }
     }
 
     private void HandleGoogleLogin()
     {
-        // Use the API URL from configuration or a consistent value
         Navigation.NavigateTo("https://localhost:5191/auth/login-google", true);
     }
 
-    public void Dispose()
+    private void ToggleForgotPassword()
     {
-        // Cleanup code if needed
+        showForgotPassword = !showForgotPassword;
+        ErrorMessage = string.Empty;
+        SuccessMessage = string.Empty;
     }
+
+    private async Task HandleForgotPassword()
+    {
+        if (string.IsNullOrWhiteSpace(forgotPasswordEmail))
+        {
+            ErrorMessage = "נא להזין כתובת אימייל.";
+            return;
+        }
+
+        IsSubmitting = true;
+        ErrorMessage = string.Empty;
+        SuccessMessage = string.Empty;
+        StateHasChanged();
+
+        try
+        {
+            bool result = await AuthService.SendPasswordResetEmail(forgotPasswordEmail);
+
+            if (result)
+            {
+                SuccessMessage = "נשלח קישור לאיפוס סיסמה לכתובת האימייל שלך.";
+                showForgotPassword = false;
+            }
+            else
+            {
+                ErrorMessage = "לא הצלחנו לשלוח את הקישור לאיפוס הסיסמה. אנא נסה שנית.";
+            }
+        }
+        catch (Exception ex)
+        {
+            ErrorMessage = $"שגיאה: {ex.Message}";
+        }
+        finally
+        {
+            IsSubmitting = false;
+            StateHasChanged();
+        }
+    }
+
+    public void Dispose() { }
 }

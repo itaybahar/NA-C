@@ -1,8 +1,4 @@
 ﻿using Blazor_WebAssembly.Models.Equipment;
-using Domain_Project.DTOs.Domain_Project.DTOs.Domain_Project.Models;
-using Domain_Project.Models;
-using System.Collections.Generic;
-using System.Threading.Tasks;
 
 namespace Blazor_WebAssembly.Services.Interfaces
 {

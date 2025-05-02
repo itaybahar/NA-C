@@ -1,9 +1,7 @@
 ﻿using Blazor_WebAssembly.Models.Checkout;
 using Blazor_WebAssembly.Services.Interfaces;
 using Domain_Project.DTOs;
-using Domain_Project.DTOs.Domain_Project.DTOs.Domain_Project.Models;
 using Microsoft.AspNetCore.Components.Authorization;
-using System.Net.Http.Headers;
 using System.Net.Http.Json;
 using System.Text;
 using System.Text.Json;

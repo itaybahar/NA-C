@@ -1,4 +1,4 @@
-﻿using Domain_Project.DTOs.Domain_Project.DTOs.Domain_Project.Models;
+﻿using Domain_Project.DTOs;
 using Domain_Project.Models;
 using System.ComponentModel.DataAnnotations;
 using System.ComponentModel.DataAnnotations.Schema;

@@ -1,6 +1,4 @@
-﻿using Domain_Project.DTOs.Domain_Project.DTOs.Domain_Project.Models;
-using System.Text.Json.Serialization;
-using Blazor_WebAssembly.Models.Checkout;
+﻿using System.Text.Json.Serialization;
 
 namespace Blazor_WebAssembly.Models.Equipment
 {

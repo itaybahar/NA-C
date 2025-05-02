@@ -1,7 +1,5 @@
 ﻿using API_Project.Data;
 using Domain_Project.DTOs;
-using Domain_Project.DTOs.Domain_Project.DTOs.Domain_Project.Models;
-using Domain_Project.Interfaces;
 using Domain_Project.Models;
 using Microsoft.AspNetCore.Authorization;
 using Microsoft.AspNetCore.JsonPatch;

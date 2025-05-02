@@ -1,0 +1,576 @@
+﻿/* ====== ROOT VARIABLES ====== */
+:root {
+    --background-color: #1a1a1a;
+    --card-background: rgba(255, 255, 255, 0.15);
+    --input-background: rgba(255, 255, 255, 0.25);
+    --button-background: #e53e3e; /* Changed to red */
+    --link-color: #e53e3e; /* Added red link color */
+    --input-placeholder: #888;
+    --text-color: #222;
+    --shadow-color: rgba(0, 0, 0, 0.2);
+    --icon-color: #333;
+    --success-background: #ddffd6;
+    --error-background: #ffdddd;
+    --error-text: #8b0000; /* Added dark red color for error text */
+    --success-text: #006600; /* Added dark green color for success text */
+}
+
+/* ====== GENERAL BODY ====== */
+body, html {
+    margin: 0;
+    padding: 0;
+    height: 100%;
+    font-family: 'Segoe UI', sans-serif;
+    background: url('/images/login-background.png') no-repeat center center fixed;
+    background-size: cover;
+    background-color: var(--background-color);
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    direction: rtl;
+}
+
+/* ====== LOGIN CONTAINER ====== */
+.login-container {
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    justify-content: center;
+    padding: 20px;
+}
+
+/* ====== LOGIN CARD ====== */
+.login-card {
+    background: var(--card-background);
+    border-radius: 25px;
+    padding: 60px 30px 30px;
+    width: 100%;
+    max-width: 380px;
+    text-align: center;
+    position: relative;
+    box-shadow: 0 8px 32px var(--shadow-color);
+    backdrop-filter: blur(10px);
+}
+
+/* ====== ICON ====== */
+.icon-wrapper {
+    position: absolute;
+    top: -50px;
+    left: 50%;
+    transform: translateX(-50%);
+    background: var(--icon-color);
+    width: 90px;
+    height: 90px;
+    border-radius: 50%;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    box-shadow: 0 4px 10px var(--shadow-color);
+}
+
+    .icon-wrapper img {
+        width: 50px;
+        height: 50px;
+    }
+
+/* ====== INPUTS ====== */
+.input-group {
+    margin-bottom: 15px;
+    position: relative; /* Added for positioning validation icons */
+}
+
+.input-wrapper {
+    background: var(--input-background);
+    border-radius: 10px;
+    display: flex;
+    align-items: center;
+    padding: 0;
+    height: 45px;
+    overflow: hidden;
+    transition: border 0.3s ease;
+}
+
+    /* Add styles for valid input state */
+    .input-wrapper.valid {
+        border: 2px solid var(--success-text);
+    }
+
+.input-icon {
+    width: 45px;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+}
+
+    .input-icon img {
+        width: 20px;
+        opacity: 0.7;
+    }
+
+.input-separator {
+    width: 1px;
+    height: 60%;
+    background-color: #bbb;
+}
+
+.input-field {
+    flex-grow: 1;
+    border: none;
+    background: transparent;
+    padding: 0 10px;
+    font-size: 16px;
+    color: var(--text-color);
+}
+
+    .input-field::placeholder {
+        color: var(--input-placeholder);
+    }
+
+    .input-field:focus {
+        outline: none;
+    }
+
+/* ====== VALIDATION INDICATOR ====== */
+.validation-indicator {
+    position: absolute;
+    right: -30px;
+    top: 50%;
+    transform: translateY(-50%);
+    width: 22px;
+    height: 22px;
+    display: none; /* Hidden by default */
+}
+
+    .validation-indicator.valid {
+        display: flex;
+        justify-content: center;
+        align-items: center;
+        background-color: var(--success-text);
+        border-radius: 50%;
+        color: white;
+    }
+
+        .validation-indicator.valid::before {
+            content: "✓";
+            font-size: 14px;
+            font-weight: bold;
+        }
+
+/* ====== OPTIONS ====== */
+.login-options {
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    font-size: 13px;
+    margin: 10px 0;
+}
+
+.remember-me {
+    display: flex;
+    align-items: center;
+    gap: 5px;
+}
+
+.forgot-password-link {
+    background: none;
+    border: none;
+    color: var(--link-color); /* Changed to red */
+    text-decoration: underline;
+    cursor: pointer;
+    font-size: 13px;
+}
+
+/* ====== LOGIN BUTTON ====== */
+.login-button {
+    width: 260px;
+    height: 48px;
+    background: var(--button-background);
+    border: none;
+    border-radius: 25px;
+    font-size: 18px;
+    font-weight: bold;
+    color: white; /* Changed to white for better contrast with red */
+    box-shadow: 0 6px 15px var(--shadow-color);
+    cursor: pointer;
+    transition: all 0.3s ease;
+    margin-top: 20px;
+}
+
+    .login-button:hover {
+        background: #c53030; /* Darker red on hover */
+        transform: translateY(-3px);
+        box-shadow: 0 8px 20px var(--shadow-color);
+    }
+
+/* ====== GOOGLE LOGIN ====== */
+.google-login {
+    margin-top: 20px;
+}
+
+    .google-login button {
+        background: white;
+        width: 55px;
+        height: 55px;
+        border-radius: 50%;
+        border: none;
+        box-shadow: 0 4px 10px var(--shadow-color);
+        display: flex;
+        align-items: center;
+        justify-content: center;
+        cursor: pointer;
+        transition: transform 0.2s ease;
+    }
+
+        .google-login button:hover {
+            transform: scale(1.05);
+        }
+
+    .google-login img {
+        width: 24px;
+    }
+
+/* ====== SIGNUP LINK ====== */
+.signup {
+    margin-top: 15px;
+    font-size: 13px;
+    color: var(--text-color);
+}
+
+    .signup a {
+        color: var(--link-color); /* Changed to red */
+        font-weight: bold;
+        text-decoration: none;
+    }
+
+        .signup a:hover {
+            text-decoration: underline;
+        }
+
+/* ====== ALERTS ====== */
+.alert {
+    background-color: var(--error-background);
+    color: var(--error-text); /* Changed to dark red */
+    padding: 10px;
+    border-radius: 5px;
+    margin-bottom: 15px;
+    font-size: 14px;
+    font-weight: bold; /* Added bold */
+}
+
+.alert-success {
+    background-color: var(--success-background);
+    color: var(--success-text);
+    font-weight: normal; /* Keep success messages not bold */
+}
+
+/* ====== VALIDATION MESSAGES ====== */
+.validation-message {
+    color: var(--error-text) !important; /* Dark red */
+    font-size: 13px;
+    margin-top: 5px;
+    text-align: right;
+    font-weight: bold;
+    display: block;
+}
+
+/* For Blazor's deep CSS targeting */
+::deep .validation-message {
+    color: var(--error-text) !important; /* Dark red */
+    font-size: 13px;
+    margin-top: 5px;
+    text-align: right;
+    font-weight: bold;
+}
+
+/* Success validation message */
+.validation-success {
+    color: var(--success-text) !important; /* Dark green */
+    font-size: 13px;
+    margin-top: 5px;
+    text-align: right;
+    font-weight: bold;
+    display: block;
+}
+
+::deep .validation-success {
+    color: var(--success-text) !important; /* Dark green */
+    font-size: 13px;
+    margin-top: 5px;
+    text-align: right;
+    font-weight: bold;
+}
+
+/* Add this to ensure all links in the login component are red */
+.login-container a {
+    color: var(--link-color);
+}
+
+/* Field validation status styles */
+.field-status {
+    display: flex;
+    align-items: center;
+    margin-top: 5px;
+}
+
+    .field-status.valid {
+        color: var(--success-text);
+    }
+
+        .field-status.valid::before {
+            content: "✓";
+            margin-left: 5px;
+            font-weight: bold;
+        }
+
+        .field-status.valid .status-message {
+            font-size: 13px;
+        }
+
+/* Password requirements modal styling */
+.password-requirements-modal {
+    position: fixed;
+    top: 0;
+    left: 0;
+    right: 0;
+    bottom: 0;
+    background-color: rgba(0, 0, 0, 0.5);
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    z-index: 1000;
+    direction: rtl;
+}
+
+.password-requirements-content {
+    background: var(--card-background);
+    backdrop-filter: blur(10px);
+    border-radius: 10px;
+    width: 90%;
+    max-width: 400px;
+    box-shadow: 0 8px 32px var(--shadow-color);
+    animation: slide-up 0.3s ease;
+}
+
+@keyframes slide-up {
+    from {
+        transform: translateY(50px);
+        opacity: 0;
+    }
+
+    to {
+        transform: translateY(0);
+        opacity: 1;
+    }
+}
+
+.password-requirements-header {
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    padding: 15px 20px;
+    border-bottom: 1px solid rgba(255, 255, 255, 0.2);
+}
+
+    .password-requirements-header h3 {
+        margin: 0;
+        font-size: 18px;
+        color: white;
+    }
+
+.password-requirements-close {
+    background: none;
+    border: none;
+    font-size: 24px;
+    color: rgba(255, 255, 255, 0.7);
+    cursor: pointer;
+    padding: 0;
+    line-height: 1;
+}
+
+    .password-requirements-close:hover {
+        color: white;
+    }
+
+.password-requirements-body {
+    padding: 20px;
+}
+
+    .password-requirements-body ul {
+        list-style-type: none;
+        padding: 0;
+        margin: 0;
+    }
+
+    .password-requirements-body li {
+        position: relative;
+        padding-right: 25px;
+        margin-bottom: 12px;
+        color: white;
+        opacity: 0.8;
+    }
+
+        .password-requirements-body li::before {
+            content: "✕";
+            position: absolute;
+            right: 0;
+            color: var(--button-background);
+        }
+
+        .password-requirements-body li.met {
+            opacity: 1;
+        }
+
+            .password-requirements-body li.met::before {
+                content: "✓";
+                color: #4caf50;
+            }
+
+/* Password info button styling */
+.input-actions {
+    position: absolute;
+    right: -40px;
+    top: 50%;
+    transform: translateY(-50%);
+}
+
+.password-info-button {
+    width: 24px;
+    height: 24px;
+    border-radius: 50%;
+    background: rgba(255, 255, 255, 0.2);
+    border: none;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    cursor: pointer;
+    color: white;
+    font-size: 14px;
+    font-weight: bold;
+    padding: 0;
+    transition: background 0.3s;
+}
+
+    .password-info-button:hover {
+        background: rgba(255, 255, 255, 0.3);
+    }
+
+/* Legacy password requirements styling for inline display */
+.password-requirements {
+    background-color: rgba(0, 0, 0, 0.1);
+    border-radius: 5px;
+    padding: 10px;
+    margin-top: 5px;
+    font-size: 12px;
+    max-height: 0;
+    overflow: hidden;
+    transition: max-height 0.3s ease-out;
+}
+
+    .password-requirements.show {
+        max-height: 200px;
+    }
+
+    .password-requirements ul {
+        list-style-type: none;
+        padding: 0;
+        margin: 0;
+    }
+
+    .password-requirements li {
+        position: relative;
+        padding-right: 20px;
+        margin-bottom: 5px;
+        color: rgba(255, 255, 255, 0.7);
+    }
+
+        .password-requirements li::before {
+            content: "✕";
+            position: absolute;
+            right: 0;
+            color: #e53e3e;
+        }
+
+        .password-requirements li.met {
+            color: var(--success-text);
+        }
+
+            .password-requirements li.met::before {
+                content: "✓";
+                color: var(--success-text);
+            }
+
+/* Button group for multiple buttons */
+.button-group {
+    display: flex;
+    flex-direction: column;
+    gap: 10px;
+}
+
+/* Back button styling */
+.back-button {
+    background: transparent;
+    border: 1px solid rgba(255, 255, 255, 0.3);
+    border-radius: 25px;
+    color: white;
+    padding: 10px 20px;
+    font-size: 16px;
+    cursor: pointer;
+    transition: all 0.3s ease;
+}
+
+    .back-button:hover {
+        background: rgba(255, 255, 255, 0.1);
+    }
+
+/* Forgot password form styling */
+.forgot-password-form {
+    text-align: center;
+}
+
+    .forgot-password-form h3 {
+        color: white;
+        margin-bottom: 10px;
+    }
+
+    .forgot-password-form p {
+        color: rgba(255, 255, 255, 0.7);
+        margin-bottom: 20px;
+        font-size: 14px;
+    }
+
+/* Login button container */
+.login-button-container {
+    display: flex;
+    justify-content: center;
+    margin-top: 10px;
+}
+
+/* Responsive adjustments */
+@media (max-width: 480px) {
+    .login-card {
+        padding: 50px 20px 20px;
+    }
+
+    .icon-wrapper {
+        width: 80px;
+        height: 80px;
+        top: -40px;
+    }
+
+        .icon-wrapper img {
+            width: 45px;
+            height: 45px;
+        }
+
+    .login-button {
+        width: 100%;
+    }
+}
+
+/* Google and signup container */
+.google-and-signup {
+    margin-top: 20px;
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+}

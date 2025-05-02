@@ -5,6 +5,7 @@
 		<Nullable>enable</Nullable>
 		<ImplicitUsings>enable</ImplicitUsings>
 		<RootNamespace>API_Project</RootNamespace>
+		<StaticWebAssetsEnabled>true</StaticWebAssetsEnabled>
 	</PropertyGroup>
 
 	<ItemGroup>
@@ -54,6 +55,10 @@
 		<Folder Include="wwwroot\" />
 	</ItemGroup>
 
-	<ProjectExtensions><VisualStudio><UserProperties appsettings_1development_1json__JsonSchema="" /></VisualStudio></ProjectExtensions>
+	<ProjectExtensions>
+		<VisualStudio>
+			<UserProperties appsettings_1development_1json__JsonSchema="" />
+		</VisualStudio>
+	</ProjectExtensions>
 
 </Project>

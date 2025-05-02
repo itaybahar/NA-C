@@ -46,10 +46,6 @@ namespace Domain_Project.DTOs
         public bool IsActive { get; set; }
     }
 
-    namespace Domain_Project.DTOs
-    {
-        namespace Domain_Project.Models
-        {
             public class EquipmentDto
             {
                 public int Id { get; set; }
@@ -224,5 +220,3 @@ namespace Domain_Project.DTOs
                 public string Role { get; set; } = string.Empty;
             }
         }
-    }
-}

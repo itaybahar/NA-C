@@ -1,15 +1,8 @@
 ﻿using API_Project.Data;
 using Domain_Project.DTOs;
-using Domain_Project.DTOs.Domain_Project.DTOs.Domain_Project.Models;
 using Domain_Project.Models;
 using Microsoft.EntityFrameworkCore;
-using Microsoft.Extensions.Logging;
-using Microsoft.Extensions.Logging.Abstractions;
-using System;
-using System.Collections.Generic;
-using System.Linq;
 using System.Text.Json;
-using System.Threading.Tasks;
 
 namespace API_Project.Services
 {

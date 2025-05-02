@@ -1,6 +1,5 @@
 ﻿using Blazor_WebAssembly.Models.Equipment;
 using Blazor_WebAssembly.Services.Interfaces;
-using Domain_Project.DTOs.Domain_Project.DTOs.Domain_Project.Models;
 using System.Net.Http.Json;
 using System.Text.Json;
 

@@ -3,10 +3,6 @@ using Domain_Project.Models;
 using Microsoft.AspNetCore.Authorization;
 using Microsoft.AspNetCore.Mvc;
 using Domain_Project.DTOs;
-using System;
-using System.Threading.Tasks;
-using System.Linq.Expressions;
-using Domain_Project.DTOs.Domain_Project.DTOs.Domain_Project.Models;
 
 namespace API_Project.Controllers
 {

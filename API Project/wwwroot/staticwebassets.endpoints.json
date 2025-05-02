@@ -1,0 +1,15 @@
+// Create a minimal staticwebassets.endpoints.json file at project root
+{
+  "Version": "1.0",
+  "Endpoints": [
+    {
+      "Path": "_framework/blazor.webassembly.js",
+      "Source": "wwwroot/_framework/blazor.webassembly.js"
+    },
+    {
+      "Path": "_framework/dotnet.wasm",
+      "Source": "wwwroot/_framework/dotnet.wasm"
+    }
+  ],
+  "IsBuildManifest": true
+}
