@@ -1,83 +1,23 @@
-﻿<Project Sdk="Microsoft.NET.Sdk.BlazorWebAssembly">
-	<PropertyGroup>
-		<TargetFramework>net9.0</TargetFramework>
-		<Nullable>enable</Nullable>
-		<ImplicitUsings>enable</ImplicitUsings>
-		<RuntimeIdentifier>browser-wasm</RuntimeIdentifier>
-		<!-- Ensure project name is preserved in output -->
-		<AssemblyName>Blazor WebAssembly Project</AssemblyName>
-		<!-- Enable static web assets generation -->
-		<StaticWebAssetGeneratePackageDefaults>true</StaticWebAssetGeneratePackageDefaults>
-	</PropertyGroup>
-
-	<ItemGroup>
-		<PackageReference Include="Blazored.LocalStorage" Version="4.5.0" />
-		<PackageReference Include="Microsoft.AspNetCore.Components.Authorization" Version="9.0.3" />
-		<PackageReference Include="Microsoft.AspNetCore.Components.WebAssembly" Version="9.0.3" />
-		<PackageReference Include="Microsoft.AspNetCore.Components.WebAssembly.Authentication" Version="9.0.3" />
-		<PackageReference Include="Microsoft.AspNetCore.Components.WebAssembly.DevServer" Version="9.0.3" PrivateAssets="all" />
-		<PackageReference Include="Microsoft.AspNetCore.WebUtilities" Version="9.0.3" />
-		<PackageReference Include="Microsoft.Extensions.Http" Version="9.0.4" />
-		<PackageReference Include="Microsoft.Extensions.Logging.Console" Version="9.0.4" />
-		<PackageReference Include="System.IdentityModel.Tokens.Jwt" Version="7.4.0" />
-		<PackageReference Include="System.Net.Http.Json" Version="9.0.3" />
-	</ItemGroup>
-
-	<ItemGroup>
-		<ProjectReference Include="..\Domain Project\Domain Project.csproj" />
-	</ItemGroup>
-
-	<!-- Copy the static web assets manifest file to output directory -->
-	<ItemGroup>
-		<Content Update="staticwebassets.endpoints.json">
-			<CopyToOutputDirectory>PreserveNewest</CopyToOutputDirectory>
-		</Content>
-	</ItemGroup>
-
-
-	<!-- Custom target to ensure the staticwebassets.endpoints.json file exists and is copied -->
-	<Target Name="EnsureStaticWebAssetsManifest" BeforeTargets="Build">
-		<PropertyGroup>
-			<ManifestSourcePath>$(ProjectDir)staticwebassets.endpoints.json</ManifestSourcePath>
-			<DefaultManifestContent>
-				{
-				"Version": "1.0",
-				"Endpoints": [
-				{
-				"Path": "_framework/blazor.webassembly.js",
-				"Source": "wwwroot/_framework/blazor.webassembly.js"
-				},
-				{
-				"Path": "_framework/dotnet.wasm",
-				"Source": "wwwroot/_framework/dotnet.wasm"
-				}
-				],
-				"IsBuildManifest": true
-				}
-			</DefaultManifestContent>
-		</PropertyGroup>
-
-		<!-- Create the file if it doesn't exist -->
-		<WriteLinesToFile File="$(ManifestSourcePath)"
-						  Lines="$(DefaultManifestContent)"
-						  Overwrite="true"
-						  Condition="!Exists('$(ManifestSourcePath)')" />
-
-		<Message Importance="High" Text="Created/Ensured staticwebassets.endpoints.json exists at $(ManifestSourcePath)" />
-	</Target>
-
-	<Target Name="CopyStaticWebAssetsManifest" AfterTargets="Build">
-		<Copy SourceFiles="$(ProjectDir)staticwebassets.endpoints.json"
-			  DestinationFiles="$(OutDir)$(AssemblyName).staticwebassets.endpoints.json"
-			  SkipUnchangedFiles="true" />
-		<Message Importance="High" Text="Copied staticwebassets.endpoints.json to $(OutDir)$(AssemblyName).staticwebassets.endpoints.json" />
-	</Target>
-
-
-	<!-- Ensure all static web assets are copied properly -->
-	<ItemGroup>
-		<Content Update="wwwroot\**\*.*">
-			<CopyToOutputDirectory>PreserveNewest</CopyToOutputDirectory>
-		</Content>
-	</ItemGroup>
+﻿<Project Sdk="Microsoft.NET.Sdk.BlazorWebAssembly">  
+<PropertyGroup>  
+<TargetFramework>net9.0</TargetFramework>  
+<Nullable>enable</Nullable>  
+<ImplicitUsings>enable</ImplicitUsings>  
+<RuntimeIdentifier>browser-wasm</RuntimeIdentifier>  
+</PropertyGroup>  
+<ItemGroup>  
+<PackageReference Include="Blazored.LocalStorage" Version="4.5.0" />  
+<PackageReference Include="Microsoft.AspNetCore.Components.Authorization" Version="9.0.3" />  
+<PackageReference Include="Microsoft.AspNetCore.Components.WebAssembly" Version="9.0.3" />  
+<PackageReference Include="Microsoft.AspNetCore.Components.WebAssembly.Authentication" Version="9.0.3" />  
+<PackageReference Include="Microsoft.AspNetCore.Components.WebAssembly.DevServer" Version="9.0.3" PrivateAssets="all" />  
+<PackageReference Include="Microsoft.AspNetCore.WebUtilities" Version="9.0.3" />  
+<PackageReference Include="Microsoft.Extensions.Http" Version="9.0.4" />  
+<PackageReference Include="Microsoft.Extensions.Logging.Console" Version="9.0.4" />  
+<PackageReference Include="System.IdentityModel.Tokens.Jwt" Version="7.4.0" />  
+<PackageReference Include="System.Net.Http.Json" Version="9.0.3" />  
+</ItemGroup>  
+<ItemGroup>  
+ <ProjectReference Include="..\Domain Project\Domain Project.csproj" />  
+</ItemGroup>  
 </Project>
