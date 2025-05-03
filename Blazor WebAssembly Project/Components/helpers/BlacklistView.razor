@@ -2,153 +2,225 @@
 @using Domain_Project.DTOs
 @using Blazor_WebAssembly.Services.Interfaces
 @inject ITeamService TeamService
+@inject ILogger<BlacklistView> Logger
 
-<h2 class="text-center text-xl font-bold mb-6 text-white">רשימה שחורה</h2>
+<link href="css/helpers.css" rel="stylesheet" />
 
-@if (IsLoading)
-{
-    <div class="loading-indicator">
-        <div class="spinner"></div>
-        <p>טוען רשימת צוותים...</p>
-    </div>
-}
-else if (BlacklistedTeams.Count == 0)
-{
-    <p class="no-teams">אין צוותים ברשימה השחורה</p>
-}
-else
-{
-    <div class="teams-container">
-        <table class="teams-table">
-            <thead>
-                <tr>
-                    <th>מזהה</th>
-                    <th>שם</th>
-                    <th>תיאור</th>
-                    <th>סטטוס</th>
-                </tr>
-            </thead>
-            <tbody>
-                @foreach (var team in BlacklistedTeams)
-                {
-                    <tr>
-                        <td>@team.TeamID</td>
-                        <td>@team.TeamName</td>
-                        <td>@(string.IsNullOrEmpty(team.Description) ? "-" : team.Description)</td>
-                        <td>
-                            <span class="status-indicator inactive">ברשימה שחורה</span>
-                        </td>
-                    </tr>
-                }
-            </tbody>
-        </table>
-    </div>
-}
+<h2 class="text-center text-xl font-bold mb-6">רשימה שחורה</h2>
 
-<style>
-    .teams-container {
-        margin-top: 20px;
-    }
-
-    .teams-table {
-        width: 100%;
-        border-collapse: collapse;
-        color: white;
-    }
-
-        .teams-table th,
-        .teams-table td {
-            padding: 12px 15px;
-            text-align: right;
-        }
-
-        .teams-table th {
-            background-color: #333;
-            font-weight: bold;
-            border-bottom: 2px solid #555;
-        }
-
-        .teams-table tbody tr {
-            border-bottom: 1px solid #444;
-            transition: background-color 0.3s;
-        }
-
-            .teams-table tbody tr:hover {
-                background-color: #333;
-            }
-
-    .status-indicator {
-        display: inline-block;
-        padding: 3px 8px;
-        border-radius: 12px;
-        font-size: 0.85rem;
-    }
-
-        .status-indicator.inactive {
-            background-color: rgba(220, 53, 69, 0.2);
-            color: #ff5a5a;
-        }
-
-    .no-teams {
-        text-align: center;
-        padding: 30px;
-        font-style: italic;
-        color: #999;
-    }
-
-    .loading-indicator {
-        display: flex;
-        flex-direction: column;
-        align-items: center;
-        justify-content: center;
-        padding: 30px 0;
-    }
-
-    .spinner {
-        width: 40px;
-        height: 40px;
-        border: 4px solid rgba(255, 255, 255, 0.3);
-        border-radius: 50%;
-        border-top-color: var(--primary-red);
-        animation: spin 1s linear infinite;
-        margin-bottom: 15px;
-    }
-
-    keyframes spin {
-        to
-
+<div class="content-container">
+    @if (IsLoading)
     {
-        transform: rotate(360deg);
+        <div class="loading-container">
+            <div class="spinner"></div>
+            <p>טוען רשימת צוותים...</p>
+        </div>
     }
+    else if (BlacklistedTeams.Count == 0)
+    {
+        <div class="empty-state">
+            <i class="fas fa-ban"></i>
+            <p class="no-history">אין צוותים ברשימה השחורה</p>
+            <div class="empty-buttons">
+                <button class="btn-action" @onclick="LoadBlacklistedTeams">רענן רשימה</button>
+            </div>
+        </div>
+    }
+    else
+    {
+        <div class="info-bar">
+            <span class="records-count">@BlacklistedTeams.Count צוותים ברשימה השחורה</span>
+            <button class="btn-refresh" title="רענן רשימה" @onclick="LoadBlacklistedTeams">
+                <i class="bi bi-arrow-clockwise"></i>
+            </button>
+        </div>
 
+        <div class="table-responsive">
+            <table class="history-table">
+                <thead>
+                    <tr>
+                        <th>מזהה</th>
+                        <th>שם</th>
+                        <th>תיאור</th>
+                        <th>סטטוס</th>
+                        <th>פעולות</th>
+                    </tr>
+                </thead>
+                <tbody>
+                    @foreach (var team in BlacklistedTeams)
+                    {
+                        <tr>
+                            <td>@team.TeamID</td>
+                            <td>@team.TeamName</td>
+                            <td>@(string.IsNullOrEmpty(team.Description) ? "-" : team.Description)</td>
+                            <td>
+                                <span class="status-badge checked-out-badge">
+                                    ברשימה שחורה
+                                </span>
+                            </td>
+                            <td class="text-center">
+                                <button class="btn-icon" title="הסרה מרשימה שחורה" @onclick="() => RemoveFromBlacklist(team)" disabled="@IsRemoving">
+                                    <i class="bi bi-arrow-repeat"></i>
+                                </button>
+                            </td>
+                        </tr>
+                    }
+                </tbody>
+            </table>
+        </div>
+
+        @if (!string.IsNullOrEmpty(Message))
+        {
+            <div class="@(IsError ? "alert-danger" : "alert-success") mt-4">
+                @Message
+            </div>
+        }
     }
-</style>
+</div>
+
+@if (showConfirmDialog)
+{
+    <div class="modal-backdrop" @onclick="CancelRemoval"></div>
+    <div class="modal-container delete-modal" @onclick:stopPropagation="true">
+        <div class="modal-header">
+            <h3>הסרה מרשימה שחורה</h3>
+            <button class="modal-close" @onclick="CancelRemoval">×</button>
+        </div>
+        <div class="modal-body">
+            <div class="text-center mb-4">
+                <i class="bi bi-exclamation-triangle-fill delete-warning-icon"></i>
+            </div>
+            <p class="confirm-message">האם אתה בטוח שברצונך להסיר את הצוות <strong>@teamToRemove?.TeamName</strong> מהרשימה השחורה?</p>
+            <p class="warning-message">פעולה זו לא ניתנת לביטול!</p>
+        </div>
+        <div class="modal-footer">
+            <button class="btn-action secondary" @onclick="CancelRemoval">
+                ביטול
+            </button>
+            <button class="btn-action delete" @onclick="ConfirmRemoval">
+                הסר מהרשימה
+            </button>
+        </div>
+    </div>
+}
 
 @code {
     private List<TeamDto> BlacklistedTeams = new();
     private bool IsLoading = true;
+    private bool IsRemoving = false;
+    private string? Message;
+    private bool IsError = false;
+    private TeamDto? teamToRemove;
+    private bool showConfirmDialog;
 
     protected override async Task OnInitializedAsync()
     {
         try
         {
+            await LoadBlacklistedTeams();
+        }
+        catch (Exception ex)
+        {
+            Logger.LogError(ex, "Error initializing BlacklistView");
+            Message = $"שגיאה בטעינת הרשימה השחורה: {ex.Message}";
+            IsError = true;
+        }
+    }
+
+    private async Task LoadBlacklistedTeams()
+    {
+        IsLoading = true;
+        Message = null;
+        IsError = false;
+        StateHasChanged();
+
+        try
+        {
+            Logger.LogInformation("Loading blacklisted teams...");
             var teams = await TeamService.GetBlacklistedTeamsAsync();
             BlacklistedTeams = teams.Select(t => new TeamDto
             {
                 TeamID = t.TeamID,
                 TeamName = t.TeamName,
-                Description = t.Description,
+                Description = t.Description ?? string.Empty,
                 IsActive = t.IsActive
             }).ToList();
+            Logger.LogInformation($"Loaded {BlacklistedTeams.Count} blacklisted teams");
         }
         catch (Exception ex)
         {
-            Console.WriteLine($"Error loading blacklisted teams: {ex.Message}");
+            Logger.LogError(ex, "Error loading blacklisted teams");
+            Message = $"שגיאה בטעינת רשימה שחורה: {ex.Message}";
+            IsError = true;
         }
         finally
         {
             IsLoading = false;
+            StateHasChanged();
+        }
+    }
+
+    // Show confirmation dialog before removing a team from the blacklist
+    private void RemoveFromBlacklist(TeamDto team)
+    {
+        teamToRemove = team;
+        showConfirmDialog = true;
+        StateHasChanged();
+    }
+
+    // Cancel removal and close dialog
+    private void CancelRemoval()
+    {
+        teamToRemove = null;
+        showConfirmDialog = false;
+        StateHasChanged();
+    }
+
+    // Confirm removal and process
+    private async Task ConfirmRemoval()
+    {
+        showConfirmDialog = false;
+        if (teamToRemove != null)
+        {
+            await ProcessRemoval(teamToRemove);
+        }
+    }
+
+    // Method to remove a team from the blacklist
+    private async Task ProcessRemoval(TeamDto team)
+    {
+        IsRemoving = true;
+        StateHasChanged();
+
+        try
+        {
+            Logger.LogInformation($"Attempting to remove team {team.TeamID} from blacklist");
+
+            // Simulating an async operation to avoid CS1998 warning
+            await Task.Delay(1); // Minimal delay just to make the method truly async
+
+            // This would call your service to remove the team from the blacklist
+            // For now, let's just display a message as this functionality may not be implemented yet
+            Message = $"הסרת צוות {team.TeamName} מהרשימה השחורה - פונקציונליות בפיתוח";
+            IsError = false;
+
+            // When the actual implementation is ready, you would do something like:
+            // var result = await TeamService.RemoveFromBlacklistAsync(team.TeamID);
+            // if (result) {
+            //     await LoadBlacklistedTeams(); // Refresh the list
+            // }
+        }
+        catch (Exception ex)
+        {
+            Logger.LogError(ex, $"Error removing team {team.TeamID} from blacklist");
+            Message = $"שגיאה בהסרה מהרשימה השחורה: {ex.Message}";
+            IsError = true;
+        }
+        finally
+        {
+            IsRemoving = false;
+            teamToRemove = null;
+            StateHasChanged();
         }
     }
 }
-

@@ -30,6 +30,12 @@ builder.RootComponents.Add<HeadOutlet>("head::after");
 var apiBaseUrl = builder.Configuration["ApiBaseUrl"] ?? "https://localhost:5191/";
 Console.WriteLine($"Using API base URL: {apiBaseUrl}");
 
+// Add this line to Program.cs in the service registration section
+builder.Services.AddScoped<IEquipmentReturnService, EquipmentReturnService>(sp =>
+    new EquipmentReturnService(
+        sp.GetRequiredService<HttpClient>(),
+        sp.GetRequiredService<AuthenticationStateProvider>()));
+
 // Configure HttpClient with auth token handling
 builder.Services.AddScoped(sp =>
 {

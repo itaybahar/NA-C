@@ -9,99 +9,209 @@
 @inject AuthenticationStateProvider AuthenticationStateProvider
 @inject IJSRuntime JSRuntime
 
-<h2 class="text-center text-xl font-bold mb-6 text-white">רשימת ציוד</h2>
+<link href="css/dashboard.css" rel="stylesheet" />
 
-<div class="search-container">
-    <div class="form-group">
-        <label class="input-label">חיפוש</label>
-        <div class="search-input-container">
-            <input class="form-control" placeholder="הקלד שם פריט או מיקום אחסון..." @bind="searchTerm" @bind:event="oninput" />
-            <span class="search-icon">🔍</span>
-        </div>
-    </div>
-</div>
+<h2 class="text-center text-xl font-bold mb-6">רשימת ציוד</h2>
 
-@if (isLoading)
-{
-    <div class="loading-container">
-        <div class="spinner"></div>
-        <p>טוען נתונים...</p>
-    </div>
-}
-else if (errorMessage != null)
-{
-    <div class="alert-danger">
-        <p>שגיאה: @errorMessage</p>
-        <button class="btn-action" @onclick="RefreshData">נסה שנית</button>
-    </div>
-}
-else if (FilteredEquipment.Count == 0)
-{
-    <div class="empty-state">
-        <p>אין ציוד להצגה.</p>
-        <div class="empty-buttons">
-            <button class="btn-action" @onclick="RefreshData">טען נתונים</button>
+<div class="dashboard-section">
+    <div class="widget-header">
+        <h3 class="widget-title">ניהול ציוד</h3>
+        <div class="widget-actions">
+            <button class="btn-refresh" title="רענן נתונים" @onclick="RefreshData">
+                <i class="bi bi-arrow-clockwise"></i>
+            </button>
             @if (IsAdminOrWarehouseManager)
             {
-                <button class="btn-action secondary" @onclick="AddDemoData">הוסף נתוני הדגמה</button>
+                <button class="btn-action btn-sm" @onclick="() => NavigateToAddEquipment()">
+                    <i class="bi bi-plus-circle"></i> הוסף ציוד חדש
+                </button>
             }
         </div>
     </div>
-}
-else
-{
-    <div class="info-bar">
-        <span>נמצאו @FilteredEquipment.Count פריטים</span>
-        <button class="btn-refresh" title="רענן נתונים" @onclick="RefreshData"><i class="bi bi-arrow-clockwise"></i></button>
+
+    <div class="search-container">
+        <div class="search-input-container">
+            <input class="search-bar" placeholder="חפש לפי שם, מספר סידורי או מיקום..." @bind="searchTerm" @bind:event="oninput" />
+            <i class="bi bi-search search-icon"></i>
+        </div>
+
+        <div class="search-filters mt-3">
+            <div class="search-field">
+                <select class="form-control" @bind="statusFilter">
+                    <option value="">כל הסטטוסים</option>
+                    <option value="Available">זמין</option>
+                    <option value="InUse">בשימוש</option>
+                    <option value="Maintenance">בתיקון</option>
+                    <option value="Returned">מוחזר</option>
+                </select>
+            </div>
+            <div class="search-field">
+                <select class="form-control" @bind="locationFilter">
+                    <option value="">כל המיקומים</option>
+                    @foreach (var location in UniqueLocations)
+                    {
+                        <option value="@location">@location</option>
+                    }
+                </select>
+            </div>
+        </div>
     </div>
 
-    <div class="table-container">
-        <table class="equipment-table">
-            <thead>
-                <tr>
-                    <th>מזהה</th>
-                    <th>שם</th>
-                    <th>תיאור</th>
-                    <th>מספר סידורי</th>
-                    <th>סטטוס</th>
-                    <th>כמות</th>
-                    <th>ערך (ש״ח)</th>
-                    <th>מיקום אחסון</th>
-                    @if (IsAdminOrWarehouseManager)
-                    {
-                        <th>פעולות</th>
-                    }
-                </tr>
-            </thead>
-            <tbody>
+    @if (isLoading)
+    {
+        <div class="loading-container">
+            <div class="spinner"></div>
+            <p>טוען נתונים...</p>
+        </div>
+    }
+    else if (errorMessage != null)
+    {
+        <div class="alert-danger mb-4">
+            <p>שגיאה: @errorMessage</p>
+            <button class="btn-action mt-2" @onclick="RefreshData">נסה שנית</button>
+        </div>
+    }
+    else if (FilteredEquipment.Count == 0)
+    {
+        <div class="empty-state">
+            <i class="bi bi-box-seam empty-icon"></i>
+            <p class="no-history">אין ציוד להצגה</p>
+            <div class="empty-buttons">
+                <button class="btn-action" @onclick="RefreshData">טען נתונים</button>
+                @if (IsAdminOrWarehouseManager)
+                {
+                    <button class="btn-action secondary" @onclick="AddDemoData">הוסף נתוני הדגמה</button>
+                }
+            </div>
+        </div>
+    }
+    else
+    {
+        <div class="info-bar">
+            <span class="records-count">@FilteredEquipment.Count פריטים מתוך @equipmentList.Count</span>
+            <div class="flex gap-2">
+                <button class="btn-icon" title="תצוגת רשימה" @onclick="() => viewMode = ViewMode.List">
+                    <i class="bi bi-list-ul"></i>
+                </button>
+                <button class="btn-icon" title="תצוגת קלפים" @onclick="() => viewMode = ViewMode.Cards">
+                    <i class="bi bi-grid-3x3-gap"></i>
+                </button>
+            </div>
+        </div>
+
+        @if (viewMode == ViewMode.List)
+        {
+            <div class="table-responsive">
+                <table class="history-table">
+                    <thead>
+                        <tr>
+                            <th>מזהה</th>
+                            <th>שם</th>
+                            <th>תיאור</th>
+                            <th>מספר סידורי</th>
+                            <th>סטטוס</th>
+                            <th>כמות</th>
+                            <th>ערך (ש״ח)</th>
+                            <th>מיקום אחסון</th>
+                            @if (IsAdminOrWarehouseManager)
+                            {
+                                <th>פעולות</th>
+                            }
+                        </tr>
+                    </thead>
+                    <tbody>
+                        @foreach (var equipment in FilteredEquipment)
+                        {
+                            <tr>
+                                <td>@equipment.EquipmentID</td>
+                                <td>@equipment.Name</td>
+                                <td>@(string.IsNullOrEmpty(equipment.Description) ? "-" : equipment.Description)</td>
+                                <td>@(string.IsNullOrEmpty(equipment.SerialNumber) ? "-" : equipment.SerialNumber)</td>
+                                <td>
+                                    <span class="status-badge @GetStatusBadgeClass(equipment.Status)">
+                                        @GetStatusText(equipment.Status)
+                                    </span>
+                                </td>
+                                <td>@equipment.Quantity</td>
+                                <td>@(equipment.Value > 0 ? equipment.Value.ToString("N0") : "-")</td>
+                                <td>@equipment.StorageLocation</td>
+                                @if (IsAdminOrWarehouseManager)
+                                {
+                                    <td class="text-center">
+                                        <button class="btn-icon edit" title="ערוך פריט" @onclick="() => EditEquipment(equipment)">
+                                            <i class="bi bi-pencil-square"></i>
+                                        </button>
+                                        <button class="btn-icon delete" title="מחק פריט" @onclick="() => ConfirmDelete(equipment)">
+                                            <i class="bi bi-trash"></i>
+                                        </button>
+                                    </td>
+                                }
+                            </tr>
+                        }
+                    </tbody>
+                </table>
+            </div>
+        }
+        else
+        {
+            <div class="dashboard-cards">
                 @foreach (var equipment in FilteredEquipment)
                 {
-                    <tr>
-                        <td>@equipment.EquipmentID</td>
-                        <td>@equipment.Name</td>
-                        <td>@(string.IsNullOrEmpty(equipment.Description) ? "-" : equipment.Description)</td>
-                        <td>@(string.IsNullOrEmpty(equipment.SerialNumber) ? "-" : equipment.SerialNumber)</td>
-                        <td>@equipment.Status</td>
-                        <td>@equipment.Quantity</td>
-                        <td>@(equipment.Value > 0 ? equipment.Value.ToString() : "-")</td>
-                        <td>@equipment.StorageLocation</td>
+                    <div class="dashboard-card @GetCardStatusClass(equipment.Status)">
+                        <div class="card-header">
+                            <div>
+                                <h3 class="card-title">@equipment.Name</h3>
+                                <p class="card-subtitle">@(string.IsNullOrEmpty(equipment.SerialNumber) ? "ללא מספר סידורי" : equipment.SerialNumber)</p>
+                            </div>
+                            <div class="card-icon">
+                                <i class="bi bi-box-seam"></i>
+                            </div>
+                        </div>
+                        <div class="card-content">
+                            <p class="mb-3">@(string.IsNullOrEmpty(equipment.Description) ? "אין תיאור זמין" : equipment.Description)</p>
+
+                            <div class="flex items-center justify-between mb-2">
+                                <span class="text-muted">סטטוס:</span>
+                                <span class="status-badge @GetStatusBadgeClass(equipment.Status)">
+                                    @GetStatusText(equipment.Status)
+                                </span>
+                            </div>
+
+                            <div class="flex items-center justify-between mb-2">
+                                <span class="text-muted">כמות:</span>
+                                <span>@equipment.Quantity</span>
+                            </div>
+
+                            <div class="flex items-center justify-between mb-2">
+                                <span class="text-muted">ערך:</span>
+                                <span>@(equipment.Value > 0 ? equipment.Value.ToString("N0") + " ₪" : "-")</span>
+                            </div>
+
+                            <div class="flex items-center justify-between mb-2">
+                                <span class="text-muted">מיקום:</span>
+                                <span>@equipment.StorageLocation</span>
+                            </div>
+                        </div>
+
                         @if (IsAdminOrWarehouseManager)
                         {
-                            <td class="actions-cell">
-                                <button class="btn-icon edit" title="ערוך פריט" @onclick="() => EditEquipment(equipment)">
-                                    <i class="bi bi-pencil-square"></i>
-                                </button>
-                                <button class="btn-icon delete" title="מחק פריט" @onclick="() => ConfirmDelete(equipment)">
-                                    <i class="bi bi-trash"></i>
-                                </button>
-                            </td>
+                            <div class="card-footer">
+                                <div class="flex justify-center gap-2 w-full">
+                                    <button class="btn-action secondary btn-sm" @onclick="() => EditEquipment(equipment)">
+                                        <i class="bi bi-pencil-square"></i> ערוך
+                                    </button>
+                                    <button class="btn-action delete btn-sm" @onclick="() => ConfirmDelete(equipment)">
+                                        <i class="bi bi-trash"></i> מחק
+                                    </button>
+                                </div>
+                            </div>
                         }
-                    </tr>
+                    </div>
                 }
-            </tbody>
-        </table>
-    </div>
-}
+            </div>
+        }
+    }
+</div>
 
 @if (showEditModal && editingEquipment != null)
 {
@@ -113,43 +223,43 @@ else
         </div>
         <div class="modal-body">
             <div class="form-group">
-                <label class="input-label">שם פריט</label>
-                <input class="form-control" @bind="editingEquipment.Name" />
+                <label class="input-label" for="edit-name">שם פריט</label>
+                <input id="edit-name" class="form-control" @bind="editingEquipment.Name" />
             </div>
             <div class="form-group">
-                <label class="input-label">תיאור</label>
-                <textarea class="form-control" @bind="editingEquipment.Description"></textarea>
+                <label class="input-label" for="edit-description">תיאור</label>
+                <textarea id="edit-description" class="form-control" @bind="editingEquipment.Description" rows="3"></textarea>
             </div>
             <div class="form-group">
-                <label class="input-label">מספר סידורי</label>
-                <input class="form-control" @bind="editingEquipment.SerialNumber" />
+                <label class="input-label" for="edit-serial">מספר סידורי</label>
+                <input id="edit-serial" class="form-control" @bind="editingEquipment.SerialNumber" />
             </div>
             <div class="form-group">
-                <label class="input-label">סטטוס</label>
-                <select class="form-control" @bind="editingEquipment.Status">
-                    <option value="זמין">זמין</option>
-                    <option value="בשימוש">בשימוש</option>
-                    <option value="בתיקון">בתיקון</option>
-                    <option value="מושבת">מושבת</option>
+                <label class="input-label" for="edit-status">סטטוס</label>
+                <select id="edit-status" class="form-control" @bind="editingEquipment.Status">
+                    <option value="Available">זמין</option>
+                    <option value="InUse">בשימוש</option>
+                    <option value="Maintenance">בתיקון</option>
+                    <option value="Returned">מוחזר</option>
                 </select>
             </div>
             <div class="form-group">
-                <label class="input-label">כמות</label>
-                <input type="number" class="form-control" @bind="editingEquipment.Quantity" min="0" />
+                <label class="input-label" for="edit-quantity">כמות</label>
+                <input id="edit-quantity" type="number" class="form-control" @bind="editingEquipment.Quantity" min="0" />
             </div>
             <div class="form-group">
-                <label class="input-label">ערך (ש״ח)</label>
-                <input type="number" class="form-control" @bind="editingEquipment.Value" min="0" step="0.01" />
+                <label class="input-label" for="edit-value">ערך (ש״ח)</label>
+                <input id="edit-value" type="number" class="form-control" @bind="editingEquipment.Value" min="0" step="0.01" />
             </div>
             <div class="form-group">
-                <label class="input-label">מיקום אחסון</label>
-                <input class="form-control" @bind="editingEquipment.StorageLocation" />
+                <label class="input-label" for="edit-location">מיקום אחסון</label>
+                <input id="edit-location" class="form-control" @bind="editingEquipment.StorageLocation" />
             </div>
         </div>
         <div class="modal-footer">
             <button class="btn-action secondary" @onclick="CloseModal">ביטול</button>
             <button class="btn-action" @onclick="SaveEquipment">
-                <i class="bi bi-check2-circle me-1"></i> שמור שינויים
+                <i class="bi bi-check2-circle"></i> שמור שינויים
             </button>
         </div>
     </div>
@@ -165,7 +275,7 @@ else
         </div>
         <div class="modal-body">
             <div class="text-center mb-4">
-                <i class="bi bi-exclamation-triangle-fill text-danger delete-warning-icon"></i>
+                <i class="bi bi-exclamation-triangle-fill delete-warning-icon"></i>
             </div>
             <p class="confirm-message">האם אתה בטוח שברצונך למחוק את הפריט "@equipmentToDelete.Name"?</p>
             <p class="warning-message">פעולה זו היא בלתי הפיכה!</p>
@@ -173,331 +283,22 @@ else
         <div class="modal-footer">
             <button class="btn-action secondary" @onclick="CloseModal">ביטול</button>
             <button class="btn-action delete" @onclick="() => RemoveEquipment(equipmentToDelete)">
-                <i class="bi bi-trash me-1"></i> מחק פריט
+                <i class="bi bi-trash"></i> מחק פריט
             </button>
         </div>
     </div>
 }
 
-<style>
-    /* Search section */
-    .search-container {
-        margin-bottom: 1.5rem;
-    }
-
-    .search-input-container {
-        position: relative;
-    }
-
-    .search-icon {
-        position: absolute;
-        left: 10px;
-        top: 8px;
-        color: var(--grey);
-    }
-
-    /* Loading state */
-    .loading-container {
-        display: flex;
-        flex-direction: column;
-        align-items: center;
-        justify-content: center;
-        padding: 2rem;
-    }
-
-    .spinner {
-        width: 40px;
-        height: 40px;
-        border: 4px solid rgba(255, 255, 255, 0.3);
-        border-radius: 50%;
-        border-top-color: var(--primary-red);
-        animation: spin 1s ease-in-out infinite;
-        margin-bottom: 1rem;
-    }
-
-    keyframes spin {
-        to
-
-    {
-        transform: rotate(360deg);
-    }
-
-    }
-
-    /* Empty state */
-    .empty-state {
-        text-align: center;
-        padding: 2rem;
-        background-color: rgba(255,255,255,0.05);
-        border-radius: 8px;
-    }
-
-    .empty-buttons {
-        display: flex;
-        gap: 1rem;
-        justify-content: center;
-        margin-top: 1rem;
-    }
-
-    /* Info bar */
-    .info-bar {
-        display: flex;
-        justify-content: space-between;
-        align-items: center;
-        margin-bottom: 0.5rem;
-        color: var(--grey);
-    }
-
-    /* Table styling */
-    .table-container {
-        overflow-x: auto;
-        margin-bottom: 1rem;
-    }
-
-    .equipment-table {
-        width: 100%;
-        border-collapse: collapse;
-    }
-
-        .equipment-table th {
-            background-color: #333;
-            padding: 12px;
-            text-align: right;
-            font-weight: bold;
-            border-bottom: 2px solid var(--primary-red);
-        }
-
-        .equipment-table td {
-            padding: 10px;
-            border-bottom: 1px solid #555;
-        }
-
-        .equipment-table tbody tr:hover {
-            background-color: rgba(255,255,255,0.05);
-        }
-
-    /* Actions cell styling */
-    .actions-cell {
-        white-space: nowrap;
-        text-align: center;
-    }
-
-    /* Button styling */
-    .btn-action {
-        background-color: var(--primary-red);
-        color: white;
-        border: none;
-        border-radius: 6px;
-        padding: 8px 16px;
-        cursor: pointer;
-        font-weight: bold;
-        transition: all 0.3s;
-        margin-top: 0.5rem;
-        display: inline-flex;
-        align-items: center;
-        justify-content: center;
-    }
-
-        .btn-action:hover {
-            background-color: #b71c1c;
-        }
-
-        .btn-action.secondary {
-            background-color: #555;
-        }
-
-            .btn-action.secondary:hover {
-                background-color: #444;
-            }
-
-        .btn-action.edit {
-            background-color: #007bff;
-        }
-
-            .btn-action.edit:hover {
-                background-color: #0056b3;
-            }
-
-        .btn-action.delete {
-            background-color: #dc3545;
-        }
-
-            .btn-action.delete:hover {
-                background-color: #a71d2a;
-            }
-
-    .btn-refresh {
-        background: none;
-        border: none;
-        font-size: 18px;
-        cursor: pointer;
-        transition: transform 0.3s;
-        display: flex;
-        align-items: center;
-        justify-content: center;
-    }
-
-        .btn-refresh:hover {
-            transform: rotate(180deg);
-        }
-
-    /* Icon buttons */
-    .btn-icon {
-        background: none;
-        border: none;
-        cursor: pointer;
-        font-size: 18px;
-        padding: 6px 10px;
-        border-radius: 4px;
-        margin: 0 3px;
-        transition: all 0.2s;
-    }
-
-        .btn-icon.edit {
-            color: #007bff;
-        }
-
-            .btn-icon.edit:hover {
-                background-color: rgba(0, 123, 255, 0.1);
-            }
-
-        .btn-icon.delete {
-            color: #dc3545;
-        }
-
-            .btn-icon.delete:hover {
-                background-color: rgba(220, 53, 69, 0.1);
-            }
-
-    /* Form elements - matching AddEquipmentForm */
-    .form-group {
-        margin-bottom: 1rem;
-    }
-
-    .input-label {
-        display: block;
-        font-weight: bold;
-        margin-bottom: 4px;
-        color: var(--grey);
-        font-size: 14px;
-    }
-
-    .form-control {
-        width: 100%;
-        padding: 10px 30px 10px 10px;
-        border-radius: 6px;
-        border: none;
-        background-color: #444;
-        color: white;
-        transition: all 0.3s;
-    }
-
-        .form-control:focus {
-            outline: 2px solid var(--primary-red);
-            background-color: #555;
-        }
-
-    /* Alert styling */
-    .alert-danger {
-        background-color: rgba(220, 53, 69, 0.2);
-        color: #dc3545;
-        padding: 16px;
-        border-radius: 6px;
-        border: 1px solid rgba(220, 53, 69, 0.3);
-        text-align: center;
-        margin-bottom: 1rem;
-    }
-
-    /* Modal styling */
-    .modal-backdrop {
-        position: fixed;
-        top: 0;
-        left: 0;
-        right: 0;
-        bottom: 0;
-        background-color: rgba(0, 0, 0, 0.5);
-        z-index: 100;
-    }
-
-    .modal-container {
-        position: fixed;
-        top: 50%;
-        left: 50%;
-        transform: translate(-50%, -50%);
-        background-color: #333;
-        border-radius: 8px;
-        width: 90%;
-        max-width: 500px;
-        max-height: 90vh;
-        overflow-y: auto;
-        z-index: 101;
-        box-shadow: 0 5px 15px rgba(0, 0, 0, 0.3);
-    }
-
-    .delete-modal {
-        max-width: 400px;
-    }
-
-    .modal-header {
-        display: flex;
-        justify-content: space-between;
-        align-items: center;
-        padding: 15px 20px;
-        border-bottom: 1px solid #444;
-    }
-
-    .modal-close {
-        background: none;
-        border: none;
-        font-size: 24px;
-        color: #999;
-        cursor: pointer;
-    }
-
-        .modal-close:hover {
-            color: #fff;
-        }
-
-    .modal-body {
-        padding: 20px;
-    }
-
-    .modal-footer {
-        display: flex;
-        justify-content: flex-end;
-        gap: 10px;
-        padding: 15px 20px;
-        border-top: 1px solid #444;
-    }
-
-    .confirm-message {
-        font-size: 18px;
-        margin-bottom: 10px;
-        text-align: center;
-    }
-
-    .warning-message {
-        color: #dc3545;
-        font-weight: bold;
-        text-align: center;
-    }
-
-    .delete-warning-icon {
-        font-size: 4rem;
-    }
-
-    /* RTL fixes for Bootstrap icons */
-    .me-1 {
-        margin-left: 0.25rem !important;
-        margin-right: 0 !important;
-    }
-</style>
-
 @code {
+    private enum ViewMode { List, Cards }
+
     private List<EquipmentModel> equipmentList = new List<EquipmentModel>();
     private string? errorMessage;
     private bool isLoading = false;
     private string searchTerm = string.Empty;
+    private string statusFilter = string.Empty;
+    private string locationFilter = string.Empty;
+    private ViewMode viewMode = ViewMode.List;
     private bool isAdminOrWarehouseManager = false;
 
     // Modal-related properties
@@ -509,12 +310,31 @@ else
     // Property to check if the current user has admin or warehouse manager permissions
     private bool IsAdminOrWarehouseManager => isAdminOrWarehouseManager;
 
-    // Filtered list based on search term
-    private List<EquipmentModel> FilteredEquipment => string.IsNullOrWhiteSpace(searchTerm)
-        ? equipmentList
-        : equipmentList.Where(e =>
-            e.Name.Contains(searchTerm, StringComparison.OrdinalIgnoreCase) ||
-            e.StorageLocation.Contains(searchTerm, StringComparison.OrdinalIgnoreCase)).ToList();
+    // Unique locations for filtering
+    private List<string> UniqueLocations => equipmentList
+        .Select(e => e.StorageLocation)
+        .Where(l => !string.IsNullOrEmpty(l))
+        .Distinct()
+        .OrderBy(l => l)
+        .ToList();
+
+    // Filtered list based on search term and filters
+    private List<EquipmentModel> FilteredEquipment => equipmentList
+        .Where(e =>
+            (string.IsNullOrWhiteSpace(searchTerm) ||
+             (e.Name?.Contains(searchTerm, StringComparison.OrdinalIgnoreCase) ?? false) ||
+             (e.Description?.Contains(searchTerm, StringComparison.OrdinalIgnoreCase) ?? false) ||
+             (e.SerialNumber?.Contains(searchTerm, StringComparison.OrdinalIgnoreCase) ?? false) ||
+             (e.StorageLocation?.Contains(searchTerm, StringComparison.OrdinalIgnoreCase) ?? false))
+            &&
+            (string.IsNullOrWhiteSpace(statusFilter) ||
+             e.Status?.Equals(statusFilter, StringComparison.OrdinalIgnoreCase) == true)
+            &&
+            (string.IsNullOrWhiteSpace(locationFilter) ||
+             e.StorageLocation?.Equals(locationFilter, StringComparison.OrdinalIgnoreCase) == true)
+        )
+        .OrderBy(e => e.Name)
+        .ToList();
 
     protected override async Task OnInitializedAsync()
     {
@@ -578,6 +398,7 @@ else
             isAdminOrWarehouseManager = false;
         }
     }
+
     private async Task LoadEquipment()
     {
         try
@@ -619,11 +440,63 @@ else
         }
     }
 
-
     private async Task RefreshData()
     {
         Logger.LogInformation("Refreshing equipment data...");
+        searchTerm = string.Empty;
+        statusFilter = string.Empty;
+        locationFilter = string.Empty;
         await LoadEquipment();
+    }
+
+    private void NavigateToAddEquipment()
+    {
+        // This would typically use an admin dashboard tab for adding equipment
+        try
+        {
+            JSRuntime.InvokeVoidAsync("showAddEquipmentTab");
+        }
+        catch
+        {
+            // If there's no JS function defined, log to console
+            JSRuntime.InvokeVoidAsync("console.log", "Add Equipment tab navigation attempted");
+        }
+    }
+
+    private string GetStatusText(string status)
+    {
+        return status?.ToLower() switch
+        {
+            "available" => "זמין",
+            "inuse" => "בשימוש",
+            "maintenance" => "בתיקון",
+            "returned" => "מוחזר",
+            _ => status
+        };
+    }
+
+    private string GetStatusBadgeClass(string status)
+    {
+        return status?.ToLower() switch
+        {
+            "available" => "returned-badge",
+            "returned" => "returned-badge",
+            "inuse" => "checked-out-badge",
+            "maintenance" => "warning-badge",
+            _ => "default-badge"
+        };
+    }
+
+    private string GetCardStatusClass(string status)
+    {
+        return status?.ToLower() switch
+        {
+            "available" => "success",
+            "returned" => "success",
+            "inuse" => "danger",
+            "maintenance" => "warning",
+            _ => ""
+        };
     }
 
     private void AddDemoData()
@@ -644,7 +517,7 @@ else
                 EquipmentID = 1,
                 Name = "מקדחה חשמלית",
                 Description = "מקדחה חזקה במיוחד לקידוחים גדולים",
-                Status = "זמין",
+                Status = "Available",
                 Quantity = 5,
                 StorageLocation = "מחסן ראשי",
                 SerialNumber = "MK-2023-001",
@@ -655,11 +528,33 @@ else
                 EquipmentID = 2,
                 Name = "פטיש 3 קילו",
                 Description = "פטיש כבד לעבודות בנייה",
-                Status = "בשימוש",
+                Status = "InUse",
                 Quantity = 2,
                 StorageLocation = "חדר כלים",
                 SerialNumber = "PT-2022-105",
                 Value = 120
+            },
+            new EquipmentModel
+            {
+                EquipmentID = 3,
+                Name = "ערכת כלי גינה",
+                Description = "ערכה מושלמת לגינה הכוללת מעדר, מגרפה, ומזמרה",
+                Status = "Available",
+                Quantity = 3,
+                StorageLocation = "מחסן גינה",
+                SerialNumber = "GD-2023-012",
+                Value = 200
+            },
+            new EquipmentModel
+            {
+                EquipmentID = 4,
+                Name = "מסור חשמלי",
+                Description = "מסור חשמלי מקצועי לחיתוך עץ",
+                Status = "Maintenance",
+                Quantity = 1,
+                StorageLocation = "חדר תיקונים",
+                SerialNumber = "MS-2021-045",
+                Value = 480
             }
         };
 

@@ -12,35 +12,38 @@
 @inject NavigationManager NavigationManager
 @inject Blazored.LocalStorage.ILocalStorageService LocalStorage
 
-<h2 class="text-center text-2xl font-extrabold mb-6 text-white">ניהול קבוצות ומפעלים</h2>
+<link href="css/helpers.css" rel="stylesheet" />
 
-<div class="tab-bar">
-    <button class="tab-item @(ActiveTab == "add" ? "active" : "")" @onclick='() => OnTabChanged("add")'>
+<h2 class="text-center text-xl font-bold mb-6">ניהול קבוצות ומפעלים</h2>
+
+<div class="tabs mb-4">
+    <button class="tab @(ActiveTab == "add" ? "active" : "")" @onclick='() => OnTabChanged("add")'>
         הוספת קבוצה חדשה
     </button>
-    <button class="tab-item @(ActiveTab == "LoadTeams" ? "active" : "")" @onclick='() => OnTabChanged("LoadTeams")'>
+    <button class="tab @(ActiveTab == "LoadTeams" ? "active" : "")" @onclick='() => OnTabChanged("LoadTeams")'>
         רשימת קבוצות
     </button>
+    <div class="tab-indicator" style="right: @TabIndicatorPosition; width: @TabIndicatorWidth"></div>
 </div>
 
 @if (ActiveTab == "add")
 {
-    <div class="space-y-4">
+    <div class="content-container">
         @if (!string.IsNullOrWhiteSpace(Message))
         {
-            <div class="@(IsError ? "alert-danger" : "alert-success")">
+            <div class="@(IsError ? "alert-danger" : "alert-success") mb-4" aria-live="polite">
                 @Message
             </div>
         }
 
         <div class="form-group">
-            <label class="input-label">שם</label>
-            <input class="form-control" placeholder="שם הקבוצה או המפעל" @bind="NewTeam.TeamName" />
+            <label class="input-label" for="teamName">שם</label>
+            <input id="teamName" class="form-control" placeholder="שם הקבוצה או המפעל" @bind="NewTeam.TeamName" />
         </div>
 
         <div class="form-group">
-            <label class="input-label">סוג</label>
-            <select class="form-control" @bind="TeamType">
+            <label class="input-label" for="teamType">סוג</label>
+            <select id="teamType" class="form-control" @bind="TeamType">
                 <option value="" disabled selected>בחר סוג</option>
                 <option value="Team">קבוצה</option>
                 <option value="מפעל">מפעל</option>
@@ -48,268 +51,144 @@
         </div>
 
         <button class="btn-submit" @onclick="AddEntity" disabled="@IsSubmitting">
-            @(IsSubmitting ? "מוסיף..." : "הוסף למערכת")
+            @if (IsSubmitting)
+            {
+                <div class="inline-flex items-center">
+                    <div class="spinner spinner-sm mr-2"></div>
+                    <span>מוסיף...</span>
+                </div>
+            }
+            else
+            {
+                <span>הוסף למערכת</span>
+            }
         </button>
     </div>
 }
 else if (ActiveTab == "LoadTeams")
 {
-    @if (IsLoading)
-    {
-        <div class="loading-indicator">
-            <div class="spinner"></div>
-            <p>טוען רשימת קבוצות...</p>
-        </div>
-    }
-    else if (Teams.Count == 0)
-    {
-        <p class="no-teams">אין קבוצות ומפעלים במערכת</p>
-    }
-    else
-    {
-        <div class="overflow-x-auto">
-            <table class="teams-table">
-                <thead>
-                    <tr>
-                        <th>מזהה</th>
-                        <th>שם</th>
-                        <th>סוג</th>
-                        <th>סטטוס</th>
-                        <th>פעולות</th>
-                    </tr>
-                </thead>
-                <tbody>
-                    @foreach (var team in Teams)
-                    {
-                        <tr class="@(team.IsActive ? "" : "inactive-team")">
-                            <td>@team.TeamID</td>
-                            <td>@team.TeamName</td>
-                            <td>@(string.IsNullOrEmpty(team.Description) ? "-" : team.Description)</td>
-                            <td>
-                                <span class="status-indicator @(team.IsActive ? "active" : "inactive")">
-                                    @(team.IsActive ? "פעיל" : "לא פעיל")
-                                </span>
-                            </td>
-                            <td class="actions">
-                                <button class="btn-icon" title="ערוך" @onclick="() => EditTeam(team)">
-                                    ✏️
-                                </button>
-                                <button class="btn-icon" title="@(team.IsActive ? "השבת" : "הפעל")" @onclick="() => ToggleTeamStatus(team)">
-                                    @(team.IsActive ? "🔴" : "🟢")
-                                </button>
-                            </td>
+    <div class="content-container">
+        @if (IsLoading)
+        {
+            <div class="loading-container">
+                <div class="spinner"></div>
+                <p>טוען רשימת קבוצות...</p>
+            </div>
+        }
+        else if (Teams.Count == 0)
+        {
+            <div class="empty-state">
+                <i class="fas fa-users"></i>
+                <p class="no-history">אין קבוצות ומפעלים במערכת</p>
+                <div class="empty-buttons">
+                    <button class="btn-action" @onclick="LoadTeams">נסה שנית</button>
+                </div>
+            </div>
+        }
+        else
+        {
+            <div class="info-bar">
+                <span class="records-count">@Teams.Count קבוצות במערכת</span>
+                <button class="btn-refresh" title="רענן רשימה" @onclick="LoadTeams">
+                    <i class="bi bi-arrow-clockwise"></i>
+                </button>
+            </div>
+
+            <div class="table-responsive">
+                <table class="history-table">
+                    <thead>
+                        <tr>
+                            <th>מזהה</th>
+                            <th>שם</th>
+                            <th>סוג</th>
+                            <th>סטטוס</th>
+                            <th>פעולות</th>
                         </tr>
-                    }
-                </tbody>
-            </table>
-        </div>
-    }
+                    </thead>
+                    <tbody>
+                        @foreach (var team in Teams)
+                        {
+                            <tr class="@(team.IsActive ? "" : "inactive")">
+                                <td>@team.TeamID</td>
+                                <td>@team.TeamName</td>
+                                <td>@(string.IsNullOrEmpty(team.Description) ? "-" : team.Description)</td>
+                                <td>
+                                    <span class="status-badge @(team.IsActive ? "returned-badge" : "checked-out-badge")">
+                                        @(team.IsActive ? "פעיל" : "לא פעיל")
+                                    </span>
+                                </td>
+                                <td class="text-center">
+                                    <button class="btn-icon edit" title="ערוך" @onclick="() => EditTeam(team)">
+                                        <i class="bi bi-pencil-square"></i>
+                                    </button>
+                                    <button class="btn-icon @(team.IsActive ? "delete" : "")" title="@(team.IsActive ? "השבת" : "הפעל")" @onclick="() => ToggleTeamStatus(team)">
+                                        <i class="bi @(team.IsActive ? "bi-toggle-on" : "bi-toggle-off")"></i>
+                                    </button>
+                                </td>
+                            </tr>
+                        }
+                    </tbody>
+                </table>
+            </div>
+        }
+
+        @if (!string.IsNullOrWhiteSpace(Message))
+        {
+            <div class="@(IsError ? "alert-danger" : "alert-success") mt-4" aria-live="polite">
+                @Message
+            </div>
+        }
+    </div>
 }
 
-<style>
-    .tab-bar {
-        display: flex;
-        justify-content: center;
-        background-color: #2a2a2a;
-        border-radius: 8px;
-        overflow: hidden;
-        margin-bottom: 20px;
-        box-shadow: 0 4px 6px rgba(0, 0, 0, 0.1);
-    }
-
-    .tab-item {
-        flex: 1;
-        padding: 10px 20px;
-        text-align: center;
-        font-weight: bold;
-        color: white;
-        background-color: #444;
-        cursor: pointer;
-        transition: all 0.3s;
-        border: none;
-    }
-
-        .tab-item.active {
-            background-color: #d32f2f;
-            color: white;
-            box-shadow: inset 0 -4px 0 #b71c1c;
-        }
-
-        .tab-item:hover:not(.active) {
-            background-color: #555;
-        }
-
-    .form-group {
-        margin-bottom: 1rem;
-    }
-
-    .input-label {
-        display: block;
-        font-weight: bold;
-        margin-bottom: 4px;
-        color: var(--grey);
-        font-size: 14px;
-    }
-
-    .form-control {
-        width: 100%;
-        padding: 10px;
-        border-radius: 6px;
-        border: none;
-        background-color: #444;
-        color: white;
-        transition: all 0.3s;
-    }
-
-        .form-control:focus {
-            outline: 2px solid var(--primary-red);
-            background-color: #555;
-        }
-
-    .btn-submit {
-        background-color: var(--primary-red);
-        color: white;
-        width: 100%;
-        padding: 10px;
-        border: none;
-        border-radius: 6px;
-        font-weight: bold;
-        cursor: pointer;
-        transition: all 0.3s;
-        margin-top: 10px;
-    }
-
-        .btn-submit:hover:not(:disabled) {
-            background-color: #b71c1c;
-        }
-
-        .btn-submit:disabled {
-            opacity: 0.6;
-            cursor: not-allowed;
-        }
-
-    .alert-success {
-        background-color: rgba(40, 167, 69, 0.2);
-        color: #28a745;
-        padding: 10px;
-        border-radius: 6px;
-        border: 1px solid rgba(40, 167, 69, 0.3);
-        text-align: center;
-        margin-bottom: 1rem;
-    }
-
-    .alert-danger {
-        background-color: rgba(220, 53, 69, 0.2);
-        color: #dc3545;
-        padding: 10px;
-        border-radius: 6px;
-        border: 1px solid rgba(220, 53, 69, 0.3);
-        text-align: center;
-        margin-bottom: 1rem;
-    }
-
-    .teams-container {
-        margin-top: 20px;
-    }
-
-    .teams-table {
-        width: 100%;
-        border-collapse: collapse;
-        color: white;
-    }
-
-        .teams-table th,
-        .teams-table td {
-            padding: 12px 15px;
-            text-align: right;
-        }
-
-        .teams-table th {
-            background-color: #333;
-            font-weight: bold;
-            border-bottom: 2px solid #555;
-        }
-
-        .teams-table tbody tr {
-            border-bottom: 1px solid #444;
-            transition: background-color 0.3s;
-        }
-
-            .teams-table tbody tr:hover {
-                background-color: #333;
-            }
-
-    .inactive-team {
-        opacity: 0.6;
-    }
-
-    .status-indicator {
-        display: inline-block;
-        padding: 3px 8px;
-        border-radius: 12px;
-        font-size: 0.85rem;
-    }
-
-        .status-indicator.active {
-            background-color: rgba(40, 167, 69, 0.2);
-            color: #2bd555;
-        }
-
-        .status-indicator.inactive {
-            background-color: rgba(220, 53, 69, 0.2);
-            color: #ff5a5a;
-        }
-
-    .btn-icon {
-        background: none;
-        border: none;
-        cursor: pointer;
-        font-size: 18px;
-        margin: 0 5px;
-        padding: 5px;
-    }
-
-    .actions {
-        display: flex;
-        justify-content: center;
-    }
-
-    .no-teams {
-        text-align: center;
-        padding: 30px;
-        font-style: italic;
-        color: #999;
-    }
-
-    .loading-indicator {
-        display: flex;
-        flex-direction: column;
-        align-items: center;
-        justify-content: center;
-        padding: 30px 0;
-    }
-
-    .spinner {
-        width: 40px;
-        height: 40px;
-        border: 4px solid rgba(255, 255, 255, 0.3);
-        border-radius: 50%;
-        border-top-color: var(--primary-red);
-        animation: spin 1s linear infinite;
-        margin-bottom: 15px;
-    }
-
-    keyframes spin {
-        to
-
-    {
-        transform: rotate(360deg);
-    }
-
-    }
-</style>
+@if (showEditModal && editingTeam != null)
+{
+    <div class="modal-backdrop" @onclick="CloseModal"></div>
+    <div class="modal-container" @onclick:stopPropagation="true">
+        <div class="modal-header">
+            <h3>עריכת קבוצה</h3>
+            <button class="modal-close" @onclick="CloseModal">×</button>
+        </div>
+        <div class="modal-body">
+            <div class="form-group">
+                <label class="input-label" for="edit-name">שם</label>
+                <input id="edit-name" class="form-control" @bind="editingTeam.TeamName" />
+            </div>
+            <div class="form-group">
+                <label class="input-label" for="edit-type">סוג</label>
+                <select id="edit-type" class="form-control" @bind="editingTeam.Description">
+                    <option value="Team">קבוצה</option>
+                    <option value="מפעל">מפעל</option>
+                </select>
+            </div>
+            <div class="form-group">
+                <label class="input-label" for="edit-status">סטטוס</label>
+                <select id="edit-status" class="form-control" @bind="editingTeam.IsActive">
+                    <option value="true">פעיל</option>
+                    <option value="false">לא פעיל</option>
+                </select>
+            </div>
+        </div>
+        <div class="modal-footer">
+            <button class="btn-action secondary" @onclick="CloseModal">ביטול</button>
+            <button class="btn-action" @onclick="SaveTeam">
+                <i class="bi bi-check2-circle"></i> שמור שינויים
+            </button>
+        </div>
+    </div>
+}
 
 @code {
+    // Tab indicator properties
+    private string TabIndicatorPosition => ActiveTab switch
+    {
+        "add" => "0%",
+        "LoadTeams" => "50%",
+        _ => "0%"
+    };
+
+    private string TabIndicatorWidth => "50%";
+
     private TeamModel NewTeam = new()
     {
         TeamName = string.Empty,
@@ -324,11 +203,16 @@ else if (ActiveTab == "LoadTeams")
     private string ActiveTab = "add";
     private List<TeamModel> Teams = new();
 
+    // Modal properties
+    private bool showEditModal = false;
+    private TeamModel? editingTeam;
+
     private async Task AddEntity()
     {
         IsSubmitting = true;
         Message = string.Empty;
         IsError = false;
+        StateHasChanged();
 
         try
         {
@@ -362,7 +246,11 @@ else if (ActiveTab == "LoadTeams")
                 };
                 TeamType = string.Empty;
 
-                await LoadTeams();
+                // If we're on the list tab, refresh the list
+                if (ActiveTab == "LoadTeams")
+                {
+                    await LoadTeams();
+                }
             }
             else
             {
@@ -374,10 +262,12 @@ else if (ActiveTab == "LoadTeams")
         {
             Message = $"שגיאה: {ex.Message}";
             IsError = true;
+            Logger.LogError(ex, "Error adding team");
         }
         finally
         {
             IsSubmitting = false;
+            StateHasChanged();
         }
     }
 
@@ -386,6 +276,7 @@ else if (ActiveTab == "LoadTeams")
         IsLoading = true;
         Message = null;
         IsError = false;
+        StateHasChanged();
 
         try
         {
@@ -406,22 +297,70 @@ else if (ActiveTab == "LoadTeams")
         }
     }
 
-    private void OnTabChanged(string tab)
+    private async Task OnTabChanged(string tab)
     {
         if (ActiveTab == tab) return; // Prevent redundant calls if the tab is already active
 
         ActiveTab = tab;
 
-        if (tab == "LoadTeams" && Teams.Count == 0) // Only load teams if the list is empty
+        // Add a slight delay for the animation to complete before loading data
+        await Task.Delay(50);
+
+        if (tab == "LoadTeams")
         {
-            _ = LoadTeams(); // Call LoadTeams asynchronously
+            await LoadTeams(); // Always refresh the teams list when switching to that tab
         }
     }
 
     private void EditTeam(TeamModel team)
     {
-        Message = $"עריכת צוות {team.TeamName} - פונקציונליות בפיתוח";
-        IsError = false;
+        // Create a copy of the team for editing
+        editingTeam = new TeamModel
+        {
+            TeamID = team.TeamID,
+            TeamName = team.TeamName,
+            Description = team.Description,
+            IsActive = team.IsActive
+        };
+
+        showEditModal = true;
+        StateHasChanged();
+    }
+
+    private async Task SaveTeam()
+    {
+        if (editingTeam == null) return;
+
+        try
+        {
+            var result = await TeamService.UpdateTeamAsync(editingTeam);
+
+            if (result)
+            {
+                Message = $"הקבוצה {editingTeam.TeamName} עודכנה בהצלחה";
+                IsError = false;
+                CloseModal();
+                await LoadTeams(); // Refresh the list
+            }
+            else
+            {
+                Message = "שגיאה בעדכון הקבוצה";
+                IsError = true;
+            }
+        }
+        catch (Exception ex)
+        {
+            Message = $"שגיאה: {ex.Message}";
+            IsError = true;
+            Logger.LogError(ex, "Error updating team");
+        }
+    }
+
+    private void CloseModal()
+    {
+        showEditModal = false;
+        editingTeam = null;
+        StateHasChanged();
     }
 
     private async Task ToggleTeamStatus(TeamModel team)
@@ -447,6 +386,11 @@ else if (ActiveTab == "LoadTeams")
         {
             Message = $"שגיאה: {ex.Message}";
             IsError = true;
+            Logger.LogError(ex, "Error toggling team status");
+        }
+        finally
+        {
+            StateHasChanged();
         }
     }
 }

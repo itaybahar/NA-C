@@ -60,7 +60,38 @@ namespace API_Project.Controllers
             var teamCheckouts = await _checkoutRepository.GetByTeamIdAsync(teamId);
             return Ok(teamCheckouts);
         }
+        [HttpPut("return/{checkoutId}")]
+        [AllowAnonymous]
+        public async Task<IActionResult> ReturnEquipmentWithDetails(int checkoutId, [FromBody] EquipmentReturnRequest request)
+        {
+            var checkout = await _repository.GetByIdAsync(checkoutId);
+            if (checkout == null)
+            {
+                return NotFound();
+            }
 
+            checkout.Status = "Returned";
+            checkout.ActualReturnDate = request.ReturnDate ?? DateTime.UtcNow;
+
+            // Add the additional information if your data model supports it
+            // If not, you might need to extend your data model
+            if (!string.IsNullOrEmpty(request.Condition))
+            {
+                checkout.ReturnCondition = request.Condition;
+            }
+
+            if (!string.IsNullOrEmpty(request.Notes))
+            {
+                checkout.Notes = request.Notes;
+            }
+
+            await _repository.UpdateAsync(checkout);
+            await _repository.SaveChangesAsync(checkout);
+
+            return Ok(checkout);
+        }
+
+        // Keep the original endpoint for backward compatibility
         [HttpPost("return/{checkoutId}")]
         [AllowAnonymous]
         public async Task<IActionResult> ReturnEquipment(int checkoutId)
@@ -79,6 +110,16 @@ namespace API_Project.Controllers
 
             return Ok(checkout);
         }
+
+        // Define a class for the return request
+        public class EquipmentReturnRequest
+        {
+            public string? Condition { get; set; }
+            public string? Notes { get; set; }
+            public DateTime? ReturnDate { get; set; }
+        }
+
+
 
         [HttpGet("overdue/timespan")]
         [AllowAnonymous]
@@ -131,6 +172,29 @@ namespace API_Project.Controllers
                 return StatusCode(500, $"Error retrieving detailed checkout history: {ex.Message}");
             }
         }
+        [HttpGet("get-checkout-id")]
+        [AllowAnonymous]
+        public async Task<IActionResult> GetCheckoutIdByTeamAndEquipment(int teamId, int equipmentId)
+        {
+            try
+            {
+                // Change from calling a non-existent method to using the repository
+                var checkoutId = await _checkoutRepository.GetCheckoutIdByTeamAndEquipmentAsync(teamId, equipmentId);
+
+                if (checkoutId == null)
+                {
+                    return NotFound($"No active checkout found for team ID: {teamId} and equipment ID: {equipmentId}");
+                }
+
+                return Ok(checkoutId);
+            }
+            catch (Exception ex)
+            {
+                return StatusCode(500, $"Error retrieving checkout ID: {ex.Message}");
+            }
+        }
+
+
 
         [HttpPost("checkout")]
         [AllowAnonymous]

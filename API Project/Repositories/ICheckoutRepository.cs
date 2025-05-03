@@ -10,4 +10,6 @@ public interface ICheckoutRepository
     Task<bool> HasUnreturnedItemsAsync(string teamId);
     // Use the aliased type to avoid ambiguity
     Task<List<CheckoutRecordDto>> GetCheckoutHistoryAsync();
+    Task<int?> GetCheckoutIdByTeamAndEquipmentAsync(int teamId, int equipmentId);
+
 }

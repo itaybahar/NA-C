@@ -4,142 +4,83 @@
 
 @inject IEquipmentService EquipmentService
 
-<h2 class="text-center text-xl font-bold mb-6 text-white">הוספת פריט חדש</h2>
+<link href="css/helpers.css" rel="stylesheet" />
 
-<div class="space-y-4">
+<h2 class="text-center text-xl font-bold mb-6">הוספת פריט חדש</h2>
+
+<div class="content-container">
     @if (!string.IsNullOrWhiteSpace(Message))
     {
-        <div class="@(IsError ? "alert-danger" : "alert-success")" aria-live="polite">
+        <div class="@(IsError ? "alert-danger" : "alert-success") mb-4" aria-live="polite">
             @Message
         </div>
     }
 
-    <div class="form-group">
-        <label class="input-label" for="name">שם פריט</label>
-        <input id="name" class="form-control" placeholder="שם הפריט" @bind="NewItem.Name" />
-    </div>
+    @if (IsLoading)
+    {
+        <div class="loading-container">
+            <div class="spinner"></div>
+            <p>טוען נתונים...</p>
+        </div>
+    }
+    else
+    {
+        <div class="form-group">
+            <label class="input-label" for="name">שם פריט</label>
+            <input id="name" class="form-control" placeholder="שם הפריט" @bind="NewItem.Name" />
+        </div>
 
-    <div class="form-group">
-        <label class="input-label" for="description">תיאור פריט</label>
-        <input id="description" class="form-control" placeholder="תיאור קצר של הפריט" @bind="NewItem.Description" />
-    </div>
+        <div class="form-group">
+            <label class="input-label" for="description">תיאור פריט</label>
+            <textarea id="description" class="form-control" placeholder="תיאור קצר של הפריט" @bind="NewItem.Description" rows="3"></textarea>
+        </div>
 
-    <div class="form-group">
-        <label class="input-label" for="serialNumber">מספר סידורי</label>
-        <input id="serialNumber" class="form-control" placeholder="מספר סידורי של הפריט" @bind="NewItem.SerialNumber" />
-    </div>
+        <div class="form-group">
+            <label class="input-label" for="serialNumber">מספר סידורי</label>
+            <input id="serialNumber" class="form-control" placeholder="מספר סידורי של הפריט" @bind="NewItem.SerialNumber" />
+        </div>
 
-    <div class="form-group">
-        <label class="input-label" for="quantity">כמות</label>
-        <input id="quantity" class="form-control" placeholder="כמות הפריטים במלאי" type="number" @bind="NewItem.Quantity" min="1" />
-    </div>
+        <div class="form-group">
+            <label class="input-label" for="quantity">כמות</label>
+            <input id="quantity" class="form-control" placeholder="כמות הפריטים במלאי" type="number" @bind="NewItem.Quantity" min="1" />
+        </div>
 
-    <div class="form-group">
-        <label class="input-label" for="storageLocation">מיקום אחסון</label>
-        <input id="storageLocation" class="form-control" placeholder="מיקום האחסון של הפריט" @bind="NewItem.StorageLocation" />
-    </div>
+        <div class="form-group">
+            <label class="input-label" for="storageLocation">מיקום אחסון</label>
+            <input id="storageLocation" class="form-control" placeholder="מיקום האחסון של הפריט" @bind="NewItem.StorageLocation" />
+        </div>
 
-    <div class="form-group">
-        <label class="input-label" for="status">סטטוס</label>
-        <select id="status" class="form-control" @bind="NewItem.Status">
-            <option value="" disabled selected>בחר סטטוס</option>
-            <option value="זמין">זמין</option>
-            <option value="בשימוש">בשימוש</option>
-            <option value="בתחזוקה">בתחזוקה</option>
-            <option value="מוחזר">מוחזר</option>
-        </select>
-    </div>
+        <div class="form-group">
+            <label class="input-label" for="status">סטטוס</label>
+            <select id="status" class="form-control" @bind="NewItem.Status">
+                <option value="" disabled selected>בחר סטטוס</option>
+                <option value="Available">זמין</option>
+                <option value="InUse">בשימוש</option>
+                <option value="Maintenance">בתחזוקה</option>
+                <option value="Returned">מוחזר</option>
+            </select>
+        </div>
 
-    <div class="form-group">
-        <label class="input-label" for="value">ערך (ש״ח)</label>
-        <input id="value" class="form-control" placeholder="ערך כספי של הפריט" type="number" @bind="NewItem.Value" min="0" />
-    </div>
+        <div class="form-group">
+            <label class="input-label" for="value">ערך (ש״ח)</label>
+            <input id="value" class="form-control" placeholder="ערך כספי של הפריט" type="number" @bind="NewItem.Value" min="0" step="0.01" />
+        </div>
 
-    <button class="btn-submit" @onclick="AddEquipment" disabled="@IsSubmitting">
-        @if (IsSubmitting)
-        {
-            <span>
-                <i class="spinner-border spinner-border-sm me-2" role="status"></i>
-                מוסיף...
-            </span>
-        }
-        else
-        {
-            <span>הוסף למערכת</span>
-        }
-    </button>
+        <button class="btn-submit" @onclick="AddEquipment" disabled="@IsSubmitting">
+            @if (IsSubmitting)
+            {
+                <div class="inline-flex items-center">
+                    <div class="spinner spinner-sm mr-2"></div>
+                    <span>מוסיף...</span>
+                </div>
+            }
+            else
+            {
+                <span>הוסף למערכת</span>
+            }
+        </button>
+    }
 </div>
-
-<style>
-    .form-group {
-        margin-bottom: 1rem;
-    }
-
-    .input-label {
-        display: block;
-        font-weight: bold;
-        margin-bottom: 4px;
-        color: var(--grey);
-        font-size: 14px;
-    }
-
-    .form-control {
-        width: 100%;
-        padding: 10px;
-        border-radius: 6px;
-        border: none;
-        background-color: #444;
-        color: white;
-        transition: all 0.3s;
-    }
-
-        .form-control:focus {
-            outline: 2px solid var(--primary-red);
-            background-color: #555;
-        }
-
-    .btn-submit {
-        background-color: var(--primary-red);
-        color: white;
-        width: 100%;
-        padding: 10px;
-        border: none;
-        border-radius: 6px;
-        font-weight: bold;
-        cursor: pointer;
-        transition: all 0.3s;
-        margin-top: 10px;
-    }
-
-        .btn-submit:hover:not(:disabled) {
-            background-color: #b71c1c;
-        }
-
-        .btn-submit:disabled {
-            opacity: 0.6;
-            cursor: not-allowed;
-        }
-
-    .alert-success {
-        background-color: rgba(40, 167, 69, 0.2);
-        color: #28a745;
-        padding: 10px;
-        border-radius: 6px;
-        border: 1px solid rgba(40, 167, 69, 0.3);
-        text-align: center;
-        margin-bottom: 1rem;
-    }
-
-    .alert-danger {
-        background-color: rgba(220, 53, 69, 0.2);
-        color: #dc3545;
-        padding: 10px;
-        border-radius: 6px;
-        border: 1px solid rgba(220, 53, 69, 0.3);
-        text-align: center;
-        margin-bottom: 1rem;
-    }
-</style>
 
 @code {
     private EquipmentModel NewItem = new()
@@ -156,51 +97,39 @@
     private string? Message;
     private bool IsError = false;
     private bool IsSubmitting = false;
+    private bool IsLoading = false;
+
+    protected override async Task OnInitializedAsync()
+    {
+        IsLoading = true;
+        try
+        {
+            // Initialize the component, could load data if needed in the future
+            await Task.Delay(100); // Simulate a short load time
+        }
+        catch (Exception ex)
+        {
+            Message = $"שגיאה בטעינת הטופס: {ex.Message}";
+            IsError = true;
+            Console.WriteLine($"Error initializing add equipment form: {ex}");
+        }
+        finally
+        {
+            IsLoading = false;
+            StateHasChanged();
+        }
+    }
 
     private async Task AddEquipment()
     {
+        if (!ValidateForm())
+            return;
+
         IsSubmitting = true;
-        Message = string.Empty;
-        IsError = false;
+        StateHasChanged();
 
         try
         {
-            // Validate required fields
-            if (string.IsNullOrWhiteSpace(NewItem.Name))
-            {
-                Message = "יש להזין שם פריט";
-                IsError = true;
-                return;
-            }
-
-            if (string.IsNullOrWhiteSpace(NewItem.StorageLocation))
-            {
-                Message = "יש להזין מיקום אחסון";
-                IsError = true;
-                return;
-            }
-
-            if (string.IsNullOrWhiteSpace(NewItem.Status))
-            {
-                Message = "יש לבחור סטטוס";
-                IsError = true;
-                return;
-            }
-
-            if (NewItem.Quantity <= 0)
-            {
-                Message = "יש להזין כמות תקינה (מספר חיובי)";
-                IsError = true;
-                return;
-            }
-
-            if (NewItem.Value < 0)
-            {
-                Message = "יש להזין ערך תקין (מספר חיובי)";
-                IsError = true;
-                return;
-            }
-
             // Log fields to console for debugging
             Console.WriteLine($"Adding equipment: Name={NewItem.Name}, StorageLocation={NewItem.StorageLocation}, Status={NewItem.Status}, Quantity={NewItem.Quantity}, Value={NewItem.Value}");
 
@@ -212,16 +141,7 @@
                 IsError = false;
 
                 // Reset form
-                NewItem = new()
-                {
-                    Name = string.Empty,
-                    Description = string.Empty,
-                    SerialNumber = string.Empty,
-                    Status = string.Empty,
-                    StorageLocation = string.Empty,
-                    Quantity = 1,
-                    Value = 0
-                };
+                ResetForm();
             }
             else
             {
@@ -240,5 +160,70 @@
             IsSubmitting = false;
             StateHasChanged();
         }
+    }
+
+    private bool ValidateForm()
+    {
+        IsSubmitting = true;
+        Message = string.Empty;
+        IsError = false;
+        StateHasChanged();
+
+        // Validate required fields
+        if (string.IsNullOrWhiteSpace(NewItem.Name))
+        {
+            Message = "יש להזין שם פריט";
+            IsError = true;
+            IsSubmitting = false;
+            return false;
+        }
+
+        if (string.IsNullOrWhiteSpace(NewItem.StorageLocation))
+        {
+            Message = "יש להזין מיקום אחסון";
+            IsError = true;
+            IsSubmitting = false;
+            return false;
+        }
+
+        if (string.IsNullOrWhiteSpace(NewItem.Status))
+        {
+            Message = "יש לבחור סטטוס";
+            IsError = true;
+            IsSubmitting = false;
+            return false;
+        }
+
+        if (NewItem.Quantity <= 0)
+        {
+            Message = "יש להזין כמות תקינה (מספר חיובי)";
+            IsError = true;
+            IsSubmitting = false;
+            return false;
+        }
+
+        if (NewItem.Value < 0)
+        {
+            Message = "יש להזין ערך תקין (מספר חיובי)";
+            IsError = true;
+            IsSubmitting = false;
+            return false;
+        }
+
+        return true;
+    }
+
+    private void ResetForm()
+    {
+        NewItem = new()
+        {
+            Name = string.Empty,
+            Description = string.Empty,
+            SerialNumber = string.Empty,
+            Status = string.Empty,
+            StorageLocation = string.Empty,
+            Quantity = 1,
+            Value = 0
+        };
     }
 }

@@ -115,16 +115,36 @@ namespace Blazor_WebAssembly.Services.Implementations
             }
         }
 
-        public async Task<bool> ReturnEquipmentAsync(int checkoutId)
+        public async Task<bool> ReturnEquipmentAsync(int checkoutId, string condition = "Good", string notes = "")
         {
             try
             {
                 await EnsureAuthorizationHeaderAsync();
 
-                var response = await _httpClient.PostAsync($"{BaseApiPath}/return/{checkoutId}", null);
+                // Create a return request with additional data
+                var returnRequest = new
+                {
+                    Condition = condition,
+                    Notes = notes,
+                    ReturnDate = DateTime.UtcNow
+                };
+
+                var content = new StringContent(
+                    JsonSerializer.Serialize(returnRequest),
+                    Encoding.UTF8,
+                    "application/json");
+
+                // Use PUT for updating equipment status with a body
+                var response = await _httpClient.PutAsync($"{BaseApiPath}/return/{checkoutId}", content);
 
                 if (response.IsSuccessStatusCode)
                 {
+                    // Log the successful status change
+                    Console.WriteLine($"Equipment status updated to 'Returned' for checkout ID {checkoutId}");
+
+                    // Update the history status too
+                    await UpdateCheckoutHistoryStatusAsync(checkoutId, "Returned", DateTime.UtcNow);
+
                     return true;
                 }
 
@@ -134,6 +154,43 @@ namespace Blazor_WebAssembly.Services.Implementations
             catch (Exception ex)
             {
                 Console.Error.WriteLine($"Error returning equipment for checkout ID {checkoutId}: {ex.Message}");
+                return false;
+            }
+        }
+
+        // Simple version for the interface implementation
+        public async Task<bool> ReturnEquipmentAsync(int checkoutId)
+        {
+            // Call the more detailed version with default parameters
+            return await ReturnEquipmentAsync(checkoutId, "Good", "");
+        }
+
+        // Add a new method to explicitly update the history status
+        private async Task<bool> UpdateCheckoutHistoryStatusAsync(int checkoutId, string status, DateTime returnDate)
+        {
+            try
+            {
+                var updateRequest = new
+                {
+                    CheckoutId = checkoutId,
+                    Status = status,
+                    ReturnDate = returnDate
+                };
+
+                var response = await _httpClient.PutAsJsonAsync($"{BaseApiPath}/history/update-status", updateRequest);
+
+                if (response.IsSuccessStatusCode)
+                {
+                    Console.WriteLine($"Successfully updated checkout history status to '{status}' for checkout ID {checkoutId}");
+                    return true;
+                }
+
+                Console.WriteLine($"Failed to update checkout history status. Status code: {response.StatusCode}");
+                return false;
+            }
+            catch (Exception ex)
+            {
+                Console.WriteLine($"Exception in UpdateCheckoutHistoryStatusAsync: {ex.Message}");
                 return false;
             }
         }
@@ -228,7 +285,6 @@ namespace Blazor_WebAssembly.Services.Implementations
             }
         }
 
-
         public async Task<List<CheckoutRecordDto>> GetCheckoutHistoryAsync()
         {
             try
@@ -259,6 +315,92 @@ namespace Blazor_WebAssembly.Services.Implementations
             }
         }
 
+        public async Task<int?> GetCheckoutIdByTeamAndEquipmentAsync(int teamId, int equipmentId)
+        {
+            try
+            {
+                var response = await _httpClient.GetAsync($"api/equipmentcheckout/get-checkout-id?teamId={teamId}&equipmentId={equipmentId}");
+
+                if (response.IsSuccessStatusCode)
+                {
+                    var checkoutId = await response.Content.ReadFromJsonAsync<int>();
+                    Console.WriteLine($"Retrieved checkout ID {checkoutId} for team ID {teamId} and equipment ID {equipmentId}.");
+                    return checkoutId;
+                }
+
+                Console.WriteLine($"Failed to retrieve checkout ID. Status: {response.StatusCode}");
+                return null;
+            }
+            catch (Exception ex)
+            {
+                Console.WriteLine($"Exception in GetCheckoutIdByTeamAndEquipmentAsync: {ex.Message}");
+                return null;
+            }
+        }
+
+        public async Task<bool> AddCheckoutHistoryAsync(CheckoutRecordDto record)
+        {
+            try
+            {
+                // Debug the record being sent
+                Console.WriteLine($"Attempting to add checkout history: EquipmentId={record.EquipmentId}, UserId={record.UserId}, ReturnedAt={record.ReturnedAt}");
+
+                // Instead of using a non-existent API endpoint, let's directly update the existing checkout
+                // Use the ReturnEquipment API endpoint which already exists and will mark the checkout as returned
+
+                // Try using the equipment checkout endpoint - it already updates the status in the database
+                int checkoutId = int.Parse(record.Id != "0" ? record.Id : "0");
+                if (checkoutId == 0)
+                {
+                    // If we don't have a valid checkout ID, we need to find it
+                    if (int.TryParse(record.EquipmentId, out int equipmentId) && record.TeamId > 0)
+                    {
+                        var foundCheckoutId = await GetCheckoutIdByTeamAndEquipmentAsync(record.TeamId, equipmentId);
+                        if (foundCheckoutId.HasValue)
+                        {
+                            checkoutId = foundCheckoutId.Value;
+                        }
+                    }
+                }
+
+                if (checkoutId > 0)
+                {
+                    // Create a return request
+                    var returnRequest = new
+                    {
+                        ReturnDate = record.ReturnedAt ?? DateTime.UtcNow,
+                        Condition = "Returned", // Use default value or add to record
+                        Notes = "Returned via system" // Use default value or add to record
+                    };
+
+                    // Send the update request
+                    var response = await _httpClient.PutAsJsonAsync($"api/equipmentcheckout/return/{checkoutId}", returnRequest);
+
+                    if (response.IsSuccessStatusCode)
+                    {
+                        Console.WriteLine($"Successfully updated checkout ID {checkoutId} as returned.");
+                        return true;
+                    }
+                    else
+                    {
+                        Console.WriteLine($"Failed to update checkout history. Status: {response.StatusCode}");
+                        var content = await response.Content.ReadAsStringAsync();
+                        Console.WriteLine($"Response content: {content}");
+                        return false;
+                    }
+                }
+                else
+                {
+                    Console.WriteLine("Cannot add checkout history: no valid checkout ID");
+                    return false;
+                }
+            }
+            catch (Exception ex)
+            {
+                Console.WriteLine($"Exception in AddCheckoutHistoryAsync: {ex.Message}");
+                return false;
+            }
+        }
 
         // Helper method to handle error responses with detailed information
         private async Task HandleErrorResponse(HttpResponseMessage response, string operationDescription)

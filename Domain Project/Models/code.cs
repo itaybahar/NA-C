@@ -189,6 +189,7 @@ public class EquipmentCheckout
         public required string Status { get; set; } = "CheckedOut";
 
         public string? Notes { get; set; }
+    public string ReturnCondition { get; set; }
 }
 
     public class CheckoutRecord

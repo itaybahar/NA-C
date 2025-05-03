@@ -16,29 +16,33 @@
 @inject ILocalStorageService LocalStorageService
 @inject IJSRuntime JSRuntime
 
-<h2 class="text-center text-xl font-bold mb-6 text-white">ניהול ציוד</h2>
+<link href="css/dashboard.css" rel="stylesheet" />
+
+<h2 class="text-center text-xl font-bold mb-6">ניהול ציוד</h2>
 
 <div class="tabs mb-4">
     <button class="tab @(ActiveTab == "checkout" ? "active" : "")" @onclick='() => OnTabChanged("checkout")'>
-        הוצאת ציוד
+        <i class="bi bi-box-arrow-right"></i> הוצאת ציוד
     </button>
     <button class="tab @(ActiveTab == "history" ? "active" : "")" @onclick='() => OnTabChanged("history")'>
-        היסטורית הוצעות והחזרות
+        <i class="bi bi-clock-history"></i> היסטורית הוצעות והחזרות
     </button>
     <button class="tab @(ActiveTab == "log" ? "active" : "")" @onclick='() => OnTabChanged("log")'>
-        לוג פעולות
+        <i class="bi bi-list-columns"></i> לוג פעולות
     </button>
     <div class="tab-indicator" style="right: @TabIndicatorPosition; width: @TabIndicatorWidth"></div>
 </div>
 
 @if (ActiveTab == "checkout")
 {
-    <div class="checkout-container">
+    <div class="dashboard-section slide-in">
         @if (!isAuthenticated)
         {
-            <div class="alert alert-warning">
+            <div class="alert-warning mb-4">
                 <p>יש להתחבר כדי להשתמש באפשרות זו.</p>
-                <button class="btn-login" @onclick="HandleLogin">התחבר</button>
+                <button class="btn-action mt-2" @onclick="HandleLogin">
+                    <i class="bi bi-box-arrow-in-right"></i> התחבר
+                </button>
             </div>
         }
         else if (isLoading)
@@ -57,84 +61,152 @@
         }
         else
         {
-            <div class="form-group">
-                <label class="input-label">בחר צוות</label>
-                <input class="form-control search-bar" placeholder="חפש צוות" @bind="TeamSearchQuery" @oninput="FilterTeams" />
-                <select @bind="SelectedTeamId" class="form-control">
-                    <option value="">בחר צוות</option>
-                    @if (FilteredTeams != null)
-                    {
-                        @foreach (var team in FilteredTeams)
-                        {
-                            <option value="@team.TeamID">@team.TeamName</option>
-                        }
-                    }
-                </select>
-            </div>
+            <div class="dashboard-grid grid-2-col">
+                <div class="widget-container">
+                    <div class="widget-header">
+                        <h3 class="widget-title">פרטי הוצאת ציוד</h3>
+                    </div>
 
-            <div class="form-group">
-                <label class="input-label">בחר ציוד</label>
-                <input class="form-control search-bar" placeholder="חפש ציוד" @bind="EquipmentSearchQuery" @oninput="FilterEquipment" />
-                <select @bind="SelectedEquipmentId" class="form-control">
-                    <option value="">בחר ציוד</option>
-                    @if (FilteredEquipment != null && FilteredEquipment.Any())
-                    {
-                        @foreach (var item in FilteredEquipment)
-                        {
-                            <option value="@item.EquipmentID">@item.Name (@item.Status)</option>
-                        }
-                    }
-                    else
-                    {
-                        <option disabled>אין ציוד זמין</option>
-                    }
-                </select>
-            </div>
+                    <div class="form-group">
+                        <label class="input-label" for="team-search">בחר צוות</label>
+                        <div class="search-input-container">
+                            <input id="team-search" class="search-bar" placeholder="חפש צוות" @bind="TeamSearchQuery" @oninput="FilterTeams" />
+                            <i class="bi bi-search search-icon"></i>
+                        </div>
+                        <select id="team-select" @bind="SelectedTeamId" class="form-control mt-2">
+                            <option value="">בחר צוות</option>
+                            @if (FilteredTeams != null)
+                            {
+                                @foreach (var team in FilteredTeams)
+                                {
+                                    <option value="@team.TeamID">@team.TeamName</option>
+                                }
+                            }
+                        </select>
+                    </div>
 
-            <button class="btn-submit" @onclick="CheckoutItem" disabled="@(isSubmitting || SelectedTeamId == null || SelectedEquipmentId == null)">
-                @if (isSubmitting)
+                    <div class="form-group">
+                        <label class="input-label" for="equipment-search">בחר ציוד</label>
+                        <div class="search-input-container">
+                            <input id="equipment-search" class="search-bar" placeholder="חפש ציוד" @bind="EquipmentSearchQuery" @oninput="FilterEquipment" />
+                            <i class="bi bi-search search-icon"></i>
+                        </div>
+                        <select id="equipment-select" @bind="SelectedEquipmentId" class="form-control mt-2">
+                            <option value="">בחר ציוד</option>
+                            @if (FilteredEquipment != null && FilteredEquipment.Any())
+                            {
+                                @foreach (var item in FilteredEquipment)
+                                {
+                                    <option value="@item.EquipmentID" disabled="@(!IsEquipmentAvailable(item))">
+                                        @item.Name @(IsEquipmentAvailable(item) ? "" : "(לא זמין)") - @GetStatusText(item.Status)
+                                    </option>
+                                }
+                            }
+                            else
+                            {
+                                <option disabled>אין ציוד זמין</option>
+                            }
+                        </select>
+                    </div>
+
+                    <div class="mt-4">
+                        <button class="btn-submit" @onclick="CheckoutItem" disabled="@(isSubmitting || SelectedTeamId == null || SelectedEquipmentId == null || !IsSelectedEquipmentAvailable())">
+                            @if (isSubmitting)
+                            {
+                                <div class="inline-flex items-center">
+                                    <div class="spinner spinner-sm mr-2"></div>
+                                    <span>מוציא ציוד...</span>
+                                </div>
+                            }
+                            else
+                            {
+                                <i class="bi bi-box-arrow-right mr-2"></i>
+                                <span>הוצא ציוד</span>
+                            }
+                        </button>
+                    </div>
+
+                    @if (!string.IsNullOrEmpty(Message))
+                    {
+                        <div class="@(isError ? "alert-danger" : "alert-success") mt-4">@Message</div>
+                    }
+                </div>
+
+                @if (SelectedEquipmentId.HasValue)
                 {
-                    <span>מוציא ציוד...</span>
+                    var selectedEquipment = GetSelectedEquipment();
+                    if (selectedEquipment != null)
+                    {
+                        <div class="dashboard-card">
+                            <div class="card-header">
+                                <div>
+                                    <h3 class="card-title">@selectedEquipment.Name</h3>
+                                    <p class="card-subtitle">@(string.IsNullOrEmpty(selectedEquipment.Description) ? "אין תיאור" : selectedEquipment.Description)</p>
+                                </div>
+                                <div class="card-icon">
+                                    <i class="bi bi-box-seam"></i>
+                                </div>
+                            </div>
+                            <div class="card-content">
+                                <div class="flex items-center justify-between mb-2">
+                                    <span class="text-muted">מספר סידורי:</span>
+                                    <span>@(string.IsNullOrEmpty(selectedEquipment.SerialNumber) ? "לא הוזן" : selectedEquipment.SerialNumber)</span>
+                                </div>
+                                <div class="flex items-center justify-between mb-2">
+                                    <span class="text-muted">מיקום אחסון:</span>
+                                    <span>@selectedEquipment.StorageLocation</span>
+                                </div>
+                                <div class="flex items-center justify-between mb-2">
+                                    <span class="text-muted">כמות זמינה:</span>
+                                    <span>@selectedEquipment.Quantity</span>
+                                </div>
+                                <div class="flex items-center justify-between">
+                                    <span class="text-muted">סטטוס:</span>
+                                    <span class="status-badge @GetStatusBadgeClass(selectedEquipment.Status)">
+                                        @GetStatusText(selectedEquipment.Status)
+                                    </span>
+                                </div>
+                            </div>
+                        </div>
+                    }
                 }
-                else
-                {
-                    <span>הוצא ציוד</span>
-                }
-            </button>
-
-            @if (!string.IsNullOrEmpty(Message))
-            {
-                <div class="alert-success mt-4">@Message</div>
-            }
+            </div>
         }
     </div>
 }
 else if (ActiveTab == "history")
 {
-    <div class="history-container">
-        <div class="history-header">
-            <h3 class="text-center text-lg font-bold mb-2 text-white">היסטורית ציוד</h3>
-
-            <div class="search-filters">
-                <div class="search-field">
-                    <input type="text"
-                           placeholder="חיפוש לפי צוות"
-                           class="search-input"
-                           @bind="HistoryTeamFilter"
-                           @oninput="FilterHistory" />
-                </div>
-                <div class="search-field">
-                    <input type="text"
-                           placeholder="חיפוש לפי ציוד"
-                           class="search-input"
-                           @bind="HistoryEquipmentFilter"
-                           @oninput="FilterHistory" />
-                </div>
+    <div class="dashboard-section slide-in">
+        <div class="widget-header">
+            <h3 class="widget-title">היסטורית ציוד</h3>
+            <div class="widget-actions">
+                <button class="btn-refresh" title="רענן רשימה" @onclick="LoadHistory">
+                    <i class="bi bi-arrow-clockwise"></i>
+                </button>
             </div>
+        </div>
 
-            <div class="flex justify-between items-center mb-4">
-                <span class="records-count">@FilteredCheckoutHistory.Count רשומות מתוך @CheckoutHistory.Count</span>
+        <div class="search-filters">
+            <div class="search-input-container">
+                <input type="text"
+                       placeholder="חיפוש לפי צוות"
+                       class="search-bar"
+                       @bind="HistoryTeamFilter"
+                       @oninput="FilterHistory" />
+                <i class="bi bi-search search-icon"></i>
             </div>
+            <div class="search-input-container">
+                <input type="text"
+                       placeholder="חיפוש לפי ציוד"
+                       class="search-bar"
+                       @bind="HistoryEquipmentFilter"
+                       @oninput="FilterHistory" />
+                <i class="bi bi-search search-icon"></i>
+            </div>
+        </div>
+
+        <div class="info-bar">
+            <span class="records-count">@FilteredCheckoutHistory.Count רשומות מתוך @CheckoutHistory.Count</span>
         </div>
 
         @if (isLoadingHistory)
@@ -147,8 +219,11 @@ else if (ActiveTab == "history")
         else if (FilteredCheckoutHistory.Count == 0)
         {
             <div class="empty-state">
-                <i class="fas fa-history"></i>
+                <i class="bi bi-clock-history empty-icon"></i>
                 <p class="no-history">אין היסטורית הוצעות והחזרות</p>
+                <div class="empty-buttons">
+                    <button class="btn-action" @onclick="LoadHistory">נסה שנית</button>
+                </div>
             </div>
         }
         else
@@ -215,11 +290,22 @@ else if (ActiveTab == "history")
 }
 else if (ActiveTab == "log")
 {
-    <div class="log-container">
-        <h3 class="text-center text-lg font-bold mb-4 text-white">לוג פעולות</h3>
+    <div class="dashboard-section slide-in">
+        <div class="widget-header">
+            <h3 class="widget-title">לוג פעולות</h3>
+            <div class="widget-actions">
+                <button class="btn-icon" title="נקה לוג" @onclick="ClearLogs">
+                    <i class="bi bi-trash"></i>
+                </button>
+            </div>
+        </div>
+
         @if (ActionLogs.Count == 0)
         {
-            <p class="no-log">אין לוג פעולות להצגה</p>
+            <div class="empty-state">
+                <i class="bi bi-journal-text empty-icon"></i>
+                <p class="no-log">אין לוג פעולות להצגה</p>
+            </div>
         }
         else
         {
@@ -227,7 +313,7 @@ else if (ActiveTab == "log")
                 @foreach (var log in ActionLogs)
                 {
                     <li class="log-item">
-                        <span class="log-timestamp">@log.Timestamp.ToString("HH:mm:ss")</span>
+                        <span class="log-timestamp">@log.Timestamp.ToString("dd/MM HH:mm:ss")</span>
                         <span class="log-message">@log.Message</span>
                     </li>
                 }
@@ -235,387 +321,6 @@ else if (ActiveTab == "log")
         }
     </div>
 }
-
-<style>
-    .tabs {
-        display: flex;
-        border-radius: 8px;
-        background-color: #333;
-        padding: 4px;
-        position: relative;
-        overflow: hidden;
-        margin-bottom: 20px;
-    }
-
-    .tab {
-        padding: 10px 20px;
-        background: transparent;
-        border: none;
-        color: white;
-        cursor: pointer;
-        position: relative;
-        flex: 1;
-        text-align: center;
-        z-index: 2;
-        transition: color 0.3s ease;
-    }
-
-        .tab:hover {
-            color: #d32f2f;
-        }
-
-        .tab.active {
-            color: #d32f2f;
-        }
-
-    .tab-indicator {
-        position: absolute;
-        height: 3px;
-        bottom: 0;
-        background-color: #d32f2f;
-        border-radius: 0;
-        transition: right 0.3s ease-in-out, width 0.3s ease-in-out;
-        z-index: 1;
-    }
-
-    keyframes fadeIn {
-        from
-
-    {
-        opacity: 0;
-        transform: translateY(10px);
-    }
-
-    to {
-        opacity: 1;
-        transform: translateY(0);
-    }
-
-    }
-
-    .checkout-container, .history-container, .log-container {
-        animation: fadeIn 0.4s ease-out forwards;
-    }
-
-    .search-bar {
-        margin-bottom: 10px;
-        padding: 10px;
-        border-radius: 6px;
-        border: none;
-        background-color: #444;
-        color: white;
-        transition: all 0.3s;
-    }
-
-        .search-bar:focus {
-            outline: 2px solid #d32f2f;
-            background-color: #555;
-        }
-
-    .form-control {
-        width: 100%;
-        padding: 10px;
-        border-radius: 6px;
-        border: none;
-        background-color: #444;
-        color: white;
-        transition: all 0.3s;
-    }
-
-        .form-control:focus {
-            outline: 2px solid #d32f2f;
-            background-color: #555;
-        }
-
-    .btn-login {
-        background-color: #d32f2f;
-        color: white;
-        padding: 8px 16px;
-        border: none;
-        border-radius: 4px;
-        cursor: pointer;
-        font-weight: bold;
-        margin-top: 10px;
-    }
-
-    .btn-submit {
-        background-color: #d32f2f;
-        color: white;
-        padding: 10px 20px;
-        border: none;
-        border-radius: 4px;
-        cursor: pointer;
-        font-weight: bold;
-        margin-top: 10px;
-        width: 100%;
-        transition: background-color 0.3s;
-    }
-
-        .btn-submit:hover:not(:disabled) {
-            background-color: #b71c1c;
-        }
-
-        .btn-submit:disabled {
-            background-color: #777;
-            cursor: not-allowed;
-            opacity: 0.7;
-        }
-
-    /* Enhanced table styles */
-    .history-container {
-        background-color: #2a2a2a;
-        border-radius: 8px;
-        padding: 20px;
-        box-shadow: 0 4px 8px rgba(0, 0, 0, 0.2);
-    }
-
-    .table-responsive {
-        overflow-x: auto;
-        max-width: 100%;
-    }
-
-    .history-header {
-        margin-bottom: 20px;
-    }
-
-    .search-filters {
-        display: flex;
-        justify-content: space-between;
-        margin: 15px 0;
-        gap: 15px;
-    }
-
-    .search-field {
-        flex: 1;
-    }
-
-    .search-input {
-        width: 100%;
-        padding: 10px;
-        background-color: #333;
-        border: 1px solid #555;
-        border-radius: 6px;
-        color: white;
-    }
-
-        .search-input:focus {
-            outline: none;
-            border-color: #d32f2f;
-            box-shadow: 0 0 0 2px rgba(211, 47, 47, 0.2);
-        }
-
-    .records-count {
-        color: #999;
-        font-size: 0.9rem;
-    }
-
-    .empty-state {
-        display: flex;
-        flex-direction: column;
-        align-items: center;
-        padding: 40px 0;
-        color: #777;
-    }
-
-        .empty-state i {
-            font-size: 3rem;
-            margin-bottom: 1rem;
-        }
-
-    .history-table {
-        width: 100%;
-        border-collapse: collapse;
-        margin-top: 20px;
-        text-align: center;
-        color: white;
-        border-radius: 8px;
-        overflow: hidden;
-    }
-
-        .history-table th, .history-table td {
-            border: 1px solid #444;
-            padding: 12px 15px;
-            text-align: center;
-        }
-
-        .history-table th {
-            background-color: #333;
-            font-weight: bold;
-            text-transform: uppercase;
-            position: sticky;
-            top: 0;
-        }
-
-        .history-table tr:nth-child(even) {
-            background-color: #2d2d2d;
-        }
-
-        .history-table tr:hover {
-            background-color: #3a3a3a;
-        }
-
-    .status-badge {
-        display: inline-block;
-        padding: 3px 10px;
-        border-radius: 12px;
-        font-size: 0.85rem;
-        font-weight: bold;
-    }
-
-    .returned-badge {
-        background-color: #2e7d32;
-        color: white;
-    }
-
-    .checked-out-badge {
-        background-color: #c62828;
-        color: white;
-    }
-
-    .user-info {
-        display: flex;
-        flex-direction: column;
-        align-items: center;
-    }
-
-    .username {
-        font-weight: bold;
-        color: #d3a92f;
-    }
-
-    .role-badge {
-        background-color: #444;
-        padding: 2px 8px;
-        border-radius: 4px;
-        font-size: 0.85rem;
-    }
-
-    /* Add icons to statuses */
-    .returned .status-badge::before {
-        content: "✓ ";
-    }
-
-    .checked-out .status-badge::before {
-        content: "⚠ ";
-    }
-
-    /* Loading spinner improvements */
-    .loading-container {
-        display: flex;
-        flex-direction: column;
-        align-items: center;
-        justify-content: center;
-        padding: 40px 0;
-    }
-
-    .spinner {
-        border: 4px solid rgba(255, 255, 255, 0.1);
-        border-left-color: #d32f2f;
-        border-radius: 50%;
-        width: 40px;
-        height: 40px;
-        animation: spin 1s linear infinite;
-    }
-
-    keyframes spin {
-        0%
-
-    {
-        transform: rotate(0deg);
-    }
-
-    100% {
-        transform: rotate(360deg);
-    }
-
-    }
-
-    /* Log styling */
-    .log-list {
-        list-style-type: none;
-        padding: 0;
-        margin: 0;
-        max-height: 400px;
-        overflow-y: auto;
-        background-color: #222;
-        border-radius: 6px;
-        border: 1px solid #444;
-    }
-
-    .log-item {
-        padding: 8px 12px;
-        border-bottom: 1px solid #333;
-        display: flex;
-        align-items: center;
-    }
-
-        .log-item:last-child {
-            border-bottom: none;
-        }
-
-    .log-timestamp {
-        color: #999;
-        font-family: monospace;
-        margin-right: 10px;
-        font-size: 0.9rem;
-    }
-
-    .log-message {
-        color: #ddd;
-    }
-
-    .no-log {
-        text-align: center;
-        color: #777;
-        padding: 20px;
-    }
-
-    .alert-success {
-        background-color: rgba(46, 125, 50, 0.2);
-        border: 1px solid #2e7d32;
-        color: #a5d6a7;
-        padding: 10px 15px;
-        border-radius: 4px;
-        margin-top: 15px;
-    }
-
-    .alert-danger {
-        background-color: rgba(198, 40, 40, 0.2);
-        border: 1px solid #c62828;
-        color: #ef9a9a;
-        padding: 10px 15px;
-        border-radius: 4px;
-    }
-
-    .alert-warning {
-        background-color: rgba(255, 152, 0, 0.2);
-        border: 1px solid #ff9800;
-        color: #ffcc80;
-        padding: 15px;
-        border-radius: 4px;
-        text-align: center;
-    }
-
-    .btn-action {
-        background-color: #444;
-        color: white;
-        border: none;
-        padding: 6px 12px;
-        border-radius: 4px;
-        cursor: pointer;
-    }
-
-    .form-group {
-        margin-bottom: 20px;
-    }
-
-    .input-label {
-        display: block;
-        margin-bottom: 8px;
-        color: #bbb;
-        font-weight: bold;
-    }
-</style>
 
 @code {
     // Updated properties for the tab indicator to support RTL layout correctly
@@ -644,6 +349,7 @@ else if (ActiveTab == "log")
     private bool isLoading = true;
     private bool isLoadingHistory = false;
     private bool isSubmitting = false;
+    private bool isError = false;
     private string TeamSearchQuery = string.Empty;
     private string EquipmentSearchQuery = string.Empty;
     private string HistoryTeamFilter = string.Empty;
@@ -651,7 +357,6 @@ else if (ActiveTab == "log")
     private int? CurrentUserId; // Added to store the current user ID
     public RenderFragment? ChildContent { get; set; } // Made nullable to fix CS8618
     private bool isAuthenticated = false;
-
 
     protected override async Task OnInitializedAsync()
     {
@@ -728,6 +433,7 @@ else if (ActiveTab == "log")
 
             // Show message
             Message = "אתה צריך להיות מחובר כדי לבצע פעולה זו";
+            isError = true;
 
             // Log the authentication issue
             Logger.LogWarning("User not authenticated - redirecting to login");
@@ -892,6 +598,8 @@ else if (ActiveTab == "log")
         {
             SelectedTeamId = null;
         }
+
+        StateHasChanged();
     }
 
     private void FilterEquipment()
@@ -904,6 +612,8 @@ else if (ActiveTab == "log")
         {
             SelectedEquipmentId = null;
         }
+
+        StateHasChanged();
     }
 
     private void FilterHistory()
@@ -954,12 +664,14 @@ else if (ActiveTab == "log")
                 FilteredCheckoutHistory = new List<CheckoutRecordDto>(CheckoutHistory);
 
                 Logger.LogInformation($"Loaded {CheckoutHistory.Count} history records");
+                AddLog($"נטענו {CheckoutHistory.Count} רשומות היסטוריה");
             }
             else
             {
                 CheckoutHistory = new List<CheckoutRecordDto>();
                 FilteredCheckoutHistory = new List<CheckoutRecordDto>();
                 Logger.LogWarning("No history records returned from service");
+                AddLog("לא נמצאו רשומות היסטוריה");
             }
         }
         catch (Exception ex)
@@ -986,6 +698,58 @@ else if (ActiveTab == "log")
             "warehouseoperator" => "עובד מחסן",
             "user" => "משתמש",
             _ => role
+        };
+    }
+
+    private bool IsEquipmentAvailable(EquipmentModel equipment)
+    {
+        return equipment.Status.ToLower() == "available" ||
+               equipment.Status.ToLower() == "זמין" ||
+               equipment.Status.ToLower() == "returned" ||
+               equipment.Status.ToLower() == "מוחזר";
+    }
+
+    private bool IsSelectedEquipmentAvailable()
+    {
+        if (!SelectedEquipmentId.HasValue) return false;
+
+        var selectedEquipment = Equipment.FirstOrDefault(e => e.EquipmentID == SelectedEquipmentId);
+        return selectedEquipment != null && IsEquipmentAvailable(selectedEquipment);
+    }
+
+    private EquipmentModel? GetSelectedEquipment()
+    {
+        return SelectedEquipmentId.HasValue ?
+            Equipment.FirstOrDefault(e => e.EquipmentID == SelectedEquipmentId) : null;
+    }
+
+    private string GetStatusText(string status)
+    {
+        return status.ToLower() switch
+        {
+            "available" => "זמין",
+            "inuse" => "בשימוש",
+            "maintenance" => "בתחזוקה",
+            "returned" => "מוחזר",
+            "lost" => "אבוד",
+            "damaged" => "פגום",
+            "checkout" => "בהשאלה",
+            _ => status
+        };
+    }
+
+    private string GetStatusBadgeClass(string status)
+    {
+        return status.ToLower() switch
+        {
+            "available" => "returned-badge",
+            "returned" => "returned-badge",
+            "inuse" => "checked-out-badge",
+            "checkout" => "checked-out-badge",
+            "maintenance" => "warning-badge",
+            "damaged" => "warning-badge",
+            "lost" => "danger-badge",
+            _ => "default-badge"
         };
     }
 
@@ -1031,10 +795,20 @@ else if (ActiveTab == "log")
 
         isSubmitting = true;
         Message = null;
+        isError = false;
         StateHasChanged();
 
         try
         {
+            // Get selected equipment to check if it's available
+            var selectedEquipment = GetSelectedEquipment();
+            if (selectedEquipment == null || !IsEquipmentAvailable(selectedEquipment))
+            {
+                Message = "הפריט אינו זמין להשאלה";
+                isError = true;
+                return;
+            }
+
             Logger.LogInformation($"Checking out equipment (TeamID: {SelectedTeamId}, EquipmentID: {SelectedEquipmentId}, UserID: {CurrentUserId})");
 
             // Pass the user ID as an integer
@@ -1045,8 +819,9 @@ else if (ActiveTab == "log")
             );
 
             Message = "הציוד נרשם כהוצאה בהצלחה!";
+            isError = false;
             Logger.LogInformation("Equipment checked out successfully.");
-            AddLog($"הציוד נרשם כהוצאה בהצלחה! (TeamID: {SelectedTeamId}, EquipmentID: {SelectedEquipmentId}, UserID: {CurrentUserId})");
+            AddLog($"הציוד {selectedEquipment?.Name} נרשם בהצלחה לצוות {EligibleTeams.FirstOrDefault(t => t.TeamID == SelectedTeamId)?.TeamName}");
 
             // Refresh equipment list
             var freshEquipment = await EquipmentService.GetAllEquipmentAsync();
@@ -1055,10 +830,13 @@ else if (ActiveTab == "log")
 
             SelectedTeamId = null;
             SelectedEquipmentId = null;
+            TeamSearchQuery = string.Empty;
+            EquipmentSearchQuery = string.Empty;
         }
         catch (Exception ex)
         {
             Message = $"שגיאה: {ex.Message}";
+            isError = true;
             Logger.LogError(ex, "Error checking out equipment.");
             AddLog($"שגיאה בהוצאת ציוד: {ex.Message}");
         }
@@ -1081,6 +859,12 @@ else if (ActiveTab == "log")
         {
             ActionLogs.RemoveAt(ActionLogs.Count - 1);
         }
+    }
+
+    private void ClearLogs()
+    {
+        ActionLogs.Clear();
+        StateHasChanged();
     }
 
     private class ActionLog

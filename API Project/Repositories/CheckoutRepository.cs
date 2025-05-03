@@ -79,6 +79,19 @@ namespace API_Project.Repositories
             }
             return Enumerable.Empty<Checkout>();
         }
+        public async Task<int?> GetCheckoutIdByTeamAndEquipmentAsync(int teamId, int equipmentId)
+        {
+            var checkout = await _dbContext.EquipmentCheckouts
+                .Where(ec => ec.TeamID == teamId &&
+                             ec.EquipmentID == equipmentId &&
+                             ec.Status == "CheckedOut")
+                .OrderByDescending(ec => ec.CheckoutDate)
+                .FirstOrDefaultAsync();
+
+            return checkout?.CheckoutID;
+        }
+
+
 
         public async Task MarkAsReturnedAsync(int checkoutId)
         {
@@ -224,5 +237,6 @@ namespace API_Project.Repositories
                 return new List<CheckoutRecordDto>();
             }
         }
+
     }
 }

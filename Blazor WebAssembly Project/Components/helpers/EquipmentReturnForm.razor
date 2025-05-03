@@ -2,25 +2,37 @@
 @using Domain_Project.DTOs
 @using Blazor_WebAssembly.Models.Equipment
 @using Blazor_WebAssembly.Models.Team
+@using System.Text.Json
+@using System.Security.Claims
 @inject ITeamService TeamService
 @inject IEquipmentService EquipmentService
 @inject ICheckoutService CheckoutService
 @inject ILogger<EquipmentReturnForm> Logger
+@inject IEquipmentRequestService EquipmentRequestService
+@inject AuthenticationStateProvider AuthStateProvider
+@inject IEquipmentReturnService EquipmentReturnService
+@inject IJSRuntime JSRuntime
 
-<h2 class="text-center text-xl font-bold mb-6 text-white">החזרת ציוד</h2>
+<link href="css/dashboard.css" rel="stylesheet" />
+
+<h2 class="text-center text-xl font-bold mb-6">החזרת ציוד</h2>
 
 <div class="tabs mb-4">
     <button class="tab @(ActiveTab == "return" ? "active" : "")" @onclick='() => OnTabChanged("return")'>
-        החזרת ציוד
+        <i class="bi bi-box-arrow-in-left"></i> החזרת ציוד
+    </button>
+    <button class="tab @(ActiveTab == "history" ? "active" : "")" @onclick='() => OnTabChanged("history")'>
+        <i class="bi bi-clock-history"></i> היסטורית ציוד
     </button>
     <button class="tab @(ActiveTab == "log" ? "active" : "")" @onclick='() => OnTabChanged("log")'>
-        לוג פעולות
+        <i class="bi bi-journal-text"></i> לוג פעולות
     </button>
+    <div class="tab-indicator" style="right: @TabIndicatorPosition; width: @TabIndicatorWidth"></div>
 </div>
 
 @if (ActiveTab == "return")
 {
-    <div class="return-container">
+    <div class="dashboard-section slide-in">
         @if (isLoading)
         {
             <div class="loading-container">
@@ -37,92 +49,404 @@
         }
         else
         {
-            <div class="form-group">
-                <label class="input-label">בחר צוות</label>
-                <select @bind="SelectedTeamId" @bind:after="TeamSelected" class="form-control">
-                    <option value="">בחר צוות</option>
-                    @if (Teams != null)
+            <div class="dashboard-grid grid-2-col">
+                <div class="widget-container">
+                    <div class="widget-header">
+                        <h3 class="widget-title">פרטי החזרת ציוד</h3>
+                        <div class="widget-actions">
+                            <button class="btn-refresh" title="רענן נתונים" @onclick="LoadData">
+                                <i class="bi bi-arrow-clockwise"></i>
+                            </button>
+                        </div>
+                    </div>
+
+                    <div class="form-group">
+                        <label class="input-label" for="team-select">בחר צוות</label>
+                        <div class="search-input-container">
+                            <input id="team-search" class="search-bar" placeholder="חפש צוות" @bind="TeamSearchQuery" @oninput="FilterTeams" />
+                            <i class="bi bi-search search-icon"></i>
+                        </div>
+                        <select id="team-select" @bind="SelectedTeamId" @bind:after="TeamSelected" class="form-control mt-2">
+                            <option value="">בחר צוות</option>
+                            @foreach (var team in FilteredTeams)
+                            {
+                                <option value="@team.TeamID">@team.TeamName</option>
+                            }
+                        </select>
+                    </div>
+
+                    @if (SelectedTeamId.HasValue && SelectedTeamId > 0)
                     {
-                        @foreach (var team in Teams)
+                        if (CheckedOutEquipment.Any())
                         {
-                            <option value="@team.TeamID">@team.TeamName</option>
+                            <div class="form-group">
+                                <label class="input-label" for="equipment-select">בחר ציוד להחזרה</label>
+                                <div class="search-input-container">
+                                    <input id="equipment-search" class="search-bar" placeholder="חפש ציוד" @bind="EquipmentSearchQuery" @oninput="FilterEquipment" />
+                                    <i class="bi bi-search search-icon"></i>
+                                </div>
+                                <select id="equipment-select" @bind="SelectedEquipmentId" @bind:after="ResetEquipmentSelection" class="form-control mt-2">
+                                    <option value="">בחר ציוד</option>
+                                    @if (FilteredCheckedOutEquipment.Any())
+                                    {
+                                        @foreach (var item in FilteredCheckedOutEquipment)
+                                        {
+                                            <option value="@item.EquipmentID">@item.Name</option>
+                                        }
+                                    }
+                                </select>
+                            </div>
+
+                            <div class="form-group">
+                                <label class="input-label" for="condition-select">מצב הציוד</label>
+                                <select id="condition-select" @bind="EquipmentCondition" class="form-control">
+                                    <option value="Good">תקין</option>
+                                    <option value="Damaged">ניזוק</option>
+                                    <option value="NeedsRepair">דרוש תיקון</option>
+                                </select>
+                            </div>
+
+                            <div class="form-group">
+                                <label class="input-label" for="return-notes">הערות</label>
+                                <textarea id="return-notes" @bind="ReturnNotes" class="form-control" rows="3" placeholder="הערות נוספות לגבי הציוד המוחזר"></textarea>
+                            </div>
+
+                            <button class="btn-submit" @onclick="ReturnEquipment" disabled="@(isSubmitting || SelectedTeamId == null || SelectedEquipmentId == null)">
+                                @if (isSubmitting)
+                                {
+                                    <div class="inline-flex items-center">
+                                        <div class="spinner spinner-sm mr-2"></div>
+                                        <span>מחזיר ציוד...</span>
+                                    </div>
+                                }
+                                else
+                                {
+                                    <i class="bi bi-box-arrow-in-left mr-2"></i>
+                                    <span>החזר ציוד</span>
+                                }
+                            </button>
+                        }
+                        else
+                        {
+                            <div class="alert-info mt-3">
+                                <p>לצוות זה אין ציוד שהושאל וניתן להחזיר</p>
+                            </div>
                         }
                     }
-                </select>
-            </div>
 
-            @if (SelectedTeamId.HasValue && SelectedTeamId > 0)
-            {
-                <div class="form-group">
-                    <label class="input-label">בחר ציוד להחזרה</label>
-                    <select @bind="SelectedEquipmentId" class="form-control">
-                        <option value="">בחר ציוד</option>
-                        @if (CheckedOutEquipment != null && CheckedOutEquipment.Any())
+                    @if (!string.IsNullOrEmpty(Message))
+                    {
+                        <div class="@(IsError ? "alert-danger" : "alert-success") mt-4">
+                            <p>@Message</p>
+                        </div>
+                    }
+                </div>
+
+                @if (SelectedTeamId.HasValue && SelectedTeamId > 0)
+                {
+                    <div class="widget-container">
+                        <div class="widget-header">
+                            <h3 class="widget-title">ציוד בהשאלה לצוות</h3>
+                            <div class="widget-actions">
+                                <button class="btn-refresh" title="רענן רשימה" @onclick="TeamSelected">
+                                    <i class="bi bi-arrow-clockwise"></i>
+                                </button>
+                                <div class="flex gap-2">
+                                    <button class="btn-icon @(viewMode == ViewMode.List ? "active" : "")" title="תצוגת רשימה" @onclick="() => viewMode = ViewMode.List">
+                                        <i class="bi bi-list-ul"></i>
+                                    </button>
+                                    <button class="btn-icon @(viewMode == ViewMode.Cards ? "active" : "")" title="תצוגת קלפים" @onclick="() => viewMode = ViewMode.Cards">
+                                        <i class="bi bi-grid-3x3-gap"></i>
+                                    </button>
+                                </div>
+                            </div>
+                        </div>
+
+                        @if (!CheckedOutEquipment.Any())
                         {
-                            @foreach (var item in CheckedOutEquipment)
+                            <div class="empty-state">
+                                <i class="bi bi-box-seam empty-icon"></i>
+                                <p>אין ציוד בהשאלה לצוות זה</p>
+                            </div>
+                        }
+                        else
+                        {
+                            <div class="info-bar">
+                                <span class="records-count">@CheckedOutEquipment.Count פריטים בהשאלה לצוות</span>
+                                @if (CheckedOutEquipment.Count > 1)
+                                {
+                                    <button class="btn-action btn-sm" @onclick="ReturnAllEquipment" disabled="@isSubmitting">
+                                        <i class="bi bi-box-arrow-in-left"></i> החזר הכל
+                                    </button>
+                                }
+                            </div>
+
+                            @if (viewMode == ViewMode.List)
                             {
-                                <option value="@item.EquipmentID">@item.Name</option>
+                                <div class="table-responsive">
+                                    <table class="history-table">
+                                        <thead>
+                                            <tr>
+                                                <th>שם פריט</th>
+                                                <th>מספר סידורי</th>
+                                                <th>מיקום</th>
+                                                <th>תאריך השאלה</th>
+                                                <th>פעולות</th>
+                                            </tr>
+                                        </thead>
+                                        <tbody>
+                                            @foreach (var item in CheckedOutEquipment)
+                                            {
+                                                <tr class="@(SelectedEquipmentId == item.EquipmentID ? "selected-row" : "")">
+                                                    <td>@item.Name</td>
+                                                    <td>@(string.IsNullOrEmpty(item.SerialNumber) ? "-" : item.SerialNumber)</td>
+                                                    <td>@item.StorageLocation</td>
+                                                    <td>@(GetCheckoutDate(item.EquipmentID))</td>
+                                                    <td>
+                                                        <button class="btn-action btn-sm" @onclick="() => QuickReturn(item)">
+                                                            <i class="bi bi-box-arrow-in-left"></i> החזר
+                                                        </button>
+                                                    </td>
+                                                </tr>
+                                            }
+                                        </tbody>
+                                    </table>
+                                </div>
+                            }
+                            else
+                            {
+                                <div class="dashboard-cards">
+                                    @foreach (var item in CheckedOutEquipment)
+                                    {
+                                        <div class="dashboard-card @(SelectedEquipmentId == item.EquipmentID ? "primary" : "")">
+                                            <div class="card-header">
+                                                <div>
+                                                    <h3 class="card-title">@item.Name</h3>
+                                                    <p class="card-subtitle">@(string.IsNullOrEmpty(item.SerialNumber) ? "ללא מספר סידורי" : $"סידורי: {item.SerialNumber}")</p>
+                                                </div>
+                                                <div class="card-icon">
+                                                    <i class="bi bi-box-seam"></i>
+                                                </div>
+                                            </div>
+                                            <div class="card-content">
+                                                <div class="flex items-center justify-between mb-2">
+                                                    <span>מיקום:</span>
+                                                    <span>@item.StorageLocation</span>
+                                                </div>
+                                                <div class="flex items-center justify-between mb-2">
+                                                    <span>הושאל בתאריך:</span>
+                                                    <span>@GetCheckoutDate(item.EquipmentID)</span>
+                                                </div>
+                                                @if (item.Value > 0)
+                                                {
+                                                    <div class="flex items-center justify-between mb-2">
+                                                        <span>ערך:</span>
+                                                        <span>@item.Value.ToString("N0") ₪</span>
+                                                    </div>
+                                                }
+                                            </div>
+                                            <div class="card-footer">
+                                                <button class="btn-action w-full" @onclick="() => QuickReturn(item)">
+                                                    <i class="bi bi-box-arrow-in-left"></i> החזר ציוד
+                                                </button>
+                                            </div>
+                                        </div>
+                                    }
+                                </div>
                             }
                         }
-                    </select>
-                </div>
-
-                <div class="form-group">
-                    <label class="input-label">מצב הציוד</label>
-                    <select @bind="EquipmentCondition" class="form-control">
-                        <option value="Good">תקין</option>
-                        <option value="Damaged">ניזוק</option>
-                        <option value="NeedsRepair">דרוש תיקון</option>
-                    </select>
-                </div>
-
-                <div class="form-group">
-                    <label class="input-label">הערות</label>
-                    <textarea @bind="ReturnNotes" class="form-control" rows="3" placeholder="הערות נוספות לגבי הציוד המוחזר"></textarea>
-                </div>
-
-                <button class="btn-submit" @onclick="ReturnEquipment" disabled="@(isSubmitting || SelectedTeamId == null || SelectedEquipmentId == null)">
-                    @if (isSubmitting)
-                    {
-                        <span>מחזיר ציוד...</span>
-                    }
-                    else
-                    {
-                        <span>החזר ציוד</span>
-                    }
+                    </div>
+                }
+            </div>
+        }
+    </div>
+}
+else if (ActiveTab == "history")
+{
+    <div class="dashboard-section slide-in">
+        <div class="widget-header">
+            <h3 class="widget-title">היסטורית ציוד</h3>
+            <div class="widget-actions">
+                <button class="btn-refresh" title="רענן רשימה" @onclick="LoadHistory">
+                    <i class="bi bi-arrow-clockwise"></i>
                 </button>
-            }
-            else if (SelectedTeamId.HasValue && SelectedTeamId > 0 && (CheckedOutEquipment == null || !CheckedOutEquipment.Any()))
-            {
-                <div class="alert-info mt-3">
-                    <p>לצוות זה אין ציוד שהושאל וניתן להחזיר</p>
-                </div>
-            }
+            </div>
+        </div>
 
-            @if (!string.IsNullOrEmpty(Message))
-            {
-                <div class="@(IsError ? "alert-danger" : "alert-success") mt-4">
-                    <p>@Message</p>
+        <div class="search-filters">
+            <div class="search-input-container">
+                <input type="text"
+                       placeholder="חיפוש לפי צוות"
+                       class="search-bar"
+                       @bind="HistoryTeamFilter"
+                       @oninput="FilterHistory" />
+                <i class="bi bi-search search-icon"></i>
+            </div>
+            <div class="search-input-container">
+                <input type="text"
+                       placeholder="חיפוש לפי ציוד"
+                       class="search-bar"
+                       @bind="HistoryEquipmentFilter"
+                       @oninput="FilterHistory" />
+                <i class="bi bi-search search-icon"></i>
+            </div>
+            <div class="search-field">
+                <select class="form-control" @bind="ConditionFilter" @bind:after="FilterHistory">
+                    <option value="">כל המצבים</option>
+                    <option value="Good">תקין</option>
+                    <option value="Damaged">ניזוק</option>
+                    <option value="NeedsRepair">דרוש תיקון</option>
+                </select>
+            </div>
+        </div>
+
+        <div class="info-bar">
+            <span class="records-count">@FilteredCheckoutHistory.Count רשומות מתוך @CheckoutHistory.Count</span>
+            <div class="flex gap-2">
+                <button class="btn-icon @(showReturned == null ? "active" : "")" title="הצג הכל" @onclick="() => ToggleReturnedFilter(null)">
+                    <i class="bi bi-grid-3x3"></i>
+                </button>
+                <button class="btn-icon @(showReturned == true ? "active" : "")" title="הצג מוחזרים בלבד" @onclick="() => ToggleReturnedFilter(true)">
+                    <i class="bi bi-check-circle"></i>
+                </button>
+                <button class="btn-icon @(showReturned == false ? "active" : "")" title="הצג לא מוחזרים בלבד" @onclick="() => ToggleReturnedFilter(false)">
+                    <i class="bi bi-exclamation-circle"></i>
+                </button>
+            </div>
+        </div>
+
+        @if (isLoadingHistory)
+        {
+            <div class="loading-container">
+                <div class="spinner"></div>
+                <p>טוען היסטורית הוצעות והחזרות...</p>
+            </div>
+        }
+        else if (FilteredCheckoutHistory.Count == 0)
+        {
+            <div class="empty-state">
+                <i class="bi bi-clock-history empty-icon"></i>
+                <p class="no-history">אין היסטורית הוצעות והחזרות</p>
+                <div class="empty-buttons">
+                    <button class="btn-action" @onclick="LoadHistory">טען היסטוריה</button>
                 </div>
-            }
+            </div>
+        }
+        else
+        {
+            <div class="table-responsive">
+                <table class="history-table">
+                    <thead>
+                        <tr>
+                            <th>צוות</th>
+                            <th>ציוד</th>
+                            <th>תאריך הוצאה</th>
+                            <th>תאריך החזרה</th>
+                            <th>סטטוס</th>
+                            <th>מצב ציוד</th>
+                            <th>משתמש</th>
+                            <th>תפקיד</th>
+                        </tr>
+                    </thead>
+                    <tbody>
+                        @foreach (var record in FilteredCheckoutHistory)
+                        {
+                            <tr class="@(record.ReturnedAt.HasValue ? "returned" : "checked-out")" @onclick="() => ShowRecordDetails(record)">
+                                <td>@record.TeamName</td>
+                                <td>@record.EquipmentName</td>
+                                <td>@record.CheckedOutAt.ToString("dd/MM/yyyy HH:mm")</td>
+                                <td>@(record.ReturnedAt.HasValue? record.ReturnedAt.Value.ToString("dd/MM/yyyy HH:mm") : "-")</td>
+                                <td>
+                                    <span class="status-badge @(record.ReturnedAt.HasValue ? "returned-badge" : "checked-out-badge")">
+                                        @(record.ReturnedAt.HasValue ? "הוחזר" : "לא הוחזר")
+                                    </span>
+                                </td>
+                                <td>
+                                    @if (record.ReturnedAt.HasValue)
+                                    {
+                                        <span class="status-badge @GetConditionBadgeClass(record.ItemCondition)">
+                                            @GetConditionText(record.ItemCondition)
+                                        </span>
+                                    }
+                                    else
+                                    {
+                                        <span class="text-muted">-</span>
+                                    }
+                                </td>
+                                <td>
+                                    <div class="user-info">
+                                        @if (!string.IsNullOrEmpty(record.UserName))
+                                        {
+                                            <span class="username">@record.UserName</span>
+                                        }
+                                        else if (record.UserId > 0)
+                                        {
+                                            <span>משתמש #@record.UserId</span>
+                                        }
+                                        else
+                                        {
+                                            <span class="text-muted">לא ידוע</span>
+                                        }
+                                    </div>
+                                </td>
+                                <td>
+                                    @if (!string.IsNullOrEmpty(record.UserRole))
+                                    {
+                                        <span class="role-badge">@FormatUserRole(record.UserRole)</span>
+                                    }
+                                    else
+                                    {
+                                        <span class="text-muted">-</span>
+                                    }
+                                </td>
+                            </tr>
+                        }
+                    </tbody>
+                </table>
+            </div>
         }
     </div>
 }
 else if (ActiveTab == "log")
 {
-    <div class="log-container">
-        <h3 class="text-center text-lg font-bold mb-4 text-white">לוג פעולות</h3>
+    <div class="dashboard-section slide-in">
+        <div class="widget-header">
+            <h3 class="widget-title">לוג פעולות</h3>
+            <div class="widget-actions">
+                <button class="btn-icon" title="נקה לוג" @onclick="ClearLogs">
+                    <i class="bi bi-trash"></i>
+                </button>
+                <button class="btn-icon" title="יצא לקובץ" @onclick="ExportLogs">
+                    <i class="bi bi-download"></i>
+                </button>
+            </div>
+        </div>
+
         @if (ActionLogs.Count == 0)
         {
-            <p class="no-log">אין לוג פעולות להצגה</p>
+            <div class="empty-state">
+                <i class="bi bi-journal-text empty-icon"></i>
+                <p class="no-log">אין לוג פעולות להצגה</p>
+            </div>
         }
         else
         {
+            <div class="search-filters mb-3">
+                <div class="search-input-container">
+                    <input type="text"
+                           placeholder="חפש בלוג פעולות..."
+                           class="search-bar"
+                           @bind="logSearchQuery"
+                           @oninput="FilterLogs" />
+                    <i class="bi bi-search search-icon"></i>
+                </div>
+            </div>
+
             <ul class="log-list">
-                @foreach (var log in ActionLogs)
+                @foreach (var log in filteredLogs)
                 {
                     <li class="log-item">
-                        <span class="log-timestamp">@log.Timestamp.ToString("HH:mm:ss")</span>
+                        <span class="log-timestamp">@log.Timestamp.ToString("dd/MM HH:mm:ss")</span>
                         <span class="log-message">@log.Message</span>
                     </li>
                 }
@@ -131,58 +455,234 @@ else if (ActiveTab == "log")
     </div>
 }
 
+@if (showReturnModal && selectedQuickReturnItem != null)
+{
+    <div class="modal-backdrop" @onclick="CloseModal"></div>
+    <div class="modal-container" @onclick:stopPropagation="true">
+        <div class="modal-header">
+            <h3>החזרת ציוד מהירה</h3>
+            <button class="modal-close" @onclick="CloseModal">×</button>
+        </div>
+        <div class="modal-body">
+            <p class="mb-3">אתה עומד להחזיר את הפריט: <strong>@selectedQuickReturnItem.Name</strong></p>
+
+            <div class="form-group">
+                <label class="input-label" for="quick-condition">מצב הציוד</label>
+                <select id="quick-condition" @bind="quickReturnCondition" class="form-control">
+                    <option value="Good">תקין</option>
+                    <option value="Damaged">ניזוק</option>
+                    <option value="NeedsRepair">דרוש תיקון</option>
+                </select>
+            </div>
+
+            <div class="form-group">
+                <label class="input-label" for="quick-notes">הערות</label>
+                <textarea id="quick-notes" @bind="quickReturnNotes" class="form-control" rows="3" placeholder="הערות נוספות לגבי הציוד המוחזר"></textarea>
+            </div>
+        </div>
+        <div class="modal-footer">
+            <button class="btn-action secondary" @onclick="CloseModal">ביטול</button>
+            <button class="btn-action" @onclick="ProcessQuickReturn" disabled="@isSubmitting">
+                @if (isSubmitting)
+                {
+                    <div class="inline-flex items-center">
+                        <div class="spinner spinner-sm mr-2"></div>
+                        <span>מחזיר...</span>
+                    </div>
+                }
+                else
+                {
+                    <i class="bi bi-box-arrow-in-left mr-2"></i>
+                    <span>החזר ציוד</span>
+                }
+            </button>
+        </div>
+    </div>
+}
+
+@if (showReturnAllModal)
+{
+    <div class="modal-backdrop" @onclick="CloseModal"></div>
+    <div class="modal-container" @onclick:stopPropagation="true">
+        <div class="modal-header">
+            <h3>החזרת כל הציוד</h3>
+            <button class="modal-close" @onclick="CloseModal">×</button>
+        </div>
+        <div class="modal-body">
+            <p class="mb-3">אתה עומד להחזיר <strong>@CheckedOutEquipment.Count פריטים</strong> עבור הצוות <strong>@Teams.FirstOrDefault(t => t.TeamID == SelectedTeamId)?.TeamName</strong></p>
+
+            <div class="form-group">
+                <label class="input-label" for="bulk-condition">מצב הציוד</label>
+                <select id="bulk-condition" @bind="bulkReturnCondition" class="form-control">
+                    <option value="Good">תקין</option>
+                    <option value="Damaged">ניזוק</option>
+                    <option value="NeedsRepair">דרוש תיקון</option>
+                </select>
+            </div>
+
+            <div class="form-group">
+                <label class="input-label" for="bulk-notes">הערות</label>
+                <textarea id="bulk-notes" @bind="bulkReturnNotes" class="form-control" rows="3" placeholder="הערות נוספות לגבי הציוד המוחזר"></textarea>
+            </div>
+
+            <div class="alert-warning mt-3">
+                <p><i class="bi bi-exclamation-triangle"></i> שים לב: פעולה זו תחזיר את כל הפריטים בבת אחת!</p>
+            </div>
+        </div>
+        <div class="modal-footer">
+            <button class="btn-action secondary" @onclick="CloseModal">ביטול</button>
+            <button class="btn-action" @onclick="ProcessReturnAll" disabled="@isSubmitting">
+                @if (isSubmitting)
+                {
+                    <div class="inline-flex items-center">
+                        <div class="spinner spinner-sm mr-2"></div>
+                        <span>מחזיר...</span>
+                    </div>
+                }
+                else
+                {
+                    <i class="bi bi-box-arrow-in-left mr-2"></i>
+                    <span>החזר הכל</span>
+                }
+            </button>
+        </div>
+    </div>
+}
+
+@if (showRecordDetailsModal && selectedRecordDetails != null)
+{
+    <div class="modal-backdrop" @onclick="CloseRecordDetailsModal"></div>
+    <div class="modal-container" @onclick:stopPropagation="true">
+        <div class="modal-header">
+            <h3>פרטי רשומה</h3>
+            <button class="modal-close" @onclick="CloseRecordDetailsModal">×</button>
+        </div>
+        <div class="modal-body">
+            <div class="record-details">
+                <div class="detail-row">
+                    <div class="detail-label">צוות:</div>
+                    <div class="detail-value">@selectedRecordDetails.TeamName</div>
+                </div>
+                <div class="detail-row">
+                    <div class="detail-label">ציוד:</div>
+                    <div class="detail-value">@selectedRecordDetails.EquipmentName</div>
+                </div>
+                <div class="detail-row">
+                    <div class="detail-label">מזהה רשומה:</div>
+                    <div class="detail-value">@selectedRecordDetails.Id</div>
+                </div>
+                <div class="detail-row">
+                    <div class="detail-label">תאריך הוצאה:</div>
+                    <div class="detail-value">@selectedRecordDetails.CheckedOutAt.ToString("dd/MM/yyyy HH:mm:ss")</div>
+                </div>
+                <div class="detail-row">
+                    <div class="detail-label">תאריך החזרה:</div>
+                    <div class="detail-value">@(selectedRecordDetails.ReturnedAt.HasValue? selectedRecordDetails.ReturnedAt.Value.ToString("dd/MM/yyyy HH:mm:ss") : "-")</div>
+                </div>
+                <div class="detail-row">
+                    <div class="detail-label">סטטוס:</div>
+                    <div class="detail-value">
+                        <span class="status-badge @(selectedRecordDetails.ReturnedAt.HasValue ? "returned-badge" : "checked-out-badge")">
+                            @(selectedRecordDetails.ReturnedAt.HasValue ? "הוחזר" : "לא הוחזר")
+                        </span>
+                    </div>
+                </div>
+                @if (selectedRecordDetails.ReturnedAt.HasValue)
+                {
+                    <div class="detail-row">
+                        <div class="detail-label">מצב הציוד:</div>
+                        <div class="detail-value">
+                            <span class="status-badge @GetConditionBadgeClass(selectedRecordDetails.ItemCondition)">
+                                @GetConditionText(selectedRecordDetails.ItemCondition)
+                            </span>
+                        </div>
+                    </div>
+                }
+                <div class="detail-row">
+                    <div class="detail-label">משתמש:</div>
+                    <div class="detail-value">@(string.IsNullOrEmpty(selectedRecordDetails.UserName) ? "לא ידוע" : selectedRecordDetails.UserName)</div>
+                </div>
+                <div class="detail-row">
+                    <div class="detail-label">תפקיד:</div>
+                    <div class="detail-value">@FormatUserRole(selectedRecordDetails.UserRole)</div>
+                </div>
+                <div class="detail-row">
+                    <div class="detail-label">הערות:</div>
+                    <div class="detail-value notes-text">@(string.IsNullOrEmpty(selectedRecordDetails.ItemNotes) ? "-" : selectedRecordDetails.ItemNotes)</div>
+                </div>
+            </div>
+        </div>
+        <div class="modal-footer">
+            <button class="btn-action" @onclick="CloseRecordDetailsModal">סגור</button>
+        </div>
+    </div>
+}
+
 <style>
-    /* Existing styles omitted for brevity */
-
-    .log-container {
-        background-color: #2a2a2a;
-        padding: 20px;
-        border-radius: 8px;
-        box-shadow: 0 0 15px rgba(0, 0, 0, 0.3);
-        max-width: 800px;
-        margin: 0 auto;
+    .selected-row {
+        background-color: rgba(84, 101, 255, 0.1);
     }
 
-    .log-list {
-        list-style: none;
-        padding: 0;
-        margin: 0;
+    .truncate-text {
+        max-width: 150px;
+        white-space: nowrap;
+        overflow: hidden;
+        text-overflow: ellipsis;
     }
 
-    .log-item {
+    .record-details {
         display: flex;
-        justify-content: space-between;
-        padding: 10px;
-        border-bottom: 1px solid #444;
-        color: white;
+        flex-direction: column;
+        gap: var(--space-3);
     }
 
-        .log-item:last-child {
-            border-bottom: none;
-        }
-
-    .log-timestamp {
-        font-weight: bold;
-        color: #d32f2f;
+    .detail-row {
+        display: flex;
+        border-bottom: 1px solid var(--border);
+        padding-bottom: var(--space-2);
     }
 
-    .log-message {
+    .detail-label {
+        flex: 0 0 120px;
+        font-weight: 600;
+        color: var(--text-secondary);
+    }
+
+    .detail-value {
         flex: 1;
-        margin-left: 10px;
     }
 
-    .no-log {
-        text-align: center;
-        padding: 20px;
-        font-style: italic;
-        color: #999;
+    .notes-text {
+        white-space: pre-wrap;
+        padding: var(--space-2);
+        background-color: var(--surface-variant);
+        border-radius: var(--radius-md);
+        max-height: 150px;
+        overflow-y: auto;
     }
 </style>
 
 @code {
+    private enum ViewMode { List, Cards }
+
+    // Updated properties for the tab indicator to support RTL layout correctly
+    private string TabIndicatorPosition => ActiveTab switch
+    {
+        "return" => "0%",
+        "history" => "33.33%",
+        "log" => "66.66%",
+        _ => "0%"
+    };
+
+    private string TabIndicatorWidth => "33.33%";
+
     private string ActiveTab = "return";
     private List<TeamDto> Teams = new();
+    private List<TeamDto> FilteredTeams = new();
     private List<EquipmentModel> CheckedOutEquipment = new();
+    private List<EquipmentModel> FilteredCheckedOutEquipment = new();
+    private List<ExtendedCheckoutRecordDto> CheckoutHistory = new();
+    private List<ExtendedCheckoutRecordDto> FilteredCheckoutHistory = new();
     private List<ActionLog> ActionLogs = new();
     private int? SelectedTeamId;
     private int? SelectedEquipmentId;
@@ -190,20 +690,83 @@ else if (ActiveTab == "log")
     private bool IsError = false;
     private string? errorMessage;
     private bool isLoading = true;
+    private bool isLoadingHistory = false;
     private bool isSubmitting = false;
     private string EquipmentCondition = "Good";
     private string ReturnNotes = string.Empty;
+    private string TeamSearchQuery = string.Empty;
+    private string EquipmentSearchQuery = string.Empty;
+    private string HistoryTeamFilter = string.Empty;
+    private string HistoryEquipmentFilter = string.Empty;
+    private string ConditionFilter = string.Empty;
+    private string logSearchQuery = string.Empty;
+    private List<ActionLog> filteredLogs => string.IsNullOrWhiteSpace(logSearchQuery)
+        ? ActionLogs
+        : ActionLogs.Where(l => l.Message.Contains(logSearchQuery, StringComparison.OrdinalIgnoreCase)).ToList();
+    private ViewMode viewMode = ViewMode.List;
+    private int CurrentUserId = 1; // Default user ID
+    private bool? showReturned = null; // For filtering history by return status
+
+    // Record Details
+    private bool showRecordDetailsModal = false;
+    private ExtendedCheckoutRecordDto? selectedRecordDetails = null;
+
+    // Quick return modal properties
+    private bool showReturnModal = false;
+    private EquipmentModel? selectedQuickReturnItem;
+    private string quickReturnCondition = "Good";
+    private string quickReturnNotes = string.Empty;
+
+    // Return all modal properties
+    private bool showReturnAllModal = false;
+    private string bulkReturnCondition = "Good";
+    private string bulkReturnNotes = string.Empty;
+
+    // Extended DTO to include condition and notes
+    private class ExtendedCheckoutRecordDto : CheckoutRecordDto
+    {
+        public string ItemCondition { get; set; } = "Good";
+        public string ItemNotes { get; set; } = string.Empty;
+    }
 
     protected override async Task OnInitializedAsync()
     {
         Logger.LogInformation("Initializing EquipmentReturnForm component...");
         await LoadData();
+
+        // Get current user ID from authentication state if available
+        try
+        {
+            var authState = await AuthStateProvider.GetAuthenticationStateAsync();
+            if (authState.User.Identity?.IsAuthenticated == true)
+            {
+                var userIdClaim = authState.User.Claims
+                    .FirstOrDefault(c => c.Type == "sub" || c.Type == ClaimTypes.NameIdentifier);
+
+                if (userIdClaim != null && int.TryParse(userIdClaim.Value, out int userId))
+                {
+                    CurrentUserId = userId;
+                }
+            }
+        }
+        catch (Exception ex)
+        {
+            Logger.LogWarning(ex, "Unable to retrieve current user ID from authentication state. Using default.");
+        }
     }
 
     private async Task OnTabChanged(string tab)
     {
         Logger.LogInformation($"Tab changed to: {tab}");
         ActiveTab = tab;
+
+        // Add a slight delay for the animation to complete before loading data
+        await Task.Delay(50);
+
+        if (tab == "history" && CheckoutHistory.Count == 0)
+        {
+            await LoadHistory();
+        }
     }
 
     private async Task LoadData()
@@ -217,22 +780,24 @@ else if (ActiveTab == "log")
         {
             Logger.LogInformation("Loading teams...");
             var teams = await TeamService.GetAllTeamsAsync();
-            if (teams != null)
+            Teams = teams.Select(t => new TeamDto
             {
-                Teams = teams.Select(t => new TeamDto
-                {
-                    TeamID = t.TeamID,
-                    TeamName = t.TeamName,
-                    Description = t.Description ?? string.Empty,
-                    IsActive = t.IsActive
-                }).ToList();
-                Logger.LogInformation($"Loaded {Teams.Count} teams.");
-            }
+                TeamID = t.TeamID,
+                TeamName = t.TeamName,
+                Description = t.Description ?? string.Empty,
+                IsActive = t.IsActive
+            }).ToList();
+
+            // Initialize filtered teams
+            FilteredTeams = new List<TeamDto>(Teams);
+            Logger.LogInformation($"Loaded {Teams.Count} teams.");
 
             // Reset selections
             SelectedTeamId = null;
             SelectedEquipmentId = null;
             CheckedOutEquipment = new List<EquipmentModel>();
+            FilteredCheckedOutEquipment = new List<EquipmentModel>();
+            AddLog("נטענו נתוני צוותים בהצלחה");
         }
         catch (Exception ex)
         {
@@ -247,33 +812,82 @@ else if (ActiveTab == "log")
         }
     }
 
+    private void FilterTeams()
+    {
+        if (string.IsNullOrWhiteSpace(TeamSearchQuery))
+        {
+            FilteredTeams = new List<TeamDto>(Teams);
+        }
+        else
+        {
+            FilteredTeams = Teams
+                .Where(t => t.TeamName.Contains(TeamSearchQuery, StringComparison.OrdinalIgnoreCase))
+                .ToList();
+        }
+
+        StateHasChanged();
+    }
+
+    private void FilterEquipment()
+    {
+        if (string.IsNullOrWhiteSpace(EquipmentSearchQuery))
+        {
+            FilteredCheckedOutEquipment = new List<EquipmentModel>(CheckedOutEquipment);
+        }
+        else
+        {
+            FilteredCheckedOutEquipment = CheckedOutEquipment
+                .Where(e => e.Name.Contains(EquipmentSearchQuery, StringComparison.OrdinalIgnoreCase))
+                .ToList();
+        }
+
+        StateHasChanged();
+    }
+
+    private void FilterLogs()
+    {
+        // Filtering is handled by the filteredLogs property
+        StateHasChanged();
+    }
+
+    private void ResetEquipmentSelection()
+    {
+        // When a new equipment is selected, reset the condition and notes
+        EquipmentCondition = "Good";
+        ReturnNotes = string.Empty;
+        StateHasChanged();
+    }
+
     private async Task TeamSelected()
     {
-        if (SelectedTeamId.HasValue && SelectedTeamId > 0)
+        if (SelectedTeamId.HasValue && SelectedTeamId.Value > 0)
         {
             try
             {
                 Logger.LogInformation($"Team selected: {SelectedTeamId}. Loading checked-out equipment...");
-                // Simulate API call to get checked-out equipment
-                await Task.Delay(1);
 
-                CheckedOutEquipment = new List<EquipmentModel>
-                {
-                    new EquipmentModel
-                    {
-                        EquipmentID = 101,
-                        Name = "אוהל 4 אנשים",
-                        Status = "בשימוש"
-                    },
-                    new EquipmentModel
-                    {
-                        EquipmentID = 102,
-                        Name = "סיר בישול גדול",
-                        Status = "בשימוש"
-                    }
-                };
+                // Reset equipment selection
+                SelectedEquipmentId = null;
+                CheckedOutEquipment.Clear();
+                FilteredCheckedOutEquipment.Clear();
+                StateHasChanged();
+
+                // Get checked out equipment for this team
+                CheckedOutEquipment = await EquipmentRequestService.GetCheckedOutEquipmentByTeamAsync(SelectedTeamId.Value);
+
+                // Initialize filtered equipment
+                FilteredCheckedOutEquipment = new List<EquipmentModel>(CheckedOutEquipment);
 
                 Logger.LogInformation($"Loaded {CheckedOutEquipment.Count} checked-out equipment items for team {SelectedTeamId}.");
+
+                if (CheckedOutEquipment.Count > 0)
+                {
+                    AddLog($"נטענו {CheckedOutEquipment.Count} פריטי ציוד לצוות {Teams.FirstOrDefault(t => t.TeamID == SelectedTeamId)?.TeamName}");
+                }
+                else
+                {
+                    AddLog($"לצוות {Teams.FirstOrDefault(t => t.TeamID == SelectedTeamId)?.TeamName} אין פריטי ציוד להחזרה");
+                }
             }
             catch (Exception ex)
             {
@@ -285,6 +899,198 @@ else if (ActiveTab == "log")
             {
                 StateHasChanged();
             }
+        }
+    }
+
+    private string GetCheckoutDate(int equipmentId)
+    {
+        // If we have checkout history loaded
+        if (CheckoutHistory.Any())
+        {
+            var record = CheckoutHistory.FirstOrDefault(h =>
+                h.EquipmentId == equipmentId.ToString() &&
+                h.TeamId == SelectedTeamId &&
+                !h.ReturnedAt.HasValue);
+
+            if (record != null)
+            {
+                return record.CheckedOutAt.ToString("dd/MM/yyyy");
+            }
+        }
+
+        // Fallback
+        return "לא ידוע";
+    }
+
+    private void ShowRecordDetails(ExtendedCheckoutRecordDto record)
+    {
+        selectedRecordDetails = record;
+        showRecordDetailsModal = true;
+        StateHasChanged();
+    }
+
+    private void CloseRecordDetailsModal()
+    {
+        showRecordDetailsModal = false;
+        selectedRecordDetails = null;
+        StateHasChanged();
+    }
+
+    private void QuickReturn(EquipmentModel equipment)
+    {
+        selectedQuickReturnItem = equipment;
+        quickReturnCondition = "Good";
+        quickReturnNotes = string.Empty;
+        showReturnModal = true;
+        StateHasChanged();
+    }
+
+    private void ReturnAllEquipment()
+    {
+        if (!SelectedTeamId.HasValue || !CheckedOutEquipment.Any())
+            return;
+
+        showReturnAllModal = true;
+        bulkReturnCondition = "Good";
+        bulkReturnNotes = string.Empty;
+        StateHasChanged();
+    }
+
+    private void CloseModal()
+    {
+        showReturnModal = false;
+        showReturnAllModal = false;
+        selectedQuickReturnItem = null;
+        StateHasChanged();
+    }
+
+    private async Task ProcessQuickReturn()
+    {
+        if (selectedQuickReturnItem == null || !SelectedTeamId.HasValue)
+            return;
+
+        isSubmitting = true;
+        StateHasChanged();
+
+        try
+        {
+            Logger.LogInformation($"Quick returning equipment (ID: {selectedQuickReturnItem.EquipmentID}) for team {SelectedTeamId}...");
+
+            // Use EquipmentReturnService's UpdateReturnedEquipmentByTeamAsync method
+            bool isReturned = await EquipmentReturnService.UpdateReturnedEquipmentByTeamAsync(
+                selectedQuickReturnItem.EquipmentID,
+                SelectedTeamId.Value,
+                CurrentUserId,
+                quickReturnCondition,
+                quickReturnNotes
+            );
+
+            // Handle the result
+            if (isReturned)
+            {
+                Message = "הציוד הוחזר בהצלחה!";
+                IsError = false;
+                Logger.LogInformation($"Equipment (ID: {selectedQuickReturnItem.EquipmentID}) returned successfully for team {SelectedTeamId}.");
+                AddLog($"הציוד {selectedQuickReturnItem.Name} הוחזר בהצלחה!");
+
+                // Close modal and refresh checked-out equipment
+                showReturnModal = false;
+                selectedQuickReturnItem = null;
+                await TeamSelected();
+            }
+            else
+            {
+                Message = "שגיאה: לא ניתן להחזיר את הציוד.";
+                IsError = true;
+                Logger.LogError($"Failed to return equipment (ID: {selectedQuickReturnItem.EquipmentID}) for team {SelectedTeamId}.");
+                AddLog($"שגיאה בהחזרת ציוד: לא ניתן להחזיר את הציוד.");
+            }
+        }
+        catch (Exception ex)
+        {
+            Message = $"שגיאה: {ex.Message}";
+            IsError = true;
+            Logger.LogError(ex, $"Error returning equipment (ID: {selectedQuickReturnItem?.EquipmentID}) for team {SelectedTeamId}.");
+            AddLog($"שגיאה בהחזרת ציוד: {ex.Message}");
+        }
+        finally
+        {
+            isSubmitting = false;
+            StateHasChanged();
+        }
+    }
+
+    private async Task ProcessReturnAll()
+    {
+        if (!SelectedTeamId.HasValue || !CheckedOutEquipment.Any())
+            return;
+
+        isSubmitting = true;
+        StateHasChanged();
+
+        try
+        {
+            Logger.LogInformation($"Returning all equipment for team {SelectedTeamId}...");
+            int successCount = 0;
+            int failCount = 0;
+
+            foreach (var equipment in CheckedOutEquipment)
+            {
+                try
+                {
+                    bool isReturned = await EquipmentReturnService.UpdateReturnedEquipmentByTeamAsync(
+                        equipment.EquipmentID,
+                        SelectedTeamId.Value,
+                        CurrentUserId,
+                        bulkReturnCondition,
+                        bulkReturnNotes
+                    );
+
+                    if (isReturned)
+                        successCount++;
+                    else
+                        failCount++;
+                }
+                catch (Exception ex)
+                {
+                    Logger.LogError(ex, $"Error returning equipment (ID: {equipment.EquipmentID})");
+                    failCount++;
+                }
+            }
+
+            // Close modal
+            showReturnAllModal = false;
+
+            // Show result message
+            if (successCount > 0)
+            {
+                Message = $"הוחזרו בהצלחה {successCount} פריטים" + (failCount > 0 ? $", נכשלו {failCount} פריטים" : "");
+                IsError = failCount > 0;
+                Logger.LogInformation($"Bulk return completed: {successCount} successful, {failCount} failed");
+                AddLog($"הוחזרו בהצלחה {successCount} פריטים" + (failCount > 0 ? $", נכשלו {failCount} פריטים" : ""));
+
+                // Refresh equipment list
+                await TeamSelected();
+            }
+            else
+            {
+                Message = "שגיאה: לא ניתן להחזיר את הציוד";
+                IsError = true;
+                Logger.LogError($"Bulk return failed completely for team {SelectedTeamId}");
+                AddLog($"שגיאה בהחזרת ציוד: לא ניתן להחזיר את הציוד");
+            }
+        }
+        catch (Exception ex)
+        {
+            Message = $"שגיאה: {ex.Message}";
+            IsError = true;
+            Logger.LogError(ex, $"Error in bulk return process for team {SelectedTeamId}");
+            AddLog($"שגיאה בהחזרת ציוד מרובה: {ex.Message}");
+        }
+        finally
+        {
+            isSubmitting = false;
+            StateHasChanged();
         }
     }
 
@@ -301,20 +1107,38 @@ else if (ActiveTab == "log")
         try
         {
             Logger.LogInformation($"Returning equipment (ID: {SelectedEquipmentId}) for team {SelectedTeamId}...");
-            // Simulate API call to return equipment
-            await Task.Delay(1000);
 
-            // Success message
-            Message = "הציוד הוחזר בהצלחה!";
-            IsError = false;
-            Logger.LogInformation($"Equipment (ID: {SelectedEquipmentId}) returned successfully for team {SelectedTeamId}.");
-            AddLog($"הציוד הוחזר בהצלחה! (TeamID: {SelectedTeamId}, EquipmentID: {SelectedEquipmentId})");
+            // Use EquipmentReturnService's UpdateReturnedEquipmentByTeamAsync method
+            bool isReturned = await EquipmentReturnService.UpdateReturnedEquipmentByTeamAsync(
+                SelectedEquipmentId.Value,
+                SelectedTeamId.Value,
+                CurrentUserId,
+                EquipmentCondition,
+                ReturnNotes
+            );
 
-            // Reset form
-            await TeamSelected(); // Refresh the checked-out equipment list
-            SelectedEquipmentId = null;
-            ReturnNotes = string.Empty;
-            EquipmentCondition = "Good";
+            // Handle the result
+            if (isReturned)
+            {
+                var equipmentName = CheckedOutEquipment.FirstOrDefault(e => e.EquipmentID == SelectedEquipmentId)?.Name ?? "ציוד";
+                Message = $"{equipmentName} הוחזר בהצלחה!";
+                IsError = false;
+                Logger.LogInformation($"Equipment (ID: {SelectedEquipmentId}) returned successfully for team {SelectedTeamId}.");
+                AddLog($"הציוד {equipmentName} הוחזר בהצלחה!");
+
+                // Reset form and refresh checked-out equipment
+                await TeamSelected();
+                SelectedEquipmentId = null;
+                ReturnNotes = string.Empty;
+                EquipmentCondition = "Good";
+            }
+            else
+            {
+                Message = "שגיאה: לא ניתן להחזיר את הציוד.";
+                IsError = true;
+                Logger.LogError($"Failed to return equipment (ID: {SelectedEquipmentId}) for team {SelectedTeamId}.");
+                AddLog($"שגיאה בהחזרת ציוד: לא ניתן להחזיר את הציוד.");
+            }
         }
         catch (Exception ex)
         {
@@ -327,6 +1151,149 @@ else if (ActiveTab == "log")
         {
             isSubmitting = false;
             StateHasChanged();
+        }
+    }
+
+    private async Task LoadHistory()
+    {
+        isLoadingHistory = true;
+        CheckoutHistory.Clear();
+        FilteredCheckoutHistory.Clear();
+        HistoryTeamFilter = string.Empty;
+        HistoryEquipmentFilter = string.Empty;
+        ConditionFilter = string.Empty;
+        showReturned = null;
+        StateHasChanged();
+
+        try
+        {
+            Logger.LogInformation("Loading checkout history...");
+            var history = await CheckoutService.GetCheckoutHistoryAsync();
+
+            // Add the condition field if not present in the original DTO
+            CheckoutHistory = history.Select(h => new ExtendedCheckoutRecordDto
+            {
+                Id = h.Id,
+                EquipmentId = h.EquipmentId,
+                TeamId = h.TeamId,
+                UserId = h.UserId,
+                CheckedOutAt = h.CheckedOutAt,
+                ReturnedAt = h.ReturnedAt,
+                EquipmentName = h.EquipmentName ?? "ציוד לא ידוע",
+                TeamName = h.TeamName ?? "צוות לא ידוע",
+                UserName = h.UserName ?? "משתמש לא ידוע",
+                UserRole = h.UserRole ?? "משתמש",
+                // Default to Good if not provided
+                ItemCondition = h is ExtendedCheckoutRecordDto extended ? extended.ItemCondition : "Good",
+                // Default to empty if not provided
+                ItemNotes = h is ExtendedCheckoutRecordDto extended2 ? extended2.ItemNotes : string.Empty
+            }).ToList();
+
+            // Initialize filtered records with all records
+            FilteredCheckoutHistory = new List<ExtendedCheckoutRecordDto>(CheckoutHistory);
+
+            Logger.LogInformation($"Loaded {CheckoutHistory.Count} history records");
+            AddLog($"נטענו {CheckoutHistory.Count} רשומות היסטוריה");
+        }
+        catch (Exception ex)
+        {
+            Logger.LogError(ex, "Error loading checkout history.");
+            AddLog($"שגיאה בטעינת היסטורית הוצעות: {ex.Message}");
+        }
+        finally
+        {
+            isLoadingHistory = false;
+            StateHasChanged();
+        }
+    }
+
+    private void FilterHistory()
+    {
+        FilteredCheckoutHistory = CheckoutHistory
+            .Where(h =>
+                (string.IsNullOrEmpty(HistoryTeamFilter) ||
+                 (h.TeamName?.Contains(HistoryTeamFilter, StringComparison.OrdinalIgnoreCase) ?? false)) &&
+                (string.IsNullOrEmpty(HistoryEquipmentFilter) ||
+                 (h.EquipmentName?.Contains(HistoryEquipmentFilter, StringComparison.OrdinalIgnoreCase) ?? false)) &&
+                (showReturned == null || h.ReturnedAt.HasValue == showReturned) &&
+                (string.IsNullOrEmpty(ConditionFilter) ||
+                 (h.ItemCondition?.Equals(ConditionFilter, StringComparison.OrdinalIgnoreCase) ?? false))
+            )
+            .OrderByDescending(h => h.ReturnedAt ?? h.CheckedOutAt)
+            .ToList();
+
+        StateHasChanged();
+    }
+
+    private void ToggleReturnedFilter(bool? filter)
+    {
+        showReturned = filter;
+        FilterHistory();
+    }
+
+    private string FormatUserRole(string? role)
+    {
+        if (string.IsNullOrEmpty(role))
+            return "-";
+
+        return role.ToLower() switch
+        {
+            "admin" => "מנהל",
+            "warehousemanager" => "אחראי מחסן",
+            "warehouseoperator" => "עובד מחסן",
+            "user" => "משתמש",
+            _ => role
+        };
+    }
+
+    private string GetConditionText(string? condition)
+    {
+        if (string.IsNullOrEmpty(condition))
+            return "תקין";
+
+        return condition.ToLower() switch
+        {
+            "good" => "תקין",
+            "damaged" => "ניזוק",
+            "needsrepair" => "דרוש תיקון",
+            _ => condition
+        };
+    }
+
+    private string GetConditionBadgeClass(string? condition)
+    {
+        if (string.IsNullOrEmpty(condition))
+            return "returned-badge";
+
+        return condition.ToLower() switch
+        {
+            "good" => "returned-badge",
+            "damaged" => "checked-out-badge",
+            "needsrepair" => "warning-badge",
+            _ => "default-badge"
+        };
+    }
+
+    private async Task ExportLogs()
+    {
+        try
+        {
+            var logs = ActionLogs.Select(log => $"{log.Timestamp:yyyy-MM-dd HH:mm:ss} - {log.Message}");
+            string logText = string.Join(Environment.NewLine, logs);
+
+            // Use JavaScript to download the file
+            await JSRuntime.InvokeVoidAsync(
+                "saveAsFile",
+                $"equipment_return_log_{DateTime.Now:yyyyMMdd_HHmmss}.txt",
+                logText
+            );
+
+            AddLog("יוצא לוג פעולות לקובץ");
+        }
+        catch (Exception ex)
+        {
+            Logger.LogError(ex, "Error exporting logs");
+            AddLog($"שגיאה ביצוא לוג: {ex.Message}");
         }
     }
 
@@ -343,6 +1310,13 @@ else if (ActiveTab == "log")
         {
             ActionLogs.RemoveAt(ActionLogs.Count - 1);
         }
+    }
+
+    private void ClearLogs()
+    {
+        ActionLogs.Clear();
+        logSearchQuery = string.Empty;
+        StateHasChanged();
     }
 
     private class ActionLog

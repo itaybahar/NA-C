@@ -13,5 +13,6 @@ namespace Blazor_WebAssembly.Services.Interfaces
 
         // Added the missing method
         Task SendEquipmentRequestAsync(string message);
+        Task<List<EquipmentModel>> GetCheckedOutEquipmentByTeamAsync(int teamId);
     }
 }
