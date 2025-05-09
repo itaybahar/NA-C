@@ -23,8 +23,8 @@ namespace API_Project.Services
         [Required(ErrorMessage = "UserId is required")]
         public string UserId { get; set; }
 
-        public DateTime CheckoutDate { get; set; } = DateTime.UtcNow;
-        public DateTime ExpectedReturnDate { get; set; }
+        public DateTime? CheckoutDate { get; set; } = DateTime.UtcNow;
+        public DateTime? ExpectedReturnDate { get; set; }
         public DateTime? ActualReturnDate { get; set; }
 
         public string Status { get; set; } = "CheckedOut";

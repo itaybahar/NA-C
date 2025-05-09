@@ -24,8 +24,11 @@ namespace Domain_Project.DTOs
         public string? TeamName { get; set; }
         public string? UserName { get; set; }
         public string? UserRole { get; set; }
-        public DateTime CheckedOutAt { get; set; }
+        public DateTime? CheckedOutAt { get; set; }
         public DateTime? ReturnedAt { get; set; }
+        public int Quantity { get; set; } = 1; // Default to 1 if not specified
+        public string ItemCondition { get; set; } = "Good";
+        public string ItemNotes { get; set; } = string.Empty;
     }
 
     public class UserLoginDto
@@ -77,8 +80,8 @@ namespace Domain_Project.DTOs
                 public int CheckoutID { get; set; }
                 public int EquipmentID { get; set; }
                 public int TeamID { get; set; }
-                public DateTime CheckoutDate { get; set; }
-                public DateTime ExpectedReturnDate { get; set; }
+                public DateTime? CheckoutDate { get; set; }
+                public DateTime? ExpectedReturnDate { get; set; }
                 public required string Status { get; set; }
 
             }
@@ -157,7 +160,7 @@ namespace Domain_Project.DTOs
                 [StringLength(50)]
                 public required string AssignedRole { get; set; }
 
-                public DateTime JoinDate { get; set; }
+                public DateTime? JoinDate { get; set; }
 
                 public bool IsActive { get; set; } = true;
 

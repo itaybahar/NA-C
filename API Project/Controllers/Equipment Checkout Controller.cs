@@ -1,18 +1,17 @@
-﻿using DocumentFormat.OpenXml.Wordprocessing;
+﻿using API_Project.Repositories;
 using Domain_Project.Interfaces;
 using Domain_Project.Models;
 using Microsoft.AspNetCore.Authorization;
 using Microsoft.AspNetCore.Mvc;
-using Microsoft.WindowsAzure.Storage;
 using System;
 using System.Collections.Generic;
 using System.Linq;
-using System.Linq.Expressions;
 using System.Text.Json;
 using System.Threading.Tasks;
 
 namespace API_Project.Controllers
 {
+    [ApiController]
     [Route("api/[controller]")]
     [Authorize(Roles = "WarehouseOperative,WarehouseManager,Admin")]
     public class EquipmentCheckoutController : BaseController<EquipmentCheckout, IGenericRepository<EquipmentCheckout>>
@@ -60,6 +59,25 @@ namespace API_Project.Controllers
             var teamCheckouts = await _checkoutRepository.GetByTeamIdAsync(teamId);
             return Ok(teamCheckouts);
         }
+
+        [HttpGet("equipment/{equipmentId}/in-use-quantity")]
+        [AllowAnonymous]
+        public async Task<IActionResult> GetInUseQuantity(int equipmentId)
+        {
+            try
+            {
+                var inUseQuantity = await _checkoutRepository.GetInUseQuantityForEquipmentAsync(equipmentId);
+                // Log the response to debug
+                Console.WriteLine($"Returning in-use quantity for equipment ID {equipmentId}: {inUseQuantity}");
+                return Ok(inUseQuantity);
+            }
+            catch (Exception ex)
+            {
+                Console.Error.WriteLine($"Error retrieving in-use quantity for equipment ID {equipmentId}: {ex.Message}");
+                return StatusCode(500, $"Error retrieving in-use quantity: {ex.Message}");
+            }
+        }
+
         [HttpPut("return/{checkoutId}")]
         [AllowAnonymous]
         public async Task<IActionResult> ReturnEquipmentWithDetails(int checkoutId, [FromBody] EquipmentReturnRequest request)
@@ -70,11 +88,16 @@ namespace API_Project.Controllers
                 return NotFound();
             }
 
+            var equipment = await _unitOfWork.Repository<Equipment>().GetByIdAsync(checkout.EquipmentId);
+            if (equipment == null)
+            {
+                return NotFound($"Equipment with ID {checkout.EquipmentId} not found.");
+            }
+
+            // Update the checkout record
             checkout.Status = "Returned";
             checkout.ActualReturnDate = request.ReturnDate ?? DateTime.UtcNow;
 
-            // Add the additional information if your data model supports it
-            // If not, you might need to extend your data model
             if (!string.IsNullOrEmpty(request.Condition))
             {
                 checkout.ReturnCondition = request.Condition;
@@ -85,10 +108,26 @@ namespace API_Project.Controllers
                 checkout.Notes = request.Notes;
             }
 
-            await _repository.UpdateAsync(checkout);
-            await _repository.SaveChangesAsync(checkout);
+            // Update the equipment quantity
+            equipment.Quantity += checkout.Quantity;
+            if (equipment.Quantity > 0)
+            {
+                equipment.Status = "Available";
+            }
 
-            return Ok(checkout);
+            try
+            {
+                await _repository.UpdateAsync(checkout);
+                await _unitOfWork.Repository<Equipment>().UpdateAsync(equipment);
+                await _unitOfWork.CompleteAsync();
+
+                return Ok(checkout);
+            }
+            catch (Exception ex)
+            {
+                Console.Error.WriteLine($"Error returning equipment: {ex.Message}");
+                return StatusCode(500, $"Failed to return equipment: {ex.Message}");
+            }
         }
 
         // Keep the original endpoint for backward compatibility
@@ -118,7 +157,25 @@ namespace API_Project.Controllers
             public string? Notes { get; set; }
             public DateTime? ReturnDate { get; set; }
         }
+        // In your API controller
+        [HttpGet("equipment/batch-in-use-quantity")]
+        public async Task<ActionResult<Dictionary<int, int>>> GetBatchInUseQuantities([FromQuery] int[] equipmentIds)
+        {
+            if (equipmentIds == null || equipmentIds.Length == 0)
+            {
+                return BadRequest("No equipment IDs provided");
+            }
 
+            var result = new Dictionary<int, int>();
+
+            foreach (var id in equipmentIds)
+            {
+                var quantity = await _checkoutRepository.GetInUseQuantityForEquipmentAsync(id);
+                result.Add(id, quantity);
+            }
+
+            return Ok(result);
+        }
 
 
         [HttpGet("overdue/timespan")]
@@ -149,6 +206,9 @@ namespace API_Project.Controllers
         {
             try
             {
+                // Log the request to help with debugging
+                Console.WriteLine("Received request for detailed checkout history");
+
                 var checkoutRecords = await _checkoutRepository.GetCheckoutHistoryAsync();
 
                 if (checkoutRecords == null || !checkoutRecords.Any())
@@ -157,14 +217,46 @@ namespace API_Project.Controllers
                     return NotFound("No checkout history found.");
                 }
 
-                Console.WriteLine($"Checkout history count: {checkoutRecords.Count}");
-                Console.WriteLine($"Checkout history count: {checkoutRecords}");
+                // Ensure quantity information is included in each record
+                foreach (var record in checkoutRecords)
+                {
+                    // If the record doesn't have a quantity set, try to retrieve it
+                    if (record.Quantity <= 0)
+                    {
+                        // Try to find the checkout by ID to get the quantity
+                        if (int.TryParse(record.Id, out int checkoutId) && checkoutId > 0)
+                        {
+                            var checkout = await _repository.GetByIdAsync(checkoutId);
+                            if (checkout != null)
+                            {
+                                record.Quantity = checkout.Quantity;
+                            }
+                            else
+                            {
+                                // Default to 1 for backward compatibility
+                                record.Quantity = 1;
+                            }
+                        }
+                        else
+                        {
+                            // Default to 1 for backward compatibility
+                            record.Quantity = 1;
+                        }
+                    }
+                }
 
-                return new JsonResult(checkoutRecords, new JsonSerializerOptions
+                Console.WriteLine($"Checkout history count: {checkoutRecords.Count}");
+                Console.WriteLine($"First record quantity: {checkoutRecords.FirstOrDefault()?.Quantity ?? 0}");
+
+                // For debugging, log the JSON that will be returned
+                var jsonResult = new JsonResult(checkoutRecords, new JsonSerializerOptions
                 {
                     PropertyNamingPolicy = JsonNamingPolicy.CamelCase,
                     WriteIndented = true
                 });
+
+                Console.WriteLine($"Returning detailed checkout history with {checkoutRecords.Count} records");
+                return jsonResult;
             }
             catch (Exception ex)
             {
@@ -172,6 +264,7 @@ namespace API_Project.Controllers
                 return StatusCode(500, $"Error retrieving detailed checkout history: {ex.Message}");
             }
         }
+
         [HttpGet("get-checkout-id")]
         [AllowAnonymous]
         public async Task<IActionResult> GetCheckoutIdByTeamAndEquipment(int teamId, int equipmentId)
@@ -194,37 +287,60 @@ namespace API_Project.Controllers
             }
         }
 
-
-
         [HttpPost("checkout")]
         [AllowAnonymous]
         public async Task<IActionResult> CheckoutEquipment([FromBody] EquipmentCheckoutRequest request)
         {
-            if (request == null || request.EquipmentID <= 0 || request.TeamID <= 0)
+            if (request == null || request.EquipmentID <= 0 || request.TeamID <= 0 || request.Quantity <= 0)
             {
-                return BadRequest("Valid Equipment ID and Team ID are required");
+                return BadRequest("Valid Equipment ID, Team ID, and Quantity are required");
             }
 
+            // Fetch the equipment details
+            var equipment = await _unitOfWork.Repository<Equipment>().GetByIdAsync(request.EquipmentID);
+            if (equipment == null)
+            {
+                return NotFound($"Equipment with ID {request.EquipmentID} not found.");
+            }
+
+            // Check if the requested quantity is available
+            if (equipment.Quantity < request.Quantity)
+            {
+                return BadRequest($"Requested quantity ({request.Quantity}) exceeds available quantity ({equipment.Quantity}).");
+            }
+
+            // Create the checkout record
             var checkout = new EquipmentCheckout
             {
-                EquipmentID = request.EquipmentID,
+                EquipmentId = request.EquipmentID,
                 TeamID = request.TeamID,
                 UserID = request.UserId,
                 CheckoutDate = DateTime.UtcNow,
                 ExpectedReturnDate = request.ExpectedReturnDate ?? DateTime.UtcNow.AddDays(7),
                 Status = "CheckedOut",
                 Notes = request.Notes,
+                Quantity = request.Quantity
             };
 
             try
             {
+                // Add the checkout record
                 await _repository.AddAsync(checkout);
+
+                // Update the equipment quantity
+                equipment.Quantity -= request.Quantity;
+                if (equipment.Quantity == 0)
+                {
+                    equipment.Status = "Unavailable";
+                }
+
+                await _unitOfWork.Repository<Equipment>().UpdateAsync(equipment);
                 await _unitOfWork.CompleteAsync();
+
                 return CreatedAtAction(nameof(GetById), new { id = checkout.CheckoutID }, checkout);
             }
             catch (Exception ex)
             {
-                // Enhanced error logging
                 var innerMessage = ex.InnerException?.Message ?? "No inner exception details available";
                 Console.Error.WriteLine($"Database error in checkout: {innerMessage}");
                 return StatusCode(500, $"Failed to checkout equipment: {ex.Message}");
@@ -258,6 +374,6 @@ namespace API_Project.Controllers
         public DateTime? ExpectedReturnDate { get; set; }
         public DateTime? CheckoutDate { get; set; }
         public string? Notes { get; set; }
-        
+        public int Quantity { get; internal set; }
     }
 }

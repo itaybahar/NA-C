@@ -34,17 +34,12 @@ namespace API_Project.Data
                 entity.Property(t => t.CreatedDate).HasDefaultValueSql("CURRENT_TIMESTAMP");
                 entity.Property(t => t.IsBlacklisted).HasDefaultValue(false);
             });
+
             // User configurations
             modelBuilder.Entity<User>(entity =>
             {
                 entity.HasIndex(u => u.Username).IsUnique();
                 entity.HasIndex(u => u.Email).IsUnique();
-            });
-
-            // Team configurations
-            modelBuilder.Entity<Team>(entity =>
-            {
-                entity.HasIndex(t => t.TeamName).IsUnique();
             });
 
             // Equipment configurations
@@ -53,21 +48,46 @@ namespace API_Project.Data
                 entity.Property(e => e.Status)
                     .HasConversion<string>()
                     .HasDefaultValue(EquipmentStatus.Available);
+
+                // Explicitly map Id as primary key
+                entity.HasKey(e => e.Id);
             });
 
             // Equipment Checkout configurations
             modelBuilder.Entity<EquipmentCheckout>(entity =>
             {
+                // Define primary key
+                entity.HasKey(ec => ec.CheckoutID);
+
+                // Map database column explicitly
+                entity.Property(ec => ec.EquipmentId)
+                    .HasColumnName("EquipmentID");
+
                 entity.Property(ec => ec.Status)
                     .HasDefaultValue("CheckedOut");
 
+                // Fix Equipment relationship - this is critical
                 entity.HasOne<Equipment>()
                     .WithMany()
-                    .HasForeignKey(ec => ec.EquipmentID);
+                    .HasForeignKey(ec => ec.EquipmentId)
+                    .HasPrincipalKey(e => e.Id)
+                    .IsRequired();
 
                 entity.HasOne<Team>()
                     .WithMany()
                     .HasForeignKey(ec => ec.TeamID);
+
+                // Make nullable fields explicit
+                entity.Property(ec => ec.CheckoutDate).IsRequired();
+                entity.Property(ec => ec.ExpectedReturnDate).IsRequired();
+                entity.Property(ec => ec.Status).HasMaxLength(20).IsRequired();
+                entity.Property(ec => ec.Quantity).IsRequired().HasDefaultValue(1);
+
+                // Delete orphaned records option
+                entity.HasOne<Equipment>()
+                    .WithMany()
+                    .HasForeignKey(ec => ec.EquipmentId)
+                    .OnDelete(DeleteBehavior.Cascade);
             });
 
             // Equipment Request configurations
@@ -80,7 +100,7 @@ namespace API_Project.Data
                     .HasDefaultValue("Normal");
             });
 
-            // In EquipmentManagementContext.cs - OnModelCreating method
+            // UserRoleAssignment configuration
             modelBuilder.Entity<UserRoleAssignment>(entity =>
             {
                 // Define composite primary key
@@ -97,8 +117,9 @@ namespace API_Project.Data
                     .WithMany()
                     .HasForeignKey(ura => ura.RoleID)
                     .OnDelete(DeleteBehavior.Cascade);
+
                 // Default assigned date
-                 entity.Property(ura => ura.AssignedDate)
+                entity.Property(ura => ura.AssignedDate)
                     .HasDefaultValueSql("CURRENT_TIMESTAMP");
             });
 

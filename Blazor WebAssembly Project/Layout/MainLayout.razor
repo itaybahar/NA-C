@@ -1,8 +1,52 @@
-﻿<style>
+﻿@inherits LayoutComponentBase
+@inject IJSRuntime JSRuntime
+@implements IAsyncDisposable
+@inject NavigationManager NavigationManager
+@inject ILogger<MainLayout> Logger
+
+<div class="page">
+    <!-- Add API Connection Status Indicator -->
+    <div id="api-status-indicator" class="api-status-indicator @(_apiConnectionState)">
+        @if (_apiConnectionState == "checking")
+        {
+            <div class="api-checking">
+                <div class="spinner"></div>
+                <span>בודק חיבור לשרת...</span>
+            </div>
+        }
+        else if (_apiConnectionState == "error")
+        {
+            <div class="api-error-message">
+                <i class="bi bi-exclamation-triangle-fill"></i>
+                <span>בעיית התחברות לשרת. <a href="javascript:void(0)" @onclick="RetryConnection">נסה שוב</a></span>
+            </div>
+        }
+    </div>
+
+    <!-- Main content -->
+    <main>
+        <ErrorBoundary @ref="_errorBoundary">
+            <ChildContent>
+                @Body
+            </ChildContent>
+            <ErrorContent Context="exception">
+                <div class="error-ui">
+                    <h3>שגיאה</h3>
+                    <p>אירעה שגיאה בטעינת התוכן: @exception.Message</p>
+                    <button class="btn btn-primary" @onclick="() => NavigationManager.NavigateTo(NavigationManager.Uri, true)">
+                        טען מחדש
+                    </button>
+                </div>
+            </ErrorContent>
+        </ErrorBoundary>
+    </main>
+</div>
+
+<style>
     .page {
         position: relative;
         display: flex;
-        flex-direction: column; /* Adjusted to remove the sidebar layout */
+        flex-direction: column;
     }
 
     main {
@@ -51,7 +95,7 @@
         .page
 
     {
-        flex-direction: column; /* Adjusted to remove the sidebar layout */
+        flex-direction: column;
     }
 
     .top-row {
@@ -61,13 +105,154 @@
     }
 
     }
+
+    /* API Status Indicator */
+    .api-status-indicator {
+        position: fixed;
+        bottom: 20px;
+        left: 20px;
+        z-index: 1000;
+        padding: 10px;
+        border-radius: 4px;
+        box-shadow: 0 2px 10px rgba(0, 0, 0, 0.2);
+        font-size: 14px;
+        opacity: 0;
+        transition: opacity 0.3s ease-in-out;
+    }
+
+        .api-status-indicator.checking,
+        .api-status-indicator.error {
+            opacity: 1;
+        }
+
+    .api-checking {
+        display: flex;
+        align-items: center;
+        background-color: rgba(0, 0, 0, 0.8);
+        color: white;
+        padding: 8px 16px;
+        border-radius: 4px;
+    }
+
+    .spinner {
+        width: 20px;
+        height: 20px;
+        border: 3px solid #ffffff;
+        border-top-color: transparent;
+        border-radius: 50%;
+        margin-right: 8px;
+        animation: spinner 0.8s linear infinite;
+    }
+
+    keyframes spinner {
+        to
+
+    {
+        transform: rotate(360deg);
+    }
+
+    }
+
+    .api-error-message {
+        background-color: #dc3545;
+        color: white;
+        padding: 8px 16px;
+        border-radius: 4px;
+        display: flex;
+        align-items: center;
+    }
+
+        .api-error-message i {
+            margin-right: 8px;
+        }
+
+        .api-error-message a {
+            color: white;
+            text-decoration: underline;
+            margin-right: 8px;
+        }
+
+    /* Error UI */
+    .error-ui {
+        background-color: #f8d7da;
+        color: #721c24;
+        border: 1px solid #f5c6cb;
+        border-radius: 4px;
+        padding: 20px;
+        margin-bottom: 15px;
+        text-align: center;
+        direction: rtl;
+    }
+
+        .error-ui button {
+            margin-top: 10px;
+        }
 </style>
 
-@inherits LayoutComponentBase
+@code {
+    private string _apiConnectionState = "checking";
+    private ErrorBoundary _errorBoundary;
+    private DotNetObjectReference<MainLayout> _objRef;
 
-<div class="page">
-    <!-- Main content -->
-    <main>
-        @Body
-    </main>
-</div>
+    protected override async Task OnInitializedAsync()
+    {
+        _objRef = DotNetObjectReference.Create(this);
+        await base.OnInitializedAsync();
+    }
+
+    protected override async Task OnAfterRenderAsync(bool firstRender)
+    {
+        if (firstRender)
+        {
+            try
+            {
+                Logger.LogInformation("Checking API connection...");
+                await JSRuntime.InvokeVoidAsync("checkApiConnection", _objRef);
+            }
+            catch (Exception ex)
+            {
+                Logger.LogError(ex, "Error checking API connection");
+                _apiConnectionState = "error";
+                StateHasChanged();
+            }
+        }
+    }
+
+    [JSInvokable]
+    public void OnApiConnectionSuccess()
+    {
+        _apiConnectionState = "connected";
+        Logger.LogInformation("API connection successful");
+        StateHasChanged();
+    }
+
+    [JSInvokable]
+    public void OnApiConnectionError()
+    {
+        _apiConnectionState = "error";
+        Logger.LogWarning("API connection failed");
+        StateHasChanged();
+    }
+
+    private async Task RetryConnection()
+    {
+        _apiConnectionState = "checking";
+        StateHasChanged();
+
+        try
+        {
+            await JSRuntime.InvokeVoidAsync("checkApiConnection", _objRef);
+        }
+        catch
+        {
+            _apiConnectionState = "error";
+            StateHasChanged();
+        }
+    }
+
+    public async ValueTask DisposeAsync()
+    {
+        _objRef?.Dispose();
+        await ValueTask.CompletedTask;
+    }
+}

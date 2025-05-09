@@ -6,9 +6,13 @@ namespace Blazor_WebAssembly.Services.Interfaces
     public interface ICheckoutService
     {
         Task<bool> ReturnEquipmentAsync(int checkoutId);
-        Task<List<EquipmentCheckoutModel>> GetActiveCheckoutsAsync();
-        Task<List<EquipmentCheckoutModel>> GetOverdueCheckoutsAsync();
-        Task CheckoutEquipmentAsync(int teamId, int equipmentId, int userId);
+        Task<List<EquipmentCheckout>> GetActiveCheckoutsAsync();
+        Task<List<EquipmentCheckout>> GetOverdueCheckoutsAsync();
+        Task<bool> CheckoutEquipmentAsync(int teamId, int equipmentId, int userId, int quantity);
         Task<List<CheckoutRecordDto>> GetCheckoutHistoryAsync();
+        Task<int> GetAvailableQuantityForEquipmentAsync(int equipmentId, int totalQuantity); // Updated to include totalQuantity
+        Task<int> GetInUseQuantityForEquipmentAsync(int equipmentId);
     }
+
+
 }

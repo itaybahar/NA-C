@@ -7,11 +7,15 @@ using Domain_Project.Interfaces;
 using Domain_Project.Models;
 using Microsoft.AspNetCore.Authentication.JwtBearer;
 using Microsoft.AspNetCore.CookiePolicy;
+using Microsoft.AspNetCore.Diagnostics;
+using Microsoft.AspNetCore.Diagnostics.HealthChecks;
 using Microsoft.AspNetCore.RateLimiting;
 using Microsoft.EntityFrameworkCore;
 using Microsoft.Extensions.Diagnostics.HealthChecks;
 using Microsoft.IdentityModel.Tokens;
 using Microsoft.OpenApi.Models;
+using System.Net;
+using System.Net.Mail;
 using System.Security.Cryptography.X509Certificates;
 using System.Text;
 using System.Text.Json;
@@ -22,6 +26,10 @@ namespace API_Project
 {
     public class Program
     {
+        // Track active ports for server-client coordination
+        private static int _activeHttpPort;
+        private static int _activeHttpsPort;
+
         public static void Main(string[] args)
         {
             var builder = WebApplication.CreateBuilder(args);
@@ -29,18 +37,17 @@ namespace API_Project
             // Configure logging before any other services
             ConfigureLogging(builder);
 
-            // Configure Kestrel with improved certificate handling
+            // Configure Kestrel with improved certificate handling and dynamic port assignment
             ConfigureKestrel(builder);
 
             // Configure application services
             ConfigureServices(builder);
 
-            // Build the application (only once)
+            // Build the application
             var app = builder.Build();
 
             // Configure the HTTP request pipeline
             ConfigurePipeline(app);
-
         }
 
         private static void ConfigureLogging(WebApplicationBuilder builder)
@@ -55,11 +62,84 @@ namespace API_Project
         {
             builder.WebHost.ConfigureKestrel(options =>
             {
-                options.ListenAnyIP(5191, listenOptions =>
+                // Use ConfigureEndpointDefaults to set up default HTTPS for all endpoints
+                options.ConfigureEndpointDefaults(listenOptions =>
+                {
+                    listenOptions.UseHttps();
+                });
+
+                // Try primary ports first, but use fallbacks if they're in use
+                _activeHttpPort = ConfigurePortWithFallback(options, 5191, 6000, 6100, false); // HTTP endpoint
+                _activeHttpsPort = ConfigurePortWithFallback(options, 7235, 7500, 7600, true); // HTTPS endpoint
+
+                // Store the active ports in configuration for client access
+                builder.Configuration["ActiveHttpPort"] = _activeHttpPort.ToString();
+                builder.Configuration["ActiveHttpsPort"] = _activeHttpsPort.ToString();
+
+                // Log the successfully bound ports for visibility
+                Console.WriteLine($"Server configured to listen on ports: HTTP: {_activeHttpPort}, HTTPS: {_activeHttpsPort}");
+            });
+        }
+
+        private static int ConfigurePortWithFallback(Microsoft.AspNetCore.Server.Kestrel.Core.KestrelServerOptions options,
+                                                   int preferredPort, int fallbackStart, int fallbackEnd, bool useHttps)
+        {
+            bool portBound = false;
+            int currentPort = preferredPort;
+
+            // Try the preferred port first
+            try
+            {
+                ConfigurePort(options, currentPort, useHttps);
+                portBound = true;
+                Console.WriteLine($"Successfully bound to {(useHttps ? "HTTPS" : "HTTP")} port {currentPort}");
+            }
+            catch (Exception ex) when (IsAddressInUseException(ex))
+            {
+                Console.WriteLine($"Port {currentPort} is already in use. Trying fallback ports...");
+            }
+
+            // If preferred port failed, try the fallback range
+            if (!portBound)
+            {
+                for (currentPort = fallbackStart; currentPort <= fallbackEnd; currentPort++)
+                {
+                    try
+                    {
+                        ConfigurePort(options, currentPort, useHttps);
+                        portBound = true;
+                        Console.WriteLine($"Successfully bound to fallback {(useHttps ? "HTTPS" : "HTTP")} port {currentPort}");
+                        break;
+                    }
+                    catch (Exception ex) when (IsAddressInUseException(ex))
+                    {
+                        // Continue to the next port
+                        Console.WriteLine($"Fallback port {currentPort} is already in use. Trying next...");
+                    }
+                }
+            }
+
+            if (!portBound)
+            {
+                Console.WriteLine($"Failed to bind to any port in the range {preferredPort}, {fallbackStart}-{fallbackEnd}.");
+                throw new InvalidOperationException($"Could not find an available {(useHttps ? "HTTPS" : "HTTP")} port");
+            }
+
+            // Return the successfully bound port
+            return currentPort;
+        }
+
+        private static void ConfigurePort(Microsoft.AspNetCore.Server.Kestrel.Core.KestrelServerOptions options, int port, bool useHttps)
+        {
+            options.ListenAnyIP(port, listenOptions =>
+            {
+                if (useHttps)
                 {
                     listenOptions.UseHttps(httpsOptions =>
                     {
-                        if (builder.Environment.IsDevelopment())
+                        var environment = options.ApplicationServices.GetRequiredService<IWebHostEnvironment>();
+
+                        if (environment.IsDevelopment())
                         {
                             var possibleLocations = new[]
                             {
@@ -77,13 +157,14 @@ namespace API_Project
                                 {
                                     try
                                     {
-                                        httpsOptions.ServerCertificate = X509Certificate2.CreateFromPemFile(location.CertPath, location.KeyPath);
+                                        httpsOptions.ServerCertificate = X509Certificate2.CreateFromPemFile(
+                                            location.CertPath, location.KeyPath);
                                         certificateFound = true;
                                         break;
                                     }
                                     catch (Exception ex)
                                     {
-                                        Console.WriteLine($"Error loading certificates from {location.CertPath}: {ex.Message}");
+                                        Console.WriteLine($"Error loading certificates: {ex.Message}");
                                     }
                                 }
                             }
@@ -93,22 +174,22 @@ namespace API_Project
                                 Console.WriteLine("No certificate files found. Using development certificate instead.");
                             }
                         }
-                        else
-                        {
-                            Console.WriteLine("Production environment detected. Using configured certificate.");
-                        }
                     });
-                });
-
-                options.ListenAnyIP(7235, listenOptions =>
-                {
-                    listenOptions.UseHttps();
-                });
+                }
             });
+        }
+
+        private static bool IsAddressInUseException(Exception ex)
+        {
+            // Check if the exception is related to address already in use
+            return ex is System.IO.IOException && ex.Message.Contains("address already in use");
         }
 
         private static void ConfigureServices(WebApplicationBuilder builder)
         {
+            // Configure email services
+            ConfigureEmailService(builder);
+
             var authSettings = builder.Configuration.GetSection("Authentication").Get<AuthenticationSettings>();
             if (authSettings == null)
             {
@@ -121,8 +202,13 @@ namespace API_Project
                 {
                     options.JsonSerializerOptions.ReferenceHandler = ReferenceHandler.IgnoreCycles;
                     options.JsonSerializerOptions.DefaultIgnoreCondition = JsonIgnoreCondition.WhenWritingNull;
+                    // Add property name policy to ensure consistency between client and server
+                    options.JsonSerializerOptions.PropertyNamingPolicy = JsonNamingPolicy.CamelCase;
+                    // Add converter for enums
+                    options.JsonSerializerOptions.Converters.Add(new JsonStringEnumConverter());
+                    // Ensure proper number handling
+                    options.JsonSerializerOptions.NumberHandling = JsonNumberHandling.AllowReadingFromString;
                 });
-
 
             ConfigureDatabase(builder);
             RegisterNamedHttpClients(builder);
@@ -185,6 +271,41 @@ namespace API_Project
                     }
                 };
             });
+
+            // Add port information endpoints
+            builder.Services.AddSingleton<IServerPortProvider>(new ServerPortProvider(_activeHttpPort, _activeHttpsPort));
+        }
+
+        private static void ConfigureEmailService(WebApplicationBuilder builder)
+        {
+            // Ensure email settings are properly configured
+            var emailSection = builder.Configuration.GetSection("Email");
+            if (!emailSection.Exists())
+            {
+                Console.WriteLine("WARNING: Email configuration section is missing. Email functionality may not work correctly.");
+            }
+            else
+            {
+                var smtpHost = emailSection["Smtp:Host"];
+                var smtpPort = emailSection["Smtp:Port"];
+                var smtpUser = emailSection["Smtp:Username"];
+                var smtpPass = emailSection["Smtp:Password"];
+                var fromEmail = emailSection["From"];
+
+                if (string.IsNullOrEmpty(smtpHost) || string.IsNullOrEmpty(smtpPort) ||
+                    string.IsNullOrEmpty(smtpUser) || string.IsNullOrEmpty(smtpPass) ||
+                    string.IsNullOrEmpty(fromEmail))
+                {
+                    Console.WriteLine("WARNING: One or more email configuration values are missing. Email functionality may not work correctly.");
+                }
+                else
+                {
+                    Console.WriteLine($"Email configuration detected. SMTP Host: {smtpHost}, From: {fromEmail}");
+                }
+            }
+
+            // Register the email service
+            builder.Services.AddScoped<IEmailService, EmailService>();
         }
 
         private static void ConfigureDatabase(WebApplicationBuilder builder)
@@ -213,10 +334,13 @@ namespace API_Project
 
         private static void RegisterNamedHttpClients(WebApplicationBuilder builder)
         {
+            // Use the dynamic HTTPS port for API base address
+            var apiBaseAddress = $"https://localhost:{_activeHttpsPort}";
+            builder.Configuration["API_BaseAddress"] = apiBaseAddress;
+
             builder.Services.AddHttpClient("API", client =>
             {
-                var baseAddress = builder.Configuration["API_BaseAddress"] ?? "https://localhost:7235";
-                client.BaseAddress = new Uri(baseAddress);
+                client.BaseAddress = new Uri(apiBaseAddress);
                 client.DefaultRequestHeaders.Add("User-Agent", "Equipment Management API Client");
             }).ConfigurePrimaryHttpMessageHandler(() => new HttpClientHandler
             {
@@ -225,19 +349,24 @@ namespace API_Project
 
             builder.Services.AddHttpClient("Auth", client =>
             {
-                client.BaseAddress = new Uri("https://localhost:5191/");
+                client.BaseAddress = new Uri(apiBaseAddress);
                 client.DefaultRequestHeaders.Add("User-Agent", "Equipment Management Auth Client");
+            }).ConfigurePrimaryHttpMessageHandler(() => new HttpClientHandler
+            {
+                ServerCertificateCustomValidationCallback = (message, cert, chain, errors) => true
             });
 
             builder.Services.AddHttpClient("External", client =>
             {
                 client.DefaultRequestHeaders.Add("User-Agent", "Equipment Management External Client");
+            }).ConfigurePrimaryHttpMessageHandler(() => new HttpClientHandler
+            {
+                ServerCertificateCustomValidationCallback = (message, cert, chain, errors) => true
             });
         }
 
         private static void RegisterServices(WebApplicationBuilder builder)
         {
-            // Repository registrations
             builder.Services.AddScoped<IEquipmentRepository, EquipmentRepository>();
             builder.Services.AddScoped(typeof(IGenericRepository<>), typeof(GenericRepository<>));
             builder.Services.AddScoped<IUserRepository, UserRepository>();
@@ -247,7 +376,6 @@ namespace API_Project
             builder.Services.AddScoped<IBlacklistRepository, BlacklistRepository>();
             builder.Services.AddScoped<IUnitOfWork, UnitOfWorkRepository>();
 
-            // Service registrations with proper logger injection
             builder.Services.AddScoped<Services.AuthenticationService>();
             builder.Services.AddScoped<Domain_Project.Interfaces.IAuthenticationService>(sp =>
                 new AuthenticationServiceAdapter(
@@ -255,11 +383,9 @@ namespace API_Project
                     sp.GetRequiredService<IHttpClientFactory>().CreateClient("Auth")));
 
             builder.Services.AddScoped<IRoleRequestService, RoleRequestService>();
-            builder.Services.AddScoped<IEmailService, EmailService>();
             builder.Services.AddScoped<ITeamService, TeamService>();
             builder.Services.AddScoped<IBlacklistService, BlacklistService>();
 
-            // Update the EquipmentService registration in RegisterServices method
             builder.Services.AddScoped<IEquipmentService>(sp =>
                 new EquipmentService(
                     sp.GetRequiredService<IEquipmentRepository>(),
@@ -270,11 +396,18 @@ namespace API_Project
                     JsonOptions = new JsonSerializerOptions
                     {
                         PropertyNameCaseInsensitive = true,
-                        ReferenceHandler = ReferenceHandler.Preserve
+                        PropertyNamingPolicy = JsonNamingPolicy.CamelCase,
+                        ReferenceHandler = ReferenceHandler.Preserve,
+                        DefaultIgnoreCondition = JsonIgnoreCondition.WhenWritingNull,
+                        NumberHandling = JsonNumberHandling.AllowReadingFromString
                     }
                 });
-             }
 
+            // Fix issue with CheckoutService
+            builder.Services.AddScoped<ICheckoutService, API_Project.Services.CheckoutService>(sp =>
+                new API_Project.Services.CheckoutService(
+                    sp.GetRequiredService<IHttpClientFactory>().CreateClient("API")));
+        }
 
         private static void ConfigureRateLimiting(WebApplicationBuilder builder)
         {
@@ -304,6 +437,19 @@ namespace API_Project
                         });
                 });
 
+                // Special policy for services that might make many API calls
+                options.AddPolicy("ServiceEndpoints", context =>
+                {
+                    var clientIp = context.Connection.RemoteIpAddress?.ToString() ?? "unknown";
+                    return RateLimitPartition.GetFixedWindowLimiter(clientIp,
+                        _ => new FixedWindowRateLimiterOptions
+                        {
+                            AutoReplenishment = true,
+                            PermitLimit = 300, // Much higher limit for service endpoints
+                            Window = TimeSpan.FromMinutes(1)
+                        });
+                });
+
                 options.OnRejected = async (context, token) =>
                 {
                     context.HttpContext.Response.StatusCode = 429;
@@ -328,6 +474,15 @@ namespace API_Project
                     new DbConnectionHealthCheck(connectionString),
                     tags: new[] { "db", "mysql" },
                     timeout: TimeSpan.FromSeconds(30)
+                );
+
+            // Add email health check
+            builder.Services.AddHealthChecks()
+                .AddCheck(
+                    "email-config",
+                    new EmailConfigHealthCheck(builder.Configuration),
+                    tags: new[] { "email" },
+                    timeout: TimeSpan.FromSeconds(5)
                 );
         }
 
@@ -374,31 +529,108 @@ namespace API_Project
 
         private static void ConfigureCors(WebApplicationBuilder builder)
         {
-            // Define allowed origins explicitly including your Blazor WebAssembly app's origin
-            var allowedOrigins = builder.Configuration.GetSection("CorsSettings:AllowedOrigins").Get<string[]>() ??
-                new[] { "https://localhost:7176", "http://localhost:5176" };
+            // Include all possible port combinations for client (Blazor WebAssembly) connectivity
+            var allowedOrigins = new List<string>
+            {
+                // Basic localhost origins
+                "https://localhost:5001", "http://localhost:5000",
+                "https://localhost:7176", "http://localhost:5176",
+                "https://localhost:7177", "http://localhost:5177",
+                "https://localhost:7178", "http://localhost:5178",
+                "https://localhost:7179", "http://localhost:5179",
+                "https://localhost:7180", "http://localhost:5180",
+                
+                // Additional origins for VS2022 and other tools
+                "https://localhost:44300", "http://localhost:44300",
+                "https://localhost:44301", "http://localhost:44301",
+                "https://localhost:44302", "http://localhost:44302",
+                "https://localhost:44303", "http://localhost:44303",
+                
+                // Common .NET dev ports
+                "https://localhost:5000", "http://localhost:5000",
+                "https://localhost:5001", "http://localhost:5001",
+                "https://localhost:5002", "http://localhost:5002",
+                "https://localhost:5003", "http://localhost:5003",
+                "https://localhost:5004", "http://localhost:5004",
+                "https://localhost:5005", "http://localhost:5005",
+                "https://localhost:5010", "http://localhost:5010",
+                "https://localhost:5011", "http://localhost:5011",
+                "https://localhost:5012", "http://localhost:5012",
+                "https://localhost:5013", "http://localhost:5013",
+                "https://localhost:5014", "http://localhost:5014",
+                "https://localhost:5015", "http://localhost:5015",
+                
+                // Common ranges used by Visual Studio
+                "https://localhost:7000", "http://localhost:7000",
+                "https://localhost:7001", "http://localhost:7001",
+                "https://localhost:7002", "http://localhost:7002",
+                "https://localhost:7003", "http://localhost:7003",
+                
+                // IIS Express ranges
+                "https://localhost:44300", "http://localhost:44300",
+                "https://localhost:44301", "http://localhost:44301",
+                "https://localhost:44302", "http://localhost:44302",
+            };
+
+            // Add ports from config if available
+            var configOrigins = builder.Configuration.GetSection("CorsSettings:AllowedOrigins").Get<string[]>();
+            if (configOrigins != null)
+            {
+                allowedOrigins.AddRange(configOrigins);
+            }
+
+            // Add dynamic origins based on active ports
+            allowedOrigins.Add($"https://localhost:{_activeHttpsPort}");
+            allowedOrigins.Add($"http://localhost:{_activeHttpPort}");
 
             builder.Services.AddCors(options =>
             {
                 options.AddDefaultPolicy(policy =>
                 {
-                    policy.WithOrigins(allowedOrigins)
+                    policy.WithOrigins(allowedOrigins.ToArray())
                           .AllowAnyMethod()
                           .AllowAnyHeader()
-                          .AllowCredentials(); // Important for authentication
+                          .AllowCredentials();
                 });
+
                 options.AddPolicy("AllowAll", builder =>
                 {
-                    builder.AllowAnyOrigin()
+                    builder.SetIsOriginAllowed(_ => true) // Allow any origin
                            .AllowAnyMethod()
-                           .AllowAnyHeader();
+                           .AllowAnyHeader()
+                           .AllowCredentials();
                 });
             });
         }
 
         private static void ConfigurePipeline(WebApplication app)
         {
-            // Development-specific configurations  
+            // Add global exception handling middleware
+            app.UseExceptionHandler(appError =>
+            {
+                appError.Run(async context =>
+                {
+                    context.Response.StatusCode = StatusCodes.Status500InternalServerError;
+                    context.Response.ContentType = "application/json";
+
+                    var contextFeature = context.Features.Get<IExceptionHandlerFeature>();
+                    if (contextFeature != null)
+                    {
+                        var logger = app.Services.GetRequiredService<ILogger<Program>>();
+                        logger.LogError(contextFeature.Error, "Unhandled exception occurred");
+
+                        await context.Response.WriteAsJsonAsync(new
+                        {
+                            StatusCode = context.Response.StatusCode,
+                            Message = app.Environment.IsDevelopment()
+                                ? $"Error: {contextFeature.Error.Message}"
+                                : "An unexpected error occurred. Please try again later."
+                        });
+                    }
+                });
+            });
+
+            // Development-specific middleware
             if (app.Environment.IsDevelopment())
             {
                 app.UseDeveloperExceptionPage();
@@ -421,23 +653,97 @@ namespace API_Project
             }
             else
             {
-                // Production-specific configurations  
-                app.UseExceptionHandler("/Error");
+                // Already configured at the top of the method
                 app.UseHsts();
             }
 
-            // Middleware for request handling  
+            // CORS configuration - IMPORTANT: Configure CORS before other middleware
+            app.UseCors("AllowAll"); // Apply the permissive CORS policy for development
+            app.UseCors(); // Apply the default policy
+
+            // Health check endpoints with improved response
+            app.MapHealthChecks("/health", new HealthCheckOptions
+            {
+                ResponseWriter = async (context, report) =>
+                {
+                    context.Response.ContentType = "application/json";
+
+                    var result = new
+                    {
+                        Status = report.Status.ToString(),
+                        Duration = report.TotalDuration,
+                        Checks = report.Entries.Select(e => new
+                        {
+                            Component = e.Key,
+                            Status = e.Value.Status.ToString(),
+                            Description = e.Value.Description ?? string.Empty,
+                            Duration = e.Value.Duration
+                        })
+                    };
+
+                    await context.Response.WriteAsJsonAsync(result);
+                }
+            });
+
+            // API version and status endpoint
+            app.MapGet("/api/status", () => new
+            {
+                Status = "Running",
+                Version = "1.0.0",
+                Environment = app.Environment.EnvironmentName,
+                Timestamp = DateTimeOffset.UtcNow
+            });
+
+            // Add port discovery endpoint for clients
+            app.MapGet("/api/server-info/ports", (IServerPortProvider portProvider) =>
+                new { HttpPort = portProvider.HttpPort, HttpsPort = portProvider.HttpsPort });
+
+            // Add CORS preflight handling middleware for all OPTIONS requests
+            app.Use(async (context, next) =>
+            {
+                if (context.Request.Method == "OPTIONS")
+                {
+                    context.Response.Headers.Add("Access-Control-Allow-Origin", "*");
+                    context.Response.Headers.Add("Access-Control-Allow-Headers", "Origin, X-Requested-With, Content-Type, Accept, Authorization");
+                    context.Response.Headers.Add("Access-Control-Allow-Methods", "GET, POST, PUT, DELETE, OPTIONS");
+                    context.Response.StatusCode = 200;
+                    return;
+                }
+
+                await next();
+            });
+
+            // Add email test endpoint
+            app.MapGet("/api/email/test", async (IEmailService emailService, IConfiguration config) =>
+            {
+                try
+                {
+                    var testEmail = config["Email:TestEmail"] ?? "test@example.com";
+                    await emailService.SendEmailAsync(
+                        testEmail,
+                        "Equipment Management System - Test Email",
+                        "<h1>Email Test</h1><p>This is a test email from the Equipment Management System API.</p>");
+                    return Results.Ok(new { Success = true, Message = "Test email sent successfully" });
+                }
+                catch (Exception ex)
+                {
+                    return Results.Problem(
+                        title: "Email Test Failed",
+                        detail: $"Failed to send test email: {ex.Message}",
+                        statusCode: 500,
+                        extensions: new Dictionary<string, object> { { "TraceId", Guid.NewGuid().ToString() } }
+                    );
+                }
+            })
+            .AllowAnonymous(); // Allow anonymous access during development
+
+            // Standard middleware pipeline
             app.UseHttpsRedirection();
-            app.UseStaticFiles(); // Serve static files if needed  
+            app.UseStaticFiles();
             app.UseRouting();
 
-            // CORS configuration  
-            app.UseCors();
-            app.UseCors("AllowAll");
-            // Rate limiting to prevent abuse  
             app.UseRateLimiter();
 
-            // Cookie policy for secure handling  
             app.UseCookiePolicy(new CookiePolicyOptions
             {
                 MinimumSameSitePolicy = SameSiteMode.None,
@@ -445,60 +751,119 @@ namespace API_Project
                 HttpOnly = HttpOnlyPolicy.Always
             });
 
-            // Authentication and Authorization  
             app.UseAuthentication();
             app.UseAuthorization();
 
-            // Custom logging for requests and responses  
-            // Custom logging for requests and responses  
-            app.Use(async (context, next) =>
+            // Detailed request/response logging for troubleshooting
+            if (app.Environment.IsDevelopment())
             {
-                try
+                app.Use(async (context, next) =>
                 {
-                    // Print authorization header  
+                    var logger = app.Services.GetRequiredService<ILogger<Program>>();
+
+                    // Log request details
+                    logger.LogInformation(
+                        "Request: {Method} {Path}{QueryString} | Client IP: {IP}",
+                        context.Request.Method,
+                        context.Request.Path,
+                        context.Request.QueryString,
+                        context.Connection.RemoteIpAddress);
+
                     if (context.Request.Headers.TryGetValue("Authorization", out var authHeader))
                     {
-                        Console.WriteLine($"Auth header received: {authHeader}");
+                        logger.LogDebug("Auth header received: {AuthHeader}", authHeader.ToString().Substring(0, Math.Min(15, authHeader.ToString().Length)) + "...");
                     }
-                    else
+
+                    var originalBodyStream = context.Response.Body;
+                    try
                     {
-                        Console.WriteLine("No Authorization header present");
+                        using var memoryStream = new MemoryStream();
+                        context.Response.Body = memoryStream;
+
+                        // Execute the request pipeline
+                        await next();
+
+                        // Log the response
+                        memoryStream.Seek(0, SeekOrigin.Begin);
+
+                        logger.LogInformation(
+                            "Response: {StatusCode} for {Method} {Path}",
+                            context.Response.StatusCode,
+                            context.Request.Method,
+                            context.Request.Path);
+
+                        memoryStream.Seek(0, SeekOrigin.Begin);
+                        await memoryStream.CopyToAsync(originalBodyStream);
                     }
-
-                    // Print authentication status before processing with additional null checks
-                    Console.WriteLine($"Request path: {context.Request.Path}");
-                    Console.WriteLine($"User authenticated (pre): {(context.User?.Identity != null ? context.User.Identity.IsAuthenticated : "Identity is null")}");
-
-                    await next();
-
-                    // Print authentication status after processing with additional null checks
-                    Console.WriteLine($"User authenticated (post): {(context.User?.Identity != null ? context.User.Identity.IsAuthenticated : "Identity is null")}");
-                    Console.WriteLine($"Response status code: {context.Response.StatusCode}");
-                }
-                catch (Exception ex)
+                    finally
+                    {
+                        context.Response.Body = originalBodyStream;
+                    }
+                });
+            }
+            else
+            {
+                // Simple logging middleware for production
+                app.Use(async (context, next) =>
                 {
-                    // Log any exceptions that occur in the middleware
-                    Console.WriteLine($"Error in auth logging middleware: {ex.Message}");
-                    await next(); // Make sure the pipeline continues even if our logging fails
-                }
+                    try
+                    {
+                        await next();
+
+                        // Log errors for non-success status codes
+                        if (context.Response.StatusCode >= 400)
+                        {
+                            var logger = app.Services.GetRequiredService<ILogger<Program>>();
+                            logger.LogWarning(
+                                "Error response: {StatusCode} for {Method} {Path}",
+                                context.Response.StatusCode,
+                                context.Request.Method,
+                                context.Request.Path);
+                        }
+                    }
+                    catch (Exception ex)
+                    {
+                        var logger = app.Services.GetRequiredService<ILogger<Program>>();
+                        logger.LogError(ex, "Unhandled exception in request pipeline");
+                        throw; // Re-throw to be handled by the exception handler middleware
+                    }
+                });
+            }
+
+            // Endpoints for detecting API availability from client
+            app.MapGet("/api/ping", () => new {
+                Timestamp = DateTime.UtcNow,
+                Status = "OK",
+                Message = "API is available"
             });
 
+            app.MapGet("/api/test", () => Results.Ok(new
+            {
+                Status = "Success",
+                Message = "API test endpoint working"
+            }));
 
-            // Map grouped endpoints for authentication  
+            // Configure API route groups
             var authGroup = app.MapGroup("/auth");
-            authGroup.MapControllers().RequireRateLimiting("AuthEndpoints");
+            authGroup.MapControllers()
+                .AllowAnonymous(); // Allow anonymous access to auth endpoints during development
 
-            // Map all other controllers  
+            var equipmentCheckoutGroup = app.MapGroup("/api/equipmentcheckout");
+            equipmentCheckoutGroup.MapControllers()
+                .AllowAnonymous(); // Allow anonymous access during development
+
+            // Regular controllers
             app.MapControllers();
 
-            // Health check endpoint  
-            app.MapHealthChecks("/health");
-
-            // Ensure database connection before running the app  
+            // Ensure database is ready
             EnsureDatabaseConnectionAsync(app).GetAwaiter().GetResult();
+
+            var addresses = app.Urls.Select(url => new Uri(url));
+            Console.WriteLine("Server running at: " + string.Join(", ", addresses.Select(addr => addr.ToString())));
 
             app.Run();
         }
+
         private static async Task EnsureDatabaseConnectionAsync(WebApplication app)
         {
             using var scope = app.Services.CreateScope();
@@ -508,7 +873,6 @@ namespace API_Project
             try
             {
                 logger.LogInformation("Testing database connection...");
-                // Test simple query
                 var canConnect = await dbContext.Database.CanConnectAsync();
                 if (!canConnect)
                 {
@@ -516,15 +880,34 @@ namespace API_Project
                     throw new ApplicationException("Database connection failed");
                 }
 
-                // Test Equipment table access
                 var equipmentCount = await dbContext.Equipment.CountAsync();
                 logger.LogInformation("Database connection successful. Equipment count: {Count}", equipmentCount);
             }
             catch (Exception ex)
             {
                 logger.LogCritical(ex, "Database connection error: {Message}", ex.Message);
-                throw; // Fail fast if database is not accessible
+                throw;
             }
+        }
+    }
+
+    // Interface for providing port information
+    public interface IServerPortProvider
+    {
+        int HttpPort { get; }
+        int HttpsPort { get; }
+    }
+
+    // Implementation of port provider
+    public class ServerPortProvider : IServerPortProvider
+    {
+        public int HttpPort { get; }
+        public int HttpsPort { get; }
+
+        public ServerPortProvider(int httpPort, int httpsPort)
+        {
+            HttpPort = httpPort;
+            HttpsPort = httpsPort;
         }
     }
 
@@ -555,6 +938,48 @@ namespace API_Project
             catch (Exception ex)
             {
                 return HealthCheckResult.Unhealthy("Database connection failed", ex);
+            }
+        }
+    }
+
+    public class EmailConfigHealthCheck : IHealthCheck
+    {
+        private readonly IConfiguration _configuration;
+
+        public EmailConfigHealthCheck(IConfiguration configuration)
+        {
+            _configuration = configuration ?? throw new ArgumentNullException(nameof(configuration));
+        }
+
+        public Task<HealthCheckResult> CheckHealthAsync(HealthCheckContext context, CancellationToken cancellationToken = default)
+        {
+            try
+            {
+                var smtpHost = _configuration["Email:Smtp:Host"];
+                var smtpPortString = _configuration["Email:Smtp:Port"];
+                var smtpUser = _configuration["Email:Smtp:Username"];
+                var smtpPass = _configuration["Email:Smtp:Password"];
+                var fromEmail = _configuration["Email:From"];
+
+                if (string.IsNullOrEmpty(smtpHost) || string.IsNullOrEmpty(smtpPortString) ||
+                    string.IsNullOrEmpty(smtpUser) || string.IsNullOrEmpty(smtpPass) ||
+                    string.IsNullOrEmpty(fromEmail))
+                {
+                    return Task.FromResult(
+                        HealthCheckResult.Degraded("Email configuration is incomplete"));
+                }
+
+                if (!int.TryParse(smtpPortString, out _))
+                {
+                    return Task.FromResult(
+                        HealthCheckResult.Degraded("SMTP port configuration is invalid"));
+                }
+
+                return Task.FromResult(HealthCheckResult.Healthy("Email configuration is valid"));
+            }
+            catch (Exception ex)
+            {
+                return Task.FromResult(HealthCheckResult.Unhealthy("Error checking email configuration", ex));
             }
         }
     }

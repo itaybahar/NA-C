@@ -1,0 +1,526 @@
+﻿/* ============================
+   APP.CSS - Main Application Styles 
+   
+   General application styles for the Blazor WebAssembly project
+   that build upon the core design system in helpers.css
+   ============================ */
+
+/* ============================
+   LAYOUT & STRUCTURE
+   ============================ */
+
+.app-container {
+    display: flex;
+    flex-direction: column;
+    min-height: 100vh;
+    background-color: var(--background);
+}
+
+.main-content {
+    flex: 1;
+    padding: var(--space-5);
+    width: 100%;
+    max-width: var(--container-xl);
+    margin: 0 auto;
+}
+
+/* Page containers */
+.page-container {
+    padding: var(--space-4);
+}
+
+.page-header {
+    margin-bottom: var(--space-6);
+}
+
+.page-title {
+    font-size: var(--text-3xl);
+    font-weight: var(--font-bold);
+    margin-bottom: var(--space-2);
+    color: var(--text);
+}
+
+.page-description {
+    color: var(--text-secondary);
+    max-width: 800px;
+}
+
+/* Responsive container */
+.container-fluid {
+    width: 100%;
+    padding-right: var(--space-4);
+    padding-left: var(--space-4);
+    margin-right: auto;
+    margin-left: auto;
+}
+
+.container {
+    width: 100%;
+    padding-right: var(--space-4);
+    padding-left: var(--space-4);
+    margin-right: auto;
+    margin-left: auto;
+}
+
+@media (min-width: 640px) {
+    .container {
+        max-width: var(--container-sm);
+    }
+}
+
+@media (min-width: 768px) {
+    .container {
+        max-width: var(--container-md);
+    }
+}
+
+@media (min-width: 1024px) {
+    .container {
+        max-width: var(--container-lg);
+    }
+}
+
+@media (min-width: 1280px) {
+    .container {
+        max-width: var(--container-xl);
+    }
+}
+
+/* ============================
+   NAVIGATION
+   ============================ */
+
+.navbar {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    padding: var(--space-3) var(--space-5);
+    background-color: var(--surface);
+    border-bottom: 1px solid var(--border);
+}
+
+.navbar-brand {
+    display: flex;
+    align-items: center;
+    font-size: var(--text-xl);
+    font-weight: var(--font-bold);
+    color: var(--text);
+    text-decoration: none;
+}
+
+    .navbar-brand img {
+        height: 32px;
+        margin-right: var(--space-2);
+    }
+
+[dir="rtl"] .navbar-brand img {
+    margin-right: 0;
+    margin-left: var(--space-2);
+}
+
+.navbar-nav {
+    display: flex;
+    align-items: center;
+    list-style: none;
+    margin: 0;
+    padding: 0;
+}
+
+.nav-item {
+    margin: 0 var(--space-2);
+}
+
+.nav-link {
+    color: var(--text-secondary);
+    text-decoration: none;
+    padding: var(--space-2);
+    border-radius: var(--radius-md);
+    transition: all var(--transition-fast);
+}
+
+    .nav-link:hover {
+        color: var(--text);
+        background-color: var(--surface-variant);
+    }
+
+    .nav-link.active {
+        color: var(--primary);
+        font-weight: var(--font-medium);
+    }
+
+/* Mobile navigation */
+.mobile-menu-toggle {
+    display: none;
+    background: none;
+    border: none;
+    color: var(--text);
+    font-size: 1.5rem;
+    cursor: pointer;
+}
+
+@media (max-width: 768px) {
+    .mobile-menu-toggle {
+        display: block;
+    }
+
+    .navbar-nav {
+        display: none;
+        position: absolute;
+        top: 60px;
+        left: 0;
+        right: 0;
+        flex-direction: column;
+        background-color: var(--surface);
+        padding: var(--space-3);
+        border-bottom: 1px solid var(--border);
+        z-index: var(--z-dropdown);
+    }
+
+        .navbar-nav.show {
+            display: flex;
+        }
+
+    .nav-item {
+        margin: var(--space-1) 0;
+        width: 100%;
+    }
+
+    .nav-link {
+        display: block;
+        padding: var(--space-3);
+    }
+}
+
+/* ============================
+   FOOTER
+   ============================ */
+
+.footer {
+    background-color: var(--surface);
+    padding: var(--space-6) var(--space-5);
+    border-top: 1px solid var(--border);
+}
+
+.footer-content {
+    display: flex;
+    flex-wrap: wrap;
+    justify-content: space-between;
+    gap: var(--space-5);
+}
+
+.footer-section {
+    flex: 1;
+    min-width: 200px;
+}
+
+.footer-title {
+    font-size: var(--text-lg);
+    font-weight: var(--font-semibold);
+    margin-bottom: var(--space-3);
+    color: var(--text);
+}
+
+.footer-links {
+    list-style: none;
+    padding: 0;
+    margin: 0;
+}
+
+.footer-link {
+    margin-bottom: var(--space-2);
+}
+
+    .footer-link a {
+        color: var(--text-secondary);
+        text-decoration: none;
+        transition: color var(--transition-fast);
+    }
+
+        .footer-link a:hover {
+            color: var(--primary);
+        }
+
+.footer-bottom {
+    margin-top: var(--space-6);
+    padding-top: var(--space-4);
+    border-top: 1px solid var(--border);
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    flex-wrap: wrap;
+    gap: var(--space-3);
+}
+
+.footer-copyright {
+    color: var(--text-secondary);
+    font-size: var(--text-sm);
+}
+
+.social-links {
+    display: flex;
+    gap: var(--space-3);
+}
+
+.social-link {
+    color: var(--text-secondary);
+    font-size: 1.25rem;
+    transition: color var(--transition-fast);
+}
+
+    .social-link:hover {
+        color: var(--primary);
+    }
+
+@media (max-width: 768px) {
+    .footer-content {
+        flex-direction: column;
+        gap: var(--space-6);
+    }
+
+    .footer-bottom {
+        flex-direction: column;
+        align-items: flex-start;
+    }
+}
+
+/* ============================
+   AUTH & LOGIN STYLES
+   ============================ */
+
+.auth-container {
+    display: flex;
+    justify-content: center;
+    align-items: center;
+    min-height: 100vh;
+    padding: var(--space-5);
+    background-color: var(--background);
+}
+
+.auth-card {
+    background-color: var(--surface);
+    border-radius: var(--radius-lg);
+    box-shadow: var(--shadow-lg);
+    width: 100%;
+    max-width: 400px;
+    padding: var(--space-6);
+    border: 1px solid var(--border);
+}
+
+.auth-header {
+    text-align: center;
+    margin-bottom: var(--space-6);
+}
+
+.auth-logo {
+    margin-bottom: var(--space-4);
+    max-width: 100px;
+    height: auto;
+}
+
+.auth-title {
+    font-size: var(--text-2xl);
+    font-weight: var(--font-bold);
+    color: var(--text);
+}
+
+.auth-subtitle {
+    color: var(--text-secondary);
+    margin-top: var(--space-2);
+}
+
+.auth-form {
+    display: flex;
+    flex-direction: column;
+    gap: var(--space-4);
+}
+
+.auth-footer {
+    margin-top: var(--space-6);
+    text-align: center;
+    color: var(--text-secondary);
+    font-size: var(--text-sm);
+}
+
+.auth-link {
+    color: var(--primary);
+    text-decoration: none;
+    font-weight: var(--font-medium);
+}
+
+    .auth-link:hover {
+        text-decoration: underline;
+    }
+
+.auth-divider {
+    display: flex;
+    align-items: center;
+    margin: var(--space-4) 0;
+    color: var(--text-secondary);
+}
+
+    .auth-divider::before,
+    .auth-divider::after {
+        content: "";
+        flex: 1;
+        border-bottom: 1px solid var(--border);
+    }
+
+    .auth-divider span {
+        padding: 0 var(--space-3);
+        font-size: var(--text-sm);
+    }
+
+.auth-providers {
+    display: flex;
+    flex-direction: column;
+    gap: var(--space-3);
+}
+
+.provider-button {
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    gap: var(--space-3);
+    background-color: var(--surface-variant);
+    border: 1px solid var(--border);
+    border-radius: var(--radius-md);
+    padding: var(--space-3);
+    font-weight: var(--font-medium);
+    color: var(--text);
+    cursor: pointer;
+    transition: background-color var(--transition-fast);
+}
+
+    .provider-button:hover {
+        background-color: var(--surface-variant);
+        opacity: 0.9;
+    }
+
+.provider-icon {
+    font-size: 1.25rem;
+}
+
+/* ============================
+   LOADING SCREEN
+   ============================ */
+
+.loading-background {
+    background-color: var(--background);
+}
+
+.app-title {
+    font-family: 'Press Start 2P', cursive;
+    color: var(--primary);
+    margin-bottom: var(--space-3);
+    font-size: var(--text-2xl);
+}
+
+.loading-progress {
+    z-index: var(--z-fixed);
+}
+
+/* Blazor Error UI */
+#blazor-error-ui {
+    background-color: var(--surface);
+    color: var(--danger);
+    border: 1px solid var(--danger);
+    box-shadow: var(--shadow-lg);
+}
+
+    #blazor-error-ui .reload {
+        color: var(--primary);
+    }
+
+/* ============================
+   CUSTOM SCROLLBAR
+   ============================ */
+
+::-webkit-scrollbar {
+    width: 8px;
+    height: 8px;
+}
+
+::-webkit-scrollbar-track {
+    background: var(--surface-variant);
+}
+
+::-webkit-scrollbar-thumb {
+    background: var(--gray-600);
+    border-radius: var(--radius-full);
+}
+
+    ::-webkit-scrollbar-thumb:hover {
+        background: var(--gray-500);
+    }
+
+/* ============================
+   THEME SWITCHER
+   ============================ */
+
+.theme-toggle-container {
+    margin: 0 var(--space-2);
+}
+
+/* ============================
+   PIXEL FONT SPECIAL STYLES
+   ============================ */
+
+.pixel {
+    font-family: 'Press Start 2P', cursive;
+    letter-spacing: 1px;
+    line-height: 1.5;
+}
+
+/* ============================
+   LIGHT/DARK THEME OVERRIDES
+   ============================ */
+
+html.light-theme {
+    --text: var(--lm-text);
+    --text-secondary: var(--lm-text-secondary);
+    --background: var(--lm-background);
+    --surface: var(--lm-surface);
+    --surface-variant: var(--lm-surface-variant);
+    --border: var(--lm-border);
+}
+
+html.dark-theme {
+    /* Dark theme is already the default */
+}
+
+/* Theme Transition Effects */
+body.theme-transition {
+    transition: background-color 0.5s ease, color 0.5s ease;
+}
+
+    body.theme-transition * {
+        transition: background-color 0.5s ease, color 0.5s ease, border-color 0.5s ease, box-shadow 0.5s ease;
+    }
+
+/* Fix for SVG transitions */
+svg {
+    transition: fill 0.3s ease, transform 0.5s cubic-bezier(0.68, -0.55, 0.27, 1.55);
+}
+
+/* Ensure proper rendering during transitions */
+.theme-toggle svg {
+    will-change: transform, opacity;
+    backface-visibility: hidden;
+    -webkit-transform-style: preserve-3d;
+    transform-style: preserve-3d;
+}
+
+/* Page transition effect */
+.app-container.theme-transition {
+    animation: page-transition 0.5s ease;
+}
+
+@keyframes page-transition {
+    0% {
+        opacity: 0.8;
+    }
+
+    100% {
+        opacity: 1;
+    }
+}

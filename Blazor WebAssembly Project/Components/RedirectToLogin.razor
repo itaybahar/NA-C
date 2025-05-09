@@ -1,10 +1,18 @@
-﻿@using Microsoft.AspNetCore.Components
-@using Microsoft.AspNetCore.Components.Routing
-@inject NavigationManager Navigation
+﻿@inject NavigationManager NavigationManager
+@inject Blazored.LocalStorage.ILocalStorageService LocalStorage
 
 @code {
     protected override void OnInitialized()
     {
-        Navigation.NavigateTo($"/login?returnUrl={Uri.EscapeDataString(Navigation.Uri)}");
+        // Store the current URL to return after login
+        var currentUri = NavigationManager.Uri;
+        var baseUri = NavigationManager.BaseUri;
+
+        if (currentUri != baseUri && !currentUri.Contains("/login"))
+        {
+            _ = LocalStorage.SetItemAsync("returnUrl", currentUri);
+        }
+
+        NavigationManager.NavigateTo("/login", forceLoad: false);
     }
 }

@@ -49,7 +49,7 @@ namespace Blazor_WebAssembly.Services.Interfaces
         public string CurrentRole { get; set; } = string.Empty;
         public string RequestedRole { get; set; } = string.Empty;
         public string Reason { get; set; } = string.Empty;
-        public DateTime RequestDate { get; set; }
+        public DateTime? RequestDate { get; set; }
         public string Status { get; set; } = string.Empty;
         public string? AdminNotes { get; set; }
         public DateTime? ProcessedDate { get; set; }

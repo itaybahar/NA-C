@@ -3,15 +3,75 @@
 @using System.Net.Http.Json
 @using Microsoft.AspNetCore.Components.Authorization
 @using System.Security.Claims
-
+@inject ICheckoutService CheckoutService
 @inject IEquipmentService EquipmentService
 @inject ILogger<EquipmentList> Logger
 @inject AuthenticationStateProvider AuthenticationStateProvider
 @inject IJSRuntime JSRuntime
+@using Blazor_WebAssembly.Services
+@inject ApiErrorHandler ApiErrorHandler
+@implements IDisposable
 
 <link href="css/dashboard.css" rel="stylesheet" />
 
 <h2 class="text-center text-xl font-bold mb-6">רשימת ציוד</h2>
+
+<div id="equipmentListContainer" class="dashboard-section @(isApiConnected ? "" : "api-connecting")">
+    @if (!isApiConnected && !apiConnectionFailed)
+    {
+        <div class="api-connection-overlay">
+            <div class="spinner"></div>
+            <p>מתחבר לשרת...</p>
+        </div>
+    }
+    else if (apiConnectionFailed)
+    {
+        <div class="api-error-overlay">
+            <div class="error-icon">
+                <i class="bi bi-exclamation-triangle"></i>
+            </div>
+            <p>לא ניתן להתחבר לשרת. בדוק את החיבור שלך ונסה שוב.</p>
+            <button class="btn-action mt-3" @onclick="RetryApiConnection">נסה להתחבר שוב</button>
+        </div>
+    }
+    else
+    {
+        <!-- Your existing component markup here -->
+    }
+</div>
+
+<style>
+    .api-connection-overlay, .api-error-overlay {
+        position: absolute;
+        top: 0;
+        left: 0;
+        right: 0;
+        bottom: 0;
+        background: rgba(0,0,0,0.7);
+        display: flex;
+        flex-direction: column;
+        justify-content: center;
+        align-items: center;
+        z-index: 1000;
+        color: white;
+        text-align: center;
+        padding: 20px;
+    }
+
+    .api-error-overlay {
+        background: rgba(220,53,69,0.9);
+    }
+
+    .error-icon {
+        font-size: 48px;
+        margin-bottom: 20px;
+    }
+
+    .api-connecting {
+        position: relative;
+        min-height: 200px;
+    }
+</style>
 
 <div class="dashboard-section">
     <div class="widget-header">
@@ -43,6 +103,7 @@
                     <option value="InUse">בשימוש</option>
                     <option value="Maintenance">בתיקון</option>
                     <option value="Returned">מוחזר</option>
+                    <option value="Unavailable">לא זמין</option>
                 </select>
             </div>
             <div class="search-field">
@@ -111,6 +172,7 @@
                             <th>מספר סידורי</th>
                             <th>סטטוס</th>
                             <th>כמות</th>
+                            <th>כמות זמינה</th>
                             <th>ערך (ש״ח)</th>
                             <th>מיקום אחסון</th>
                             @if (IsAdminOrWarehouseManager)
@@ -133,6 +195,7 @@
                                     </span>
                                 </td>
                                 <td>@equipment.Quantity</td>
+                                <td>@GetAvailableQuantity(equipment.EquipmentID)</td>
                                 <td>@(equipment.Value > 0 ? equipment.Value.ToString("N0") : "-")</td>
                                 <td>@equipment.StorageLocation</td>
                                 @if (IsAdminOrWarehouseManager)
@@ -183,6 +246,11 @@
                             </div>
 
                             <div class="flex items-center justify-between mb-2">
+                                <span class="text-muted">כמות זמינה:</span>
+                                <span>@GetAvailableQuantity(equipment.EquipmentID)</span>
+                            </div>
+
+                            <div class="flex items-center justify-between mb-2">
                                 <span class="text-muted">ערך:</span>
                                 <span>@(equipment.Value > 0 ? equipment.Value.ToString("N0") + " ₪" : "-")</span>
                             </div>
@@ -213,81 +281,6 @@
     }
 </div>
 
-@if (showEditModal && editingEquipment != null)
-{
-    <div class="modal-backdrop" @onclick="CloseModal"></div>
-    <div class="modal-container" @onclick:stopPropagation="true">
-        <div class="modal-header">
-            <h3>ערוך פריט ציוד</h3>
-            <button class="modal-close" @onclick="CloseModal">×</button>
-        </div>
-        <div class="modal-body">
-            <div class="form-group">
-                <label class="input-label" for="edit-name">שם פריט</label>
-                <input id="edit-name" class="form-control" @bind="editingEquipment.Name" />
-            </div>
-            <div class="form-group">
-                <label class="input-label" for="edit-description">תיאור</label>
-                <textarea id="edit-description" class="form-control" @bind="editingEquipment.Description" rows="3"></textarea>
-            </div>
-            <div class="form-group">
-                <label class="input-label" for="edit-serial">מספר סידורי</label>
-                <input id="edit-serial" class="form-control" @bind="editingEquipment.SerialNumber" />
-            </div>
-            <div class="form-group">
-                <label class="input-label" for="edit-status">סטטוס</label>
-                <select id="edit-status" class="form-control" @bind="editingEquipment.Status">
-                    <option value="Available">זמין</option>
-                    <option value="InUse">בשימוש</option>
-                    <option value="Maintenance">בתיקון</option>
-                    <option value="Returned">מוחזר</option>
-                </select>
-            </div>
-            <div class="form-group">
-                <label class="input-label" for="edit-quantity">כמות</label>
-                <input id="edit-quantity" type="number" class="form-control" @bind="editingEquipment.Quantity" min="0" />
-            </div>
-            <div class="form-group">
-                <label class="input-label" for="edit-value">ערך (ש״ח)</label>
-                <input id="edit-value" type="number" class="form-control" @bind="editingEquipment.Value" min="0" step="0.01" />
-            </div>
-            <div class="form-group">
-                <label class="input-label" for="edit-location">מיקום אחסון</label>
-                <input id="edit-location" class="form-control" @bind="editingEquipment.StorageLocation" />
-            </div>
-        </div>
-        <div class="modal-footer">
-            <button class="btn-action secondary" @onclick="CloseModal">ביטול</button>
-            <button class="btn-action" @onclick="SaveEquipment">
-                <i class="bi bi-check2-circle"></i> שמור שינויים
-            </button>
-        </div>
-    </div>
-}
-
-@if (showDeleteModal && equipmentToDelete != null)
-{
-    <div class="modal-backdrop" @onclick="CloseModal"></div>
-    <div class="modal-container delete-modal" @onclick:stopPropagation="true">
-        <div class="modal-header">
-            <h3>מחיקת פריט</h3>
-            <button class="modal-close" @onclick="CloseModal">×</button>
-        </div>
-        <div class="modal-body">
-            <div class="text-center mb-4">
-                <i class="bi bi-exclamation-triangle-fill delete-warning-icon"></i>
-            </div>
-            <p class="confirm-message">האם אתה בטוח שברצונך למחוק את הפריט "@equipmentToDelete.Name"?</p>
-            <p class="warning-message">פעולה זו היא בלתי הפיכה!</p>
-        </div>
-        <div class="modal-footer">
-            <button class="btn-action secondary" @onclick="CloseModal">ביטול</button>
-            <button class="btn-action delete" @onclick="() => RemoveEquipment(equipmentToDelete)">
-                <i class="bi bi-trash"></i> מחק פריט
-            </button>
-        </div>
-    </div>
-}
 
 @code {
     private enum ViewMode { List, Cards }
@@ -300,6 +293,15 @@
     private string locationFilter = string.Empty;
     private ViewMode viewMode = ViewMode.List;
     private bool isAdminOrWarehouseManager = false;
+    private Dictionary<int, int> availableQuantities = new Dictionary<int, int>();
+    private int GetAvailableQuantity(int equipmentId)
+    {
+        return availableQuantities.TryGetValue(equipmentId, out int quantity) ? quantity : 0;
+    }
+    private bool isApiConnected = false;
+    private bool apiConnectionFailed = false;
+    private DotNetObjectReference<EquipmentList>? objRef;
+
 
     // Modal-related properties
     private bool showEditModal = false;
@@ -341,6 +343,46 @@
         Logger.LogInformation("Initializing EquipmentList component...");
         await CheckUserRole();
         await LoadEquipment();
+    }
+    protected override async Task OnAfterRenderAsync(bool firstRender)
+    {
+        if (firstRender)
+        {
+            objRef = DotNetObjectReference.Create(this);
+            await JSRuntime.InvokeVoidAsync("apiConnection.initializeComponent", "equipmentListContainer", objRef);
+        }
+    }
+
+    [JSInvokable]
+    public async Task OnApiConnected(string apiUrl)
+    {
+        Logger.LogInformation($"API connected at: {apiUrl}");
+        isApiConnected = true;
+        apiConnectionFailed = false;
+        await LoadEquipment();
+        StateHasChanged();
+    }
+
+    [JSInvokable]
+    public void OnApiConnectionFailed()
+    {
+        Logger.LogError("API connection failed");
+        isApiConnected = false;
+        apiConnectionFailed = true;
+        errorMessage = "לא ניתן להתחבר לשרת. בדוק את החיבור שלך ונסה שוב.";
+        StateHasChanged();
+    }
+
+    private async Task RetryApiConnection()
+    {
+        apiConnectionFailed = false;
+        StateHasChanged();
+        await JSRuntime.InvokeVoidAsync("apiConnection.initializeComponent", "equipmentListContainer", objRef);
+    }
+
+    public void Dispose()
+    {
+        objRef?.Dispose();
     }
 
     private async Task CheckUserRole()
@@ -408,23 +450,27 @@
             StateHasChanged();
 
             Logger.LogInformation("Loading equipment data...");
-            var result = await EquipmentService.GetAllEquipmentAsync();
 
-            // Better logging about the result
-            if (result == null)
+            var response = await ApiErrorHandler.HandleRequestAsync(
+                async () => await EquipmentService.GetAllEquipmentAsync(),
+                "GetAllEquipment");
+
+            if (response.IsSuccess && response.Data != null)
             {
-                Logger.LogWarning("Equipment service returned null");
-                equipmentList = new List<EquipmentModel>();
-            }
-            else if (!result.Any())
-            {
-                Logger.LogWarning("Equipment service returned an empty list");
-                equipmentList = new List<EquipmentModel>();
+                equipmentList = response.Data;
+                Logger.LogInformation($"Successfully loaded {equipmentList.Count} equipment items");
+
+                if (equipmentList.Any())
+                {
+                    // Load available quantities after loading equipment
+                    await LoadAvailableQuantities();
+                }
             }
             else
             {
-                equipmentList = result;
-                Logger.LogInformation($"Successfully loaded {equipmentList.Count} equipment items");
+                errorMessage = response.ErrorMessage ?? "שגיאה לא ידועה בטעינת הנתונים";
+                Logger.LogWarning($"API returned error: {errorMessage}");
+                equipmentList = new List<EquipmentModel>();
             }
         }
         catch (Exception ex)
@@ -471,6 +517,7 @@
             "inuse" => "בשימוש",
             "maintenance" => "בתיקון",
             "returned" => "מוחזר",
+            "unavailable" => "לא זמין",
             _ => status
         };
     }
@@ -483,6 +530,7 @@
             "returned" => "returned-badge",
             "inuse" => "checked-out-badge",
             "maintenance" => "warning-badge",
+            "unavailable" => "danger-badge",
             _ => "default-badge"
         };
     }
@@ -495,6 +543,7 @@
             "returned" => "success",
             "inuse" => "danger",
             "maintenance" => "warning",
+            "unavailable" => "danger",
             _ => ""
         };
     }
@@ -703,6 +752,44 @@
             StateHasChanged();
         }
     }
+    private async Task LoadAvailableQuantities()
+    {
+        if (equipmentList == null || !equipmentList.Any())
+            return;
+
+        availableQuantities.Clear();
+
+        foreach (var equipment in equipmentList)
+        {
+            try
+            {
+                int available = await CheckoutService.GetAvailableQuantityForEquipmentAsync(
+                    equipment.EquipmentID,
+                    equipment.Quantity);
+
+                availableQuantities[equipment.EquipmentID] = available;
+
+                // Automatically update equipment status if available quantity is 0
+                if (available == 0 && equipment.Status != "Unavailable" && equipment.Quantity > 0)
+                {
+                    equipment.Status = "Unavailable";
+                    await EquipmentService.UpdateEquipmentAsync(equipment);
+                    Logger.LogInformation($"Equipment ID {equipment.EquipmentID} status set to 'Unavailable' due to zero available quantity.");
+                }
+                else if (available > 0 && equipment.Status == "Unavailable")
+                {
+                    equipment.Status = "Available";
+                    await EquipmentService.UpdateEquipmentAsync(equipment);
+                    Logger.LogInformation($"Equipment ID {equipment.EquipmentID} status set to 'Available' as items are now available.");
+                }
+            }
+            catch (Exception ex)
+            {
+                Logger.LogError(ex, $"Error calculating available quantity for equipment ID {equipment.EquipmentID}");
+            }
+        }
+    }
+
 
     private void CloseModal()
     {

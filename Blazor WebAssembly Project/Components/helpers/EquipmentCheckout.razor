@@ -13,14 +13,15 @@
 @inject ILogger<EquipmentCheckout> Logger
 @inject AuthenticationStateProvider AuthenticationStateProvider
 @inject NavigationManager NavigationManager
-@inject ILocalStorageService LocalStorageService
+@inject Blazored.LocalStorage.ILocalStorageService LocalStorageService
 @inject IJSRuntime JSRuntime
+
 
 <link href="css/dashboard.css" rel="stylesheet" />
 
 <h2 class="text-center text-xl font-bold mb-6">ניהול ציוד</h2>
 
-<div class="tabs mb-4">
+<div class="tabs mb-4">SelectedEquipmentId
     <button class="tab @(ActiveTab == "checkout" ? "active" : "")" @onclick='() => OnTabChanged("checkout")'>
         <i class="bi bi-box-arrow-right"></i> הוצאת ציוד
     </button>
@@ -30,7 +31,7 @@
     <button class="tab @(ActiveTab == "log" ? "active" : "")" @onclick='() => OnTabChanged("log")'>
         <i class="bi bi-list-columns"></i> לוג פעולות
     </button>
-    <div class="tab-indicator" style="right: @TabIndicatorPosition; width: @TabIndicatorWidth"></div>
+    <div class="tab-indicator" style="right: TabIndicatorPosition; width: TabIndicatorWidth"></div>
 </div>
 
 @if (ActiveTab == "checkout")
@@ -110,8 +111,12 @@
                     </div>
 
                     <div class="mt-4">
-                        <button class="btn-submit" @onclick="CheckoutItem" disabled="@(isSubmitting || SelectedTeamId == null || SelectedEquipmentId == null || !IsSelectedEquipmentAvailable())">
-                            @if (isSubmitting)
+                        <button class="btn-submit" @onclick="CheckoutItem"
+                                disabled="@(isSubmitting || SelectedTeamId == null || SelectedEquipmentId == null ||
+                                                      !IsSelectedEquipmentAvailable() ||
+                                                      SelectedQuantity <= 0 ||
+                                                      (SelectedEquipmentId.HasValue && GetSelectedEquipment()?.Quantity < SelectedQuantity))">
+                    @if (isSubmitting)
                             {
                                 <div class="inline-flex items-center">
                                     <div class="spinner spinner-sm mr-2"></div>
@@ -124,7 +129,15 @@
                                 <span>הוצא ציוד</span>
                             }
                         </button>
+
+                        @if (SelectedEquipmentId.HasValue && SelectedQuantity > 0 && GetSelectedEquipment()?.Quantity < SelectedQuantity)
+                        {
+                            <div class="alert-danger mt-2">
+                                <p>הכמות המבוקשת גדולה מהכמות הזמינה</p>
+                            </div>
+                        }
                     </div>
+
 
                     @if (!string.IsNullOrEmpty(Message))
                     {
@@ -158,18 +171,29 @@
                                 </div>
                                 <div class="flex items-center justify-between mb-2">
                                     <span class="text-muted">כמות זמינה:</span>
-                                    <span>@selectedEquipment.Quantity</span>
+                                    <span>@GetAvailableQuantity(selectedEquipment.EquipmentID, selectedEquipment.Quantity)</span> <!-- Added Available Quantity -->
                                 </div>
-                                <div class="flex items-center justify-between">
+                                <div class="flex items-center justify-between mb-2">
                                     <span class="text-muted">סטטוס:</span>
                                     <span class="status-badge @GetStatusBadgeClass(selectedEquipment.Status)">
                                         @GetStatusText(selectedEquipment.Status)
                                     </span>
                                 </div>
+                                <div class="form-group mt-3">
+                                    <label for="quantity" class="input-label">בחר כמות להוצאה</label>
+                                    <input id="quantity" type="number" class="form-control"
+                                           @bind="SelectedQuantity"
+                                           min="1"
+                                           max="@selectedEquipment.Quantity"
+                                           placeholder="בחר כמות" />
+                                    <small class="text-muted">כמות זמינה: @GetAvailableQuantity(selectedEquipment.EquipmentID, selectedEquipment.Quantity)</small>
+                                </div>
                             </div>
                         </div>
                     }
                 }
+
+
             </div>
         }
     </div>
@@ -234,6 +258,7 @@ else if (ActiveTab == "history")
                         <tr>
                             <th>צוות</th>
                             <th>ציוד</th>
+                            <th>כמות</th>
                             <th>תאריך הוצאה</th>
                             <th>תאריך החזרה</th>
                             <th>סטטוס</th>
@@ -247,8 +272,9 @@ else if (ActiveTab == "history")
                             <tr class="@(record.ReturnedAt.HasValue ? "returned" : "checked-out")">
                                 <td>@record.TeamName</td>
                                 <td>@record.EquipmentName</td>
-                                <td>@record.CheckedOutAt.ToString("dd/MM/yyyy HH:mm")</td>
-                                <td>@(record.ReturnedAt.HasValue? record.ReturnedAt.Value.ToString("dd/MM/yyyy HH:mm") : "-")</td>
+                                <td>@record.Quantity</td> <!-- Added Quantity -->
+                                <td>@(record.CheckedOutAt.HasValue? record.CheckedOutAt.Value.ToString("dd/MM/yyyy HH:mm", System.Globalization.CultureInfo.InvariantCulture) : "-")</td>
+                                <td>@(record.ReturnedAt.HasValue? record.ReturnedAt.Value.ToString("dd/MM/yyyy HH:mm", System.Globalization.CultureInfo.InvariantCulture) : "-")</td>
                                 <td>
                                     <span class="status-badge @(record.ReturnedAt.HasValue ? "returned-badge" : "checked-out-badge")">
                                         @(record.ReturnedAt.HasValue ? "הוחזר" : "לא הוחזר")
@@ -285,6 +311,7 @@ else if (ActiveTab == "history")
                     </tbody>
                 </table>
             </div>
+
         }
     </div>
 }
@@ -313,7 +340,7 @@ else if (ActiveTab == "log")
                 @foreach (var log in ActionLogs)
                 {
                     <li class="log-item">
-                        <span class="log-timestamp">@log.Timestamp.ToString("dd/MM HH:mm:ss")</span>
+                        <span class="log-timestamp">@(log.Timestamp?.ToString("dd/MM HH:mm:ss") ?? "-")</span>
                         <span class="log-message">@log.Message</span>
                     </li>
                 }
@@ -324,15 +351,6 @@ else if (ActiveTab == "log")
 
 @code {
     // Updated properties for the tab indicator to support RTL layout correctly
-    private string TabIndicatorPosition => ActiveTab switch
-    {
-        "checkout" => "0%",
-        "history" => "33.33%",
-        "log" => "66.66%",
-        _ => "0%"
-    };
-
-    private string TabIndicatorWidth => "33.33%";
 
     private string ActiveTab = "checkout";
     private List<TeamModel> EligibleTeams = new();
@@ -411,6 +429,15 @@ else if (ActiveTab == "log")
             Logger.LogError(ex, "Error in OnInitializedAsync");
         }
     }
+    private int GetAvailableQuantity(int equipmentId, int totalQuantity)
+    {
+        // Assuming availableQuantities is a dictionary storing the available quantities
+        return Math.Max(0, totalQuantity - (FilteredCheckoutHistory
+            .Where(h => int.TryParse(h.EquipmentId, out var id) && id == equipmentId && !h.ReturnedAt.HasValue)
+            .Sum(h => h.Quantity)));
+    }
+
+
 
     private async Task HandleLogin()
     {
@@ -714,7 +741,10 @@ else if (ActiveTab == "log")
         if (!SelectedEquipmentId.HasValue) return false;
 
         var selectedEquipment = Equipment.FirstOrDefault(e => e.EquipmentID == SelectedEquipmentId);
-        return selectedEquipment != null && IsEquipmentAvailable(selectedEquipment);
+        // Check both if equipment is available and has enough quantity for the requested amount
+        return selectedEquipment != null &&
+               IsEquipmentAvailable(selectedEquipment) &&
+               selectedEquipment.Quantity >= SelectedQuantity;
     }
 
     private EquipmentModel? GetSelectedEquipment()
@@ -806,22 +836,44 @@ else if (ActiveTab == "log")
             {
                 Message = "הפריט אינו זמין להשאלה";
                 isError = true;
+                isSubmitting = false;
+                StateHasChanged();
                 return;
             }
 
-            Logger.LogInformation($"Checking out equipment (TeamID: {SelectedTeamId}, EquipmentID: {SelectedEquipmentId}, UserID: {CurrentUserId})");
+            // Validate quantity
+            if (SelectedQuantity <= 0)
+            {
+                Message = "כמות להוצאה חייבת להיות גדולה מאפס";
+                isError = true;
+                isSubmitting = false;
+                StateHasChanged();
+                return;
+            }
 
-            // Pass the user ID as an integer
+            if (SelectedQuantity > selectedEquipment.Quantity)
+            {
+                Message = $"הכמות המבוקשת ({SelectedQuantity}) גדולה מהכמות הזמינה ({selectedEquipment.Quantity})";
+                isError = true;
+                isSubmitting = false;
+                StateHasChanged();
+                return;
+            }
+
+            Logger.LogInformation($"Checking out equipment (TeamID: {SelectedTeamId}, EquipmentID: {SelectedEquipmentId}, UserID: {CurrentUserId}, Quantity: {SelectedQuantity})");
+
+            // Pass the user ID and quantity as integers
             await CheckoutService.CheckoutEquipmentAsync(
                     SelectedTeamId.Value,
                     SelectedEquipmentId.Value,
-                    CurrentUserId.Value
+                    CurrentUserId.Value,
+                    SelectedQuantity
             );
 
-            Message = "הציוד נרשם כהוצאה בהצלחה!";
+            Message = $"הציוד נרשם כהוצאה בהצלחה! כמות: {SelectedQuantity}";
             isError = false;
-            Logger.LogInformation("Equipment checked out successfully.");
-            AddLog($"הציוד {selectedEquipment?.Name} נרשם בהצלחה לצוות {EligibleTeams.FirstOrDefault(t => t.TeamID == SelectedTeamId)?.TeamName}");
+            Logger.LogInformation($"Equipment checked out successfully. Quantity: {SelectedQuantity}");
+            AddLog($"הציוד {selectedEquipment?.Name} נרשם בהצלחה לצוות {EligibleTeams.FirstOrDefault(t => t.TeamID == SelectedTeamId)?.TeamName} (כמות: {SelectedQuantity})");
 
             // Refresh equipment list
             var freshEquipment = await EquipmentService.GetAllEquipmentAsync();
@@ -830,6 +882,7 @@ else if (ActiveTab == "log")
 
             SelectedTeamId = null;
             SelectedEquipmentId = null;
+            SelectedQuantity = 1; // Reset to default
             TeamSearchQuery = string.Empty;
             EquipmentSearchQuery = string.Empty;
         }
@@ -846,6 +899,11 @@ else if (ActiveTab == "log")
             StateHasChanged();
         }
     }
+
+    // Add this property to store the selected quantity
+    private int SelectedQuantity { get; set; } = 1;
+
+
 
     private void AddLog(string message)
     {
@@ -867,9 +925,10 @@ else if (ActiveTab == "log")
         StateHasChanged();
     }
 
+
     private class ActionLog
     {
-        public DateTime Timestamp { get; set; }
+        public DateTime? Timestamp { get; set; }
         public string Message { get; set; } = string.Empty;
     }
 }

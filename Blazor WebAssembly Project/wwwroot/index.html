@@ -9,20 +9,19 @@
     <!-- Meta tags for SEO and social sharing -->
     <meta name="description" content="מחסן הנשיא - מערכת לניהול ומעקב אחר ציוד" />
 
-    <!-- Content Security Policy -->
-    <meta http-equiv="Content-Security-Policy" content="
-       default-src 'self';
-       script-src 'self' https://cdn.jsdelivr.net 'unsafe-eval';
-       style-src 'self' https://cdn.jsdelivr.net 'unsafe-inline';
-       img-src 'self' data: https:;
-       font-src 'self' https://cdn.jsdelivr.net https://fonts.gstatic.com;
-       connect-src 'self' https://localhost:* http://localhost:* wss://localhost:* ws://localhost:*;
-       frame-src 'self' https://accounts.google.com https://login.microsoftonline.com;
-       manifest-src 'self'">
-
+    <!-- Updated Content Security Policy to allow necessary inline scripts
+     <meta http-equiv="Content-Security-Policy" content="
+    default-src 'self';
+    script-src 'self' https://cdn.jsdelivr.net 'unsafe-eval' 'unsafe-inline' 'sha256-J8A1pddWWivccMOz5Y+80wMyKr3OagXJbd4C/DaOSX0=' 'sha256-v8v3RKRPmN4odZ1CWM5gw80QKPCCWMcpNeOmimNL2AA=' 'sha256-wn6LERZUnkHTuApn1BX+w4ha04xN7mzmWQjktFWCLtU=';
+    style-src 'self' https://cdn.jsdelivr.net https://fonts.googleapis.com 'unsafe-inline';
+    img-src 'self' data: https:;
+    font-src 'self' https://cdn.jsdelivr.net https://fonts.gstatic.com;
+    connect-src 'self' https://localhost:* http://localhost:* wss://localhost:* ws://localhost:* https://127.0.0.1:* http://127.0.0.1:*;
+    frame-src 'self' https://accounts.google.com https://login.microsoftonline.com;
+    manifest-src 'self'">
+    -->
     <!-- PWA support -->
     <meta name="theme-color" content="#000000" />
-
     <!-- Bootstrap CSS (CDN) -->
     <link href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.2/dist/css/bootstrap.min.css" rel="stylesheet" integrity="sha384-T3c6CoIi6uLrA9TneNEoa7RxnatzjcDSCmG1MXxSR1GAsXEV/Dwwykc2MPK8M2HN" crossorigin="anonymous" />
 
@@ -32,6 +31,9 @@
     <!-- App Styles -->
     <link href="css/app.css" rel="stylesheet" />
 
+    <!-- Theme Toggle CSS -->
+    <link href="css/themeToggle.css" rel="stylesheet" />
+
     <!-- Corrected Font Import -->
     <link href="https://fonts.googleapis.com/css2?family=Press+Start+2P&display=swap" rel="stylesheet" crossorigin="anonymous">
 
@@ -39,7 +41,7 @@
     <link rel="icon" type="image/png" href="images/pailM.png" />
     <link rel="apple-touch-icon" href="images/logo_png.png" />
     <link rel="apple-touch-icon" sizes="180x180" href="images/logo_png.png" />
-    <link rel="icon" type="image/png" sizes="192x192" href="pailM.png" />
+    <link rel="icon" type="image/png" sizes="192x192" href="images/pailM.png" />
     <link rel="manifest" href="manifest.json" crossorigin="use-credentials" />
     <meta name="msapplication-TileImage" content="images/logo_png.png" />
     <meta name="msapplication-TileColor" content="#000000" />
@@ -58,6 +60,15 @@
                 <h2>טוען...</h2>
                 <p>אנא המתן בזמן שהמערכת נטענת.</p>
             </div>
+            <!-- Connection Status Indicator -->
+            <div id="connection-status" class="mt-3 d-none">
+                <div class="d-flex align-items-center text-warning">
+                    <div class="spinner-grow spinner-grow-sm me-2" role="status">
+                        <span class="visually-hidden">בודק חיבור...</span>
+                    </div>
+                    <span>בודק חיבור לשרת...</span>
+                </div>
+            </div>
         </div>
     </div>
 
@@ -71,14 +82,223 @@
     <!-- Bootstrap Bundle JS -->
     <script src="https://cdn.jsdelivr.net/npm/bootstrap@5.3.2/dist/js/bootstrap.bundle.min.js" integrity="sha384-C6RzsynM9kWDrMNeT87bh95OGNyZPhcTNXj1NW7RuBCsyN/o0jlpcV8Qyq46cDfL" crossorigin="anonymous"></script>
 
+    <!-- API Connection Handling -->
+    <script>
+        // Show connection status after a short delay if still loading
+        setTimeout(() => {
+            const loadingProgress = document.querySelector('.loading-progress');
+            if (loadingProgress && loadingProgress.style.display !== 'none') {
+                const connectionStatus = document.getElementById('connection-status');
+                if (connectionStatus) {
+                    connectionStatus.classList.remove('d-none');
+                }
+            }
+        }, 3000);
+
+        // Initialize blazorConsoleLog if it doesn't exist
+        window.blazorConsoleLog = window.blazorConsoleLog || {
+            init: function () {
+                console.log("Blazor Console Logger initialized");
+            },
+            log: function (message) {
+                console.log(message);
+            },
+            warn: function (message) {
+                console.warn(message);
+            },
+            error: function (message) {
+                console.error(message);
+            },
+            logToServer: function (message, level) {
+                console.log(`[SERVER ${level}]: ${message}`);
+            }
+        };
+
+        // Function to test API connectivity
+        // Function to test API connectivity
+        window.testApiConnectivity = async function (urls) {
+            // Delegate to our external function if it exists
+            if (window.loginFunctions && typeof window.loginFunctions.testApiConnectivity === 'function') {
+                return window.loginFunctions.testApiConnectivity(urls);
+            }
+
+            // Simple fallback if loginFunctions is not available
+            console.warn("loginFunctions not available, using simplified fallback");
+
+            try {
+                // Try first URL as fallback
+                if (urls && urls.length > 0) {
+                    return urls[0]; // Return first URL as fallback
+                }
+            } catch (e) {
+                console.error("Error in testApiConnectivity fallback:", e);
+            }
+
+            return null;
+        };
+
+        // Handle Auth State
+        window.handleAuthState = function (isAuthenticated, username) {
+            if (isAuthenticated) {
+                console.log(`Authenticated as: ${username}`);
+
+                // You could update UI elements here if needed
+                const statusEl = document.getElementById('connection-status');
+                if (statusEl) {
+                    statusEl.innerHTML = `<div class="text-success">
+                                                                <i class="bi bi-check-circle-fill me-2"></i>
+                                                                <span>מחובר כ: ${username}</span>
+                                                            </div>`;
+                }
+            }
+        };
+
+        // Function to get user role - helper for components
+        window.getUserRole = function () {
+            try {
+                const token = localStorage.getItem('authToken');
+                if (!token) return null;
+
+                // Extract payload from JWT (second part)
+                const payload = token.split('.')[1];
+                if (!payload) return null;
+
+                // Decode base64
+                const decodedPayload = atob(payload.replace(/-/g, '+').replace(/_/g, '/'));
+                const tokenData = JSON.parse(decodedPayload);
+
+                // Extract role claim - could be 'role' or 'http://schemas.microsoft.com/ws/2008/06/identity/claims/role'
+                const role = tokenData.role ||
+                    tokenData['http://schemas.microsoft.com/ws/2008/06/identity/claims/role'] ||
+                    null;
+
+                return role;
+            } catch (e) {
+                console.error("Error getting user role:", e);
+                return null;
+            }
+        };
+    </script>
+
     <!-- Custom JavaScript for blazorConsoleLog -->
     <script src="js/blazorConsoleLog.js"></script>
+    <script src="js/register.js"></script>
+    <!-- Load Theme Management Scripts -->
+    <script src="js/theme.js"></script>
+    <script src="js/themeToggle.js"></script>
+    <!-- API Connection Handler -->
+    <script src="js/api-connection.js"></script>
+
+    <script src="js/login.js"></script>
+
+
+    <!-- Add this right after your existing scripts, before the Blazor script -->
+    <script>
+        // Enhanced error tracking with stack traces
+        window.blazorInitErrors = [];
+
+        // Capture detailed information about unhandled errors
+        window.addEventListener('error', function (e) {
+            const error = {
+                message: e.message,
+                source: e.filename,
+                line: e.lineno,
+                column: e.colno,
+                stack: e.error?.stack,
+                timestamp: new Date().toISOString()
+            };
+
+            window.blazorInitErrors.push(error);
+            console.error('Captured error:', error);
+
+            // Update the loading UI to show error details
+            const connectionStatus = document.getElementById('connection-status');
+            if (connectionStatus) {
+                connectionStatus.innerHTML = `
+                        <div class="text-danger">
+                            <i class="bi bi-exclamation-triangle-fill me-2"></i>
+                            <span>Error: ${e.message}</span>
+                        </div>
+                        <button class="btn btn-sm btn-outline-danger mt-2" onclick="showErrorDetails()">
+                            Show Details
+                        </button>
+                    `;
+            }
+        });
+
+        // Function to show detailed error information
+        window.showErrorDetails = function () {
+            const loadingProgress = document.querySelector('.loading-progress');
+            if (loadingProgress) {
+                // Create error details element
+                const errorDetails = document.createElement('div');
+                errorDetails.className = 'error-details mt-3 p-3 text-start';
+                errorDetails.style.backgroundColor = 'rgba(220, 53, 69, 0.1)';
+                errorDetails.style.border = '1px solid #dc3545';
+                errorDetails.style.borderRadius = '4px';
+                errorDetails.style.maxHeight = '300px';
+                errorDetails.style.overflowY = 'auto';
+                errorDetails.style.fontSize = '12px';
+                errorDetails.style.fontFamily = 'monospace';
+
+                // Add error information
+                let errorHTML = '<h5 class="text-danger">Error Details:</h5>';
+
+                if (window.blazorInitErrors.length > 0) {
+                    window.blazorInitErrors.forEach((error, index) => {
+                        errorHTML += `<div class="mb-2 pb-2 border-bottom">
+                                <strong>Error ${index + 1}:</strong> ${error.message}<br>
+                                <strong>Source:</strong> ${error.source}:${error.line}:${error.column}<br>
+                                <strong>Time:</strong> ${error.timestamp}<br>
+                                <strong>Stack:</strong><pre>${error.stack || 'No stack trace available'}</pre>
+                            </div>`;
+                    });
+                } else {
+                    errorHTML += '<p>No detailed error information available.</p>';
+                }
+
+                // Add DI information
+                errorHTML += '<h5 class="text-danger mt-3">Service Provider Information:</h5>';
+                errorHTML += '<p>The error "Can only set property if at least one provider has been inserted" typically occurs when:</p>';
+                errorHTML += '<ol>';
+                errorHTML += '<li>A service tries to use another service that hasn\'t been registered</li>';
+                errorHTML += '<li>There\'s a circular dependency between services</li>';
+                errorHTML += '<li>A service is being accessed during initialization before the DI container is ready</li>';
+                errorHTML += '</ol>';
+
+                // Add reload button
+                errorHTML += `<div class="text-center mt-3">
+                        <button class="btn btn-danger" onclick="location.reload()">Reload Application</button>
+                    </div>`;
+
+                errorDetails.innerHTML = errorHTML;
+                loadingProgress.appendChild(errorDetails);
+            }
+        };
+
+        // Track Blazor WebAssembly initialization steps
+        window.trackBlazorInit = function (step, success = true) {
+            console.log(`Blazor init step: ${step} - ${success ? 'Success' : 'Failed'}`);
+            const event = {
+                step: step,
+                success: success,
+                timestamp: new Date().toISOString()
+            };
+            window.blazorInitSteps = window.blazorInitSteps || [];
+            window.blazorInitSteps.push(event);
+        };
+    </script>
+
+    <script src="js/apiConnection-component.js"></script>
 
     <!-- Blazor script -->
     <script src="_framework/blazor.webassembly.js"></script>
 
-    <!-- App Scripts -->
+    <!-- App Scripts - placed after Blazor -->
     <script src="js/app.js"></script>
     <script src="js/home.js"></script>
+
+    <!-- Initialize theme after everything else is loaded -->
+    <script src="js/theme-init.js"></script>
 </body>
 </html>

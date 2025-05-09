@@ -5,6 +5,8 @@
 @inject IAuthService AuthService
 @inject NavigationManager Navigation
 @inject IJSRuntime JSRuntime
+@inject IApiDiscoveryService ApiDiscoveryService
+@implements IAsyncDisposable
 
 <link href="css/Login.css" rel="stylesheet">
 
@@ -180,6 +182,7 @@
     private string successMessage = string.Empty;
     private bool isSubmitting = false;
     private bool showPasswordRequirements = false;
+    private string apiBaseUrl = string.Empty;
 
     // Validation flags
     private bool IsUsernameValid { get; set; } = false;
@@ -200,10 +203,35 @@
     private void HidePasswordRequirements() => showPasswordRequirements = false;
     private void TogglePasswordRequirements() => showPasswordRequirements = !showPasswordRequirements;
 
-    protected override void OnInitialized()
+    protected override async Task OnInitializedAsync()
     {
-        // Add event listener for ESC key to close the requirements modal
-        JSRuntime.InvokeVoidAsync("addEscKeyListener", DotNetObjectReference.Create(this));
+        try
+        {
+            // Discover API URL for later use
+            apiBaseUrl = await ApiDiscoveryService.DiscoverApiUrl();
+        }
+        catch (Exception ex)
+        {
+            Console.WriteLine($"API discovery failed: {ex.Message}");
+        }
+
+        await base.OnInitializedAsync();
+    }
+
+    protected override async Task OnAfterRenderAsync(bool firstRender)
+    {
+        if (firstRender)
+        {
+            try
+            {
+                // Add event listener for ESC key to close the requirements modal
+                await JSRuntime.InvokeVoidAsync("addEscKeyListener", DotNetObjectReference.Create(this));
+            }
+            catch (Exception ex)
+            {
+                Console.WriteLine($"Error setting up ESC listener: {ex.Message}");
+            }
+        }
     }
 
     [JSInvokable]
@@ -213,46 +241,88 @@
         StateHasChanged();
     }
 
-    private void ValidateUsername(ChangeEventArgs e)
+    private async Task ValidateUsername(ChangeEventArgs e)
     {
         var username = e.Value?.ToString();
+        // Basic username validation
         IsUsernameValid = !string.IsNullOrWhiteSpace(username) && username.Length >= 3;
+
+        // If using the JavaScript username availability check:
+        /*
+        try {
+            if (IsUsernameValid) {
+                IsUsernameValid = await JSRuntime.InvokeAsync<bool>("formValidation.isUsernameAvailable", username, apiBaseUrl);
+            }
+        } catch (Exception ex) {
+            Console.WriteLine($"Error checking username availability: {ex.Message}");
+        }
+        */
+
         StateHasChanged();
     }
 
-    private void ValidateEmail(ChangeEventArgs e)
+    private async Task ValidateEmail(ChangeEventArgs e)
     {
         var email = e.Value?.ToString();
-        // Basic email validation - you can make this more sophisticated
-        IsEmailValid = !string.IsNullOrWhiteSpace(email) &&
-            email.Contains("@") &&
-            email.Contains(".") &&
-            !email.StartsWith("@") &&
-            !email.EndsWith("@") &&
-            !email.StartsWith(".") &&
-            !email.EndsWith(".");
+
+        try
+        {
+            // Try to use JS validation if available
+            IsEmailValid = await JSRuntime.InvokeAsync<bool>("formValidation.validateEmail", email);
+        }
+        catch
+        {
+            // Fallback to basic validation
+            IsEmailValid = !string.IsNullOrWhiteSpace(email) &&
+                email.Contains("@") &&
+                email.Contains(".") &&
+                !email.StartsWith("@") &&
+                !email.EndsWith("@") &&
+                !email.StartsWith(".") &&
+                !email.EndsWith(".");
+        }
+
         StateHasChanged();
     }
 
-    private void ValidatePassword(ChangeEventArgs e)
+    private async Task ValidatePassword(ChangeEventArgs e)
     {
         var password = e.Value?.ToString();
-        if (string.IsNullOrWhiteSpace(password))
+
+        try
         {
-            IsPasswordValid = false;
-            HasMinLength = false;
-            HasUpperCase = false;
-            HasNumber = false;
-            HasSpecialChar = false;
-        }
-        else
-        {
-            HasMinLength = password.Length >= 6;
-            HasUpperCase = password.Any(char.IsUpper);
-            HasNumber = password.Any(char.IsDigit);
-            HasSpecialChar = password.Any(c => !char.IsLetterOrDigit(c));
+            // Try to use JS validation
+            var result = await JSRuntime.InvokeAsync<Dictionary<string, bool>>("formValidation.validatePassword", password);
+
+            HasMinLength = result["hasMinLength"];
+            HasUpperCase = result["hasUpperCase"];
+            HasNumber = result["hasNumber"];
+            HasSpecialChar = result["hasSpecialChar"];
 
             IsPasswordValid = HasMinLength && HasUpperCase && HasNumber && HasSpecialChar;
+        }
+        catch (Exception ex)
+        {
+            // Fallback to C# validation
+            Console.WriteLine($"JS password validation failed, using fallback: {ex.Message}");
+
+            if (string.IsNullOrWhiteSpace(password))
+            {
+                IsPasswordValid = false;
+                HasMinLength = false;
+                HasUpperCase = false;
+                HasNumber = false;
+                HasSpecialChar = false;
+            }
+            else
+            {
+                HasMinLength = password.Length >= 6;
+                HasUpperCase = password.Any(char.IsUpper);
+                HasNumber = password.Any(char.IsDigit);
+                HasSpecialChar = password.Any(c => !char.IsLetterOrDigit(c));
+
+                IsPasswordValid = HasMinLength && HasUpperCase && HasNumber && HasSpecialChar;
+            }
         }
 
         // Also validate confirm password if it's not empty
@@ -315,13 +385,30 @@
         }
     }
 
-    private void HandleGoogleRegister()
+    private async Task HandleGoogleRegister()
     {
-        Navigation.NavigateTo("https://localhost:5191/auth/login-google", true);
+        try
+        {
+            errorMessage = string.Empty;
+            // Use the JavaScript handler for Google login that includes API discovery
+            await JSRuntime.InvokeVoidAsync("handleGoogleAuthRedirect");
+        }
+        catch (Exception ex)
+        {
+            errorMessage = $"אירעה שגיאה בהפניה להתחברות Google: {ex.Message}";
+            StateHasChanged();
+        }
     }
 
-    public void Dispose()
+    public async ValueTask DisposeAsync()
     {
-        JSRuntime.InvokeVoidAsync("removeEscKeyListener");
+        try
+        {
+            await JSRuntime.InvokeVoidAsync("removeEscKeyListener");
+        }
+        catch (Exception ex)
+        {
+            Console.WriteLine($"Error removing ESC listener: {ex.Message}");
+        }
     }
 }

@@ -1,4 +1,5 @@
 ﻿using Domain_Project.DTOs;
+using Domain_Project.DTOs;
 using Domain_Project.Models;
 using System.ComponentModel.DataAnnotations;
 using System.ComponentModel.DataAnnotations.Schema;
@@ -80,7 +81,7 @@ namespace Domain_Project.Models
         public string? Description { get; set; }
 
         public bool IsActive { get; set; } = true;
-        public DateTime CreatedDate { get; set; } = DateTime.Now;
+        public DateTime? CreatedDate { get; set; } = DateTime.Now;
         public bool IsBlacklisted { get; set; }
     }
 
@@ -127,6 +128,7 @@ namespace Domain_Project.Models
         [MaxLength(100)]
         public required string StorageLocation { get; set; } = string.Empty;
 
+
         // Add JsonIgnore to break the circular reference
         //[JsonIgnore]
         [Required]
@@ -135,7 +137,7 @@ namespace Domain_Project.Models
         public int CategoryId { get; set; }
         [NotMapped] // Add this attribute
         public required string ModelNumber { get; set; } = string.Empty;
-
+        public int EquipmentID { get; set; }
 
         public static implicit operator Equipment(EquipmentDto dto)
         {
@@ -166,33 +168,45 @@ namespace Domain_Project.Models
 
 
 public class EquipmentCheckout
-    {
-        [Key]
-        public int CheckoutID { get; set; }
+{
+    [Key]
+    public int CheckoutID { get; set; }
 
-        [Required]
-        [ForeignKey("EquipmentID")]
-        public int EquipmentID { get; set; }
+    // Change property name to match EF Core's naming convention
+    // and add explicit column mapping
+    [ForeignKey("Equipment")]
+    [Column("EquipmentID")] // Explicitly specify the column name in the database
+    public int EquipmentId { get; set; }
 
-        [Required]
-        public int TeamID { get; set; }
-        [Required]
-        public int UserID { get; set; }
-        public DateTime CheckoutDate { get; set; } = DateTime.Now;
-        public DateTime ExpectedReturnDate { get; set; }
-        public DateTime? ActualReturnDate { get; set; }
+    // Add navigation property to establish relationship
+    public virtual Equipment? Equipment { get; set; }
 
-        public int? ReturnApprovedBy { get; set; }
+    public int TeamID { get; set; }
+    public int UserID { get; set; }
 
-        [Required]
-        [MaxLength(20)]
-        public required string Status { get; set; } = "CheckedOut";
+    [Required]
+    public DateTime CheckoutDate { get; set; } = DateTime.UtcNow;
 
-        public string? Notes { get; set; }
-    public string ReturnCondition { get; set; }
+    public DateTime? ReturnDate { get; set; }
+
+    [Required]
+    public DateTime ExpectedReturnDate { get; set; } = DateTime.UtcNow.AddDays(7);
+
+    [Required]
+    [MaxLength(20)]
+    public string Status { get; set; } = "CheckedOut";
+
+    public DateTime? ActualReturnDate { get; set; }
+    public string? ReturnCondition { get; set; }
+    public string? Notes { get; set; }
+
+    [Required]
+    public int Quantity { get; set; } = 1;
 }
 
-    public class CheckoutRecord
+
+
+public class CheckoutRecord
     {
         public string Id { get; set; } = Guid.NewGuid().ToString();
         public required int EquipmentId { get; set; }
@@ -208,7 +222,8 @@ public class EquipmentCheckout
 
         public DateTime CheckedOutAt { get; set; } = DateTime.UtcNow;
         public DateTime? ReturnedAt { get; set; }
-    }
+    public int Quantity { get; set; }
+}
 
     public class Checkout
     {
@@ -225,7 +240,8 @@ public class EquipmentCheckout
         public DateTime? ReturnDate { get; set; } // Date of return, if returned
 
         public bool IsReturned { get; set; } = false; // Indicates if the equipment has been returned
-    }
+    public int Quantity { get; set; }
+}
     public class Blacklist
     {
         [Key]

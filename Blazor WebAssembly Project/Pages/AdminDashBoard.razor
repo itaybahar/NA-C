@@ -5,6 +5,7 @@
 @attribute [Authorize(Roles = "Admin")]
 
 <link href="css/dashboard.css" rel="stylesheet" />
+<link href="css/themeToggle.css" rel="stylesheet" />
 
 <PageTitle>Dashboard - מנהל מערכת</PageTitle>
 
@@ -24,25 +25,27 @@
                 <button class="dashboard-tab @(ActiveTab == "blacklist" ? "active" : "")" @onclick='() => ChangeTab("blacklist", 1)'>
                     <i class="bi bi-shield-x"></i> רשימה שחורה
                 </button>
-                <button class="dashboard-tab @(ActiveTab == "request" ? "active" : "")" @onclick='() => ChangeTab("request", 2)'>
-                    <i class="bi bi-envelope"></i> בקשות הרשאה
-                </button>
-                <button class="dashboard-tab @(ActiveTab == "teams" ? "active" : "")" @onclick='() => ChangeTab("teams", 3)'>
+                <button class="dashboard-tab @(ActiveTab == "teams" ? "active" : "")" @onclick='() => ChangeTab("teams", 2)'>
                     <i class="bi bi-people"></i> ניהול צוותים
                 </button>
-                <button class="dashboard-tab @(ActiveTab == "users" ? "active" : "")" @onclick='() => ChangeTab("users", 4)'>
+                <button class="dashboard-tab @(ActiveTab == "users" ? "active" : "")" @onclick='() => ChangeTab("users", 3)'>
                     <i class="bi bi-person-gear"></i> ניהול משתמשים
                 </button>
-                <button class="dashboard-tab @(ActiveTab == "checkout" ? "active" : "")" @onclick='() => ChangeTab("checkout", 5)'>
+                <button class="dashboard-tab @(ActiveTab == "checkout" ? "active" : "")" @onclick='() => ChangeTab("checkout", 4)'>
                     <i class="bi bi-box-arrow-right"></i> הוצאת ציוד
                 </button>
-                <button class="dashboard-tab @(ActiveTab == "return" ? "active" : "")" @onclick='() => ChangeTab("return", 6)'>
+                <button class="dashboard-tab @(ActiveTab == "return" ? "active" : "")" @onclick='() => ChangeTab("return", 5)'>
                     <i class="bi bi-box-arrow-in-left"></i> החזרת ציוד
                 </button>
-                <button class="dashboard-tab @(ActiveTab == "add" ? "active" : "")" @onclick='() => ChangeTab("add", 7)'>
+                <button class="dashboard-tab @(ActiveTab == "add" ? "active" : "")" @onclick='() => ChangeTab("add", 6)'>
                     <i class="bi bi-plus-circle"></i> הוספת ציוד
                 </button>
             </nav>
+
+            <!-- Theme toggle added -->
+            <div class="theme-container">
+                <ThemeToggle />
+            </div>
         </div>
     </header>
 
@@ -56,9 +59,6 @@
                     break;
                 case "blacklist":
                     <BlacklistView />
-                    break;
-                case "request":
-                    <AdminRoleRequests />
                     break;
                 case "teams":
                     <AddTeam />
@@ -101,12 +101,11 @@
         {
             "equipment" => 0,
             "blacklist" => 1,
-            "request" => 2,
-            "teams" => 3,
-            "users" => 4,
-            "checkout" => 5,
-            "return" => 6,
-            "add" => 7,
+            "teams" => 2,
+            "users" => 3,
+            "checkout" => 4,
+            "return" => 5,
+            "add" => 6,
             _ => 0
         };
     }

@@ -12,7 +12,7 @@ namespace Blazor_WebAssembly.Services.Implementations
         public EquipmentRequestService(HttpClient httpClient)
         {
             _httpClient = httpClient;
-            _httpClient.BaseAddress = new Uri("https://localhost:7235/api/");
+            //_httpClient.BaseAddress = new Uri("https://localhost:7235/api/");
         }
 
         public async Task<List<EquipmentRequestModel>> GetPendingRequestsAsync()

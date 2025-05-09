@@ -12,10 +12,10 @@ namespace Blazor_WebAssembly.Services
     {
         private const string TokenStorageKey = "authToken";
         private const string RefreshTokenStorageKey = "refreshToken";
-        private readonly ILocalStorageService _localStorage;
+        private readonly Blazored.LocalStorage.ILocalStorageService _localStorage;
         private readonly ILogger<CustomAuthStateProvider> _logger;
 
-        public CustomAuthStateProvider(ILocalStorageService localStorage, ILogger<CustomAuthStateProvider> logger)
+        public CustomAuthStateProvider(Blazored.LocalStorage.ILocalStorageService localStorage, ILogger<CustomAuthStateProvider> logger)
         {
             _localStorage = localStorage;
             _logger = logger;

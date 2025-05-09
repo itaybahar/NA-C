@@ -9,10 +9,10 @@ namespace Blazor_WebAssembly.Services.Implementations
     public class AuthService : IAuthService
     {
         private readonly HttpClient _httpClient;
-        private readonly ILocalStorageService _localStorage;
+        private readonly Blazored.LocalStorage.ILocalStorageService _localStorage;
         private readonly string _apiBaseUrl;
 
-        public AuthService(HttpClient httpClient, ILocalStorageService localStorage)
+        public AuthService(HttpClient httpClient, Blazored.LocalStorage.ILocalStorageService localStorage)
         {
             _httpClient = httpClient;
             _localStorage = localStorage;

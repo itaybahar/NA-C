@@ -1,15 +1,54 @@
 ﻿using Domain_Project.DTOs;
 using Domain_Project.Models;
-// Use a specific import to avoid ambiguity
+using System;
+using System.Collections.Generic;
+using System.Threading.Tasks;
+using API_Project.Data;
 
-public interface ICheckoutRepository
+namespace API_Project.Repositories
 {
-    Task AddAsync(CheckoutRecord record);
-    Task<List<CheckoutRecord>> GetByTeamIdAsync(string teamId);
-    Task<List<CheckoutRecord>> GetOverdueAsync(TimeSpan overdueTime);
-    Task<bool> HasUnreturnedItemsAsync(string teamId);
-    // Use the aliased type to avoid ambiguity
-    Task<List<CheckoutRecordDto>> GetCheckoutHistoryAsync();
-    Task<int?> GetCheckoutIdByTeamAndEquipmentAsync(int teamId, int equipmentId);
+    public interface ICheckoutRepository
+    {
+        // Basic CRUD operations
+        Task AddAsync(CheckoutRecord record);
 
+        // Updated method using raw SQL to avoid column name mismatches
+        Task<List<CheckoutRecordDto>> GetByTeamIdAsync(string teamId);
+
+        Task<List<CheckoutRecord>> GetOverdueAsync(TimeSpan overdueTime);
+        Task<bool> HasUnreturnedItemsAsync(string teamId);
+
+        // Working method that correctly handles nullable database fields
+        Task<List<CheckoutRecordDto>> GetCheckoutHistoryAsync();
+
+        // Checkout and return operations with quantity support
+        Task<int?> GetCheckoutIdByTeamAndEquipmentAsync(int teamId, int equipmentId);
+        Task<EquipmentCheckout?> GetCheckoutByIdAsync(int checkoutId);
+
+        // Enhanced return functionality with quantity, condition, and notes
+        Task MarkAsReturnedAsync(int checkoutId, int quantity = 0, string condition = "Good", string notes = "");
+
+        // Working quantity tracking method - returns 200 OK responses in logs
+        Task<int> GetInUseQuantityForEquipmentAsync(int equipmentId);
+
+        Task<int> GetAvailableQuantityForEquipmentAsync(int equipmentId);
+
+        // Team checkout quantity updates
+        Task UpdateTeamCheckoutQuantityAsync(int teamId, int equipmentId, int quantity);
+
+        // Extended checkout methods
+        Task AddCheckoutAsync(Checkout checkout);
+        Task<IEnumerable<Checkout>> GetCheckoutsByTeamIdAsync(string teamId);
+
+        // Partial returns and quantity adjustments
+        Task<bool> ProcessPartialReturnAsync(int checkoutId, int returnQuantity, string condition = "Good", string notes = "");
+
+        // Bulk operations
+        Task<bool> BulkReturnEquipmentAsync(
+            int teamId,
+            IEnumerable<(int equipmentId, int quantity)> equipmentReturns,
+            int userId,
+            string condition = "Good",
+            string notes = "");
+    }
 }

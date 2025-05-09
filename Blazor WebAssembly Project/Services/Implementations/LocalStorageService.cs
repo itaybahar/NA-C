@@ -1,5 +1,4 @@
 ﻿using Blazored.LocalStorage;
-using Blazor_WebAssembly.Services.Interfaces;
 using System;
 using System.Collections.Generic;
 using System.Threading;
@@ -7,26 +6,24 @@ using System.Threading.Tasks;
 
 namespace Blazor_WebAssembly.Services.Implementations
 {
-    public class LocalStorageService : ILocalStorageService
+    /// <summary>
+    /// Implementation that adapts Blazored.LocalStorage to work with our application's ILocalStorageService
+    /// </summary>
+    public class AppLocalStorageService : Blazor_WebAssembly.Services.Interfaces.ILocalStorageService
     {
-        private readonly ILocalStorageService _blazoredLocalStorage;
+        private readonly Blazored.LocalStorage.ILocalStorageService _blazoredLocalStorage;
 
-        public LocalStorageService(ILocalStorageService blazoredLocalStorage)
+        public AppLocalStorageService(Blazored.LocalStorage.ILocalStorageService blazoredLocalStorage)
         {
             _blazoredLocalStorage = blazoredLocalStorage ?? throw new ArgumentNullException(nameof(blazoredLocalStorage));
-
-            // Subscribe to the events from the underlying localStorage service
-            if (_blazoredLocalStorage is Blazored.LocalStorage.ILocalStorageService typedStorage)
-            {
-                typedStorage.Changing += (sender, args) => Changing?.Invoke(sender, args);
-                typedStorage.Changed += (sender, args) => Changed?.Invoke(sender, args);
-            }
         }
+
+        // Implement the methods required by our custom ILocalStorageService interface
+        // These delegate to the Blazored.LocalStorage implementation
 
         public async Task<T> GetItemAsync<T>(string key)
         {
-            var result = await _blazoredLocalStorage.GetItemAsync<T>(key);
-            return result ?? throw new InvalidOperationException($"The item with key '{key}' was not found or is null.");
+            return await _blazoredLocalStorage.GetItemAsync<T>(key);
         }
 
         public async Task SetItemAsync<T>(string key, T value)
@@ -39,29 +36,32 @@ namespace Blazor_WebAssembly.Services.Implementations
             await _blazoredLocalStorage.RemoveItemAsync(key);
         }
 
+        // The rest of these methods are not part of your custom interface but are
+        // kept for potential future use if you expand the interface
+
+        public ValueTask<T> GetItemAsync<T>(string key, CancellationToken cancellationToken = default)
+        {
+            return _blazoredLocalStorage.GetItemAsync<T>(key, cancellationToken);
+        }
+
+        public ValueTask SetItemAsync<T>(string key, T value, CancellationToken cancellationToken = default)
+        {
+            return _blazoredLocalStorage.SetItemAsync(key, value, cancellationToken);
+        }
+
+        public ValueTask RemoveItemAsync(string key, CancellationToken cancellationToken = default)
+        {
+            return _blazoredLocalStorage.RemoveItemAsync(key, cancellationToken);
+        }
+
         public ValueTask ClearAsync(CancellationToken cancellationToken = default)
         {
             return _blazoredLocalStorage.ClearAsync(cancellationToken);
         }
 
-        public ValueTask<T?> GetItemAsync<T>(string key, CancellationToken cancellationToken = default)
-        {
-            return _blazoredLocalStorage.GetItemAsync<T>(key, cancellationToken);
-        }
-
-        public ValueTask<string?> GetItemAsStringAsync(string key, CancellationToken cancellationToken = default)
+        public ValueTask<string> GetItemAsStringAsync(string key, CancellationToken cancellationToken = default)
         {
             return _blazoredLocalStorage.GetItemAsStringAsync(key, cancellationToken);
-        }
-
-        public ValueTask<string?> KeyAsync(int index, CancellationToken cancellationToken = default)
-        {
-            return _blazoredLocalStorage.KeyAsync(index, cancellationToken);
-        }
-
-        public ValueTask<IEnumerable<string>> KeysAsync(CancellationToken cancellationToken = default)
-        {
-            return _blazoredLocalStorage.KeysAsync(cancellationToken);
         }
 
         public ValueTask<bool> ContainKeyAsync(string key, CancellationToken cancellationToken = default)
@@ -74,19 +74,14 @@ namespace Blazor_WebAssembly.Services.Implementations
             return _blazoredLocalStorage.LengthAsync(cancellationToken);
         }
 
-        public ValueTask RemoveItemAsync(string key, CancellationToken cancellationToken = default)
+        public ValueTask<string> KeyAsync(int index, CancellationToken cancellationToken = default)
         {
-            return _blazoredLocalStorage.RemoveItemAsync(key, cancellationToken);
+            return _blazoredLocalStorage.KeyAsync(index, cancellationToken);
         }
 
-        public ValueTask RemoveItemsAsync(IEnumerable<string> keys, CancellationToken cancellationToken = default)
+        public ValueTask<IEnumerable<string>> KeysAsync(CancellationToken cancellationToken = default)
         {
-            return _blazoredLocalStorage.RemoveItemsAsync(keys, cancellationToken);
-        }
-
-        public ValueTask SetItemAsync<T>(string key, T data, CancellationToken cancellationToken = default)
-        {
-            return _blazoredLocalStorage.SetItemAsync(key, data, cancellationToken);
+            return _blazoredLocalStorage.KeysAsync(cancellationToken);
         }
 
         public ValueTask SetItemAsStringAsync(string key, string data, CancellationToken cancellationToken = default)
@@ -94,8 +89,9 @@ namespace Blazor_WebAssembly.Services.Implementations
             return _blazoredLocalStorage.SetItemAsStringAsync(key, data, cancellationToken);
         }
 
-        // Implementing and properly using the events
-        public event EventHandler<ChangingEventArgs>? Changing;
-        public event EventHandler<ChangedEventArgs>? Changed;
+        public ValueTask RemoveItemsAsync(IEnumerable<string> keys, CancellationToken cancellationToken = default)
+        {
+            return _blazoredLocalStorage.RemoveItemsAsync(keys, cancellationToken);
+        }
     }
 }

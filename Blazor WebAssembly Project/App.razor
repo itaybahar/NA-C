@@ -1,6 +1,5 @@
 ﻿@inject IJSRuntime JSRuntime
 @inject AuthenticationStateProvider AuthStateProvider
-@inject IJSRuntime JSRuntime
 @inject NavigationManager NavigationManager
 
 <CascadingAuthenticationState>
@@ -38,51 +37,33 @@
 @code {
     protected override async Task OnInitializedAsync()
     {
-        var authState = await AuthStateProvider.GetAuthenticationStateAsync();
-
-        if (authState.User.Identity?.IsAuthenticated == true)
+        try
         {
-            await JSRuntime.InvokeVoidAsync(
-                "console.log",
-                $"User authenticated: {authState.User.Identity.Name}"
-            );
+            var authState = await AuthStateProvider.GetAuthenticationStateAsync();
 
-            // Log all claims to console
-            foreach (var claim in authState.User.Claims)
+            if (authState.User.Identity?.IsAuthenticated == true)
             {
                 await JSRuntime.InvokeVoidAsync(
                     "console.log",
-                    $"Claim: {claim.Type} = {claim.Value}"
+                    $"User authenticated: {authState.User.Identity.Name}"
+                );
+
+                // Log all claims to console
+                foreach (var claim in authState.User.Claims)
+                {
+                    await JSRuntime.InvokeVoidAsync(
+                        "console.log",
+                        $"Claim: {claim.Type} = {claim.Value}"
+                    );
+                }
+            }
+            else
+            {
+                await JSRuntime.InvokeVoidAsync(
+                    "console.log",
+                    "User not authenticated"
                 );
             }
-        }
-        else
-        {
-            await JSRuntime.InvokeVoidAsync(
-                "console.log",
-                "User not authenticated"
-            );
-        }
-        try
-        {
-            // Initialize the logger
-            await JSRuntime.InvokeVoidAsync("blazorConsoleLog.init");
-
-            // Log a message
-            await JSRuntime.InvokeVoidAsync("blazorConsoleLog.log", "This is a log message from Blazor!");
-
-            // Log a warning
-            await JSRuntime.InvokeVoidAsync("blazorConsoleLog.warn", "This is a warning message from Blazor!");
-
-            // Log an error
-            await JSRuntime.InvokeVoidAsync("blazorConsoleLog.error", "This is an error message from Blazor!");
-
-            // Log a message to the server
-            await JSRuntime.InvokeVoidAsync("blazorConsoleLog.logToServer", "This is a server log message.", "Info");
-        }
-        catch (JSException jsEx)
-        {
-            Console.WriteLine($"JavaScript initialization failed: {jsEx.Message}");
         }
         catch (Exception ex)
         {

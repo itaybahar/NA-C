@@ -4,6 +4,8 @@
 @using Blazor_WebAssembly.Models.Team
 @using System.Text.Json
 @using System.Security.Claims
+@using Blazor_WebAssembly.Services.Extensions
+
 @inject ITeamService TeamService
 @inject IEquipmentService EquipmentService
 @inject ICheckoutService CheckoutService
@@ -17,32 +19,47 @@
 
 <h2 class="text-center text-xl font-bold mb-6">החזרת ציוד</h2>
 
-<div class="tabs mb-4">
-    <button class="tab @(ActiveTab == "return" ? "active" : "")" @onclick='() => OnTabChanged("return")'>
-        <i class="bi bi-box-arrow-in-left"></i> החזרת ציוד
+<div class="tabs mb-4" role="tablist">
+    <button class="tab @(ActiveTab == "return" ? "active" : "")" 
+            @onclick='() => OnTabChanged("return")' 
+            role="tab" 
+            aria-selected="@(ActiveTab == "return")" 
+            aria-controls="return-panel"
+            id="return-tab">
+        <i class="bi bi-box-arrow-in-left" aria-hidden="true"></i> החזרת ציוד
     </button>
-    <button class="tab @(ActiveTab == "history" ? "active" : "")" @onclick='() => OnTabChanged("history")'>
-        <i class="bi bi-clock-history"></i> היסטורית ציוד
+    <button class="tab @(ActiveTab == "history" ? "active" : "")" 
+            @onclick='() => OnTabChanged("history")' 
+            role="tab" 
+            aria-selected="@(ActiveTab == "history")" 
+            aria-controls="history-panel"
+            id="history-tab">
+        <i class="bi bi-clock-history" aria-hidden="true"></i> היסטורית ציוד
     </button>
-    <button class="tab @(ActiveTab == "log" ? "active" : "")" @onclick='() => OnTabChanged("log")'>
-        <i class="bi bi-journal-text"></i> לוג פעולות
+    <button class="tab @(ActiveTab == "log" ? "active" : "")" 
+            @onclick='() => OnTabChanged("log")' 
+            role="tab" 
+            aria-selected="@(ActiveTab == "log")" 
+            aria-controls="log-panel"
+            id="log-tab">
+        <i class="bi bi-journal-text" aria-hidden="true"></i> לוג פעולות
     </button>
     <div class="tab-indicator" style="right: @TabIndicatorPosition; width: @TabIndicatorWidth"></div>
 </div>
 
 @if (ActiveTab == "return")
 {
-    <div class="dashboard-section slide-in">
+    <div id="return-panel" role="tabpanel" aria-labelledby="return-tab" class="dashboard-section slide-in">
         @if (isLoading)
         {
-            <div class="loading-container">
-                <div class="spinner"></div>
+            <div class="loading-container" aria-live="polite">
+                <div class="spinner" role="status"></div>
                 <p>טוען נתונים...</p>
             </div>
         }
         else if (!string.IsNullOrEmpty(errorMessage))
         {
-            <div class="alert-danger mb-4">
+            <div class="alert-danger mb-4" role="alert">
                 <p>@errorMessage</p>
                 <button class="btn-action mt-2" @onclick="LoadData">נסה שנית</button>
             </div>
@@ -54,8 +71,8 @@
                     <div class="widget-header">
                         <h3 class="widget-title">פרטי החזרת ציוד</h3>
                         <div class="widget-actions">
-                            <button class="btn-refresh" title="רענן נתונים" @onclick="LoadData">
-                                <i class="bi bi-arrow-clockwise"></i>
+                            <button class="btn-refresh" title="רענן נתונים" @onclick="LoadData" aria-label="רענן נתונים">
+                                <i class="bi bi-arrow-clockwise" aria-hidden="true"></i>
                             </button>
                         </div>
                     </div>
@@ -63,10 +80,12 @@
                     <div class="form-group">
                         <label class="input-label" for="team-select">בחר צוות</label>
                         <div class="search-input-container">
-                            <input id="team-search" class="search-bar" placeholder="חפש צוות" @bind="TeamSearchQuery" @oninput="FilterTeams" />
-                            <i class="bi bi-search search-icon"></i>
+                            <input id="team-search" class="search-bar" placeholder="חפש צוות" 
+                                   @bind="TeamSearchQuery" @oninput="FilterTeams" aria-label="חיפוש צוות" />
+                            <i class="bi bi-search search-icon" aria-hidden="true"></i>
                         </div>
-                        <select id="team-select" @bind="SelectedTeamId" @bind:after="TeamSelected" class="form-control mt-2">
+                        <select id="team-select" @bind="SelectedTeamId" @bind:after="TeamSelected" 
+                                class="form-control mt-2" aria-label="בחירת צוות">
                             <option value="">בחר צוות</option>
                             @foreach (var team in FilteredTeams)
                             {
@@ -82,10 +101,12 @@
                             <div class="form-group">
                                 <label class="input-label" for="equipment-select">בחר ציוד להחזרה</label>
                                 <div class="search-input-container">
-                                    <input id="equipment-search" class="search-bar" placeholder="חפש ציוד" @bind="EquipmentSearchQuery" @oninput="FilterEquipment" />
-                                    <i class="bi bi-search search-icon"></i>
+                                    <input id="equipment-search" class="search-bar" placeholder="חפש ציוד" 
+                                           @bind="EquipmentSearchQuery" @oninput="FilterEquipment" aria-label="חיפוש ציוד" />
+                                    <i class="bi bi-search search-icon" aria-hidden="true"></i>
                                 </div>
-                                <select id="equipment-select" @bind="SelectedEquipmentId" @bind:after="ResetEquipmentSelection" class="form-control mt-2">
+                                <select id="equipment-select" @bind="SelectedEquipmentId" @bind:after="ResetEquipmentSelection" 
+                                        class="form-control mt-2" aria-label="בחירת ציוד להחזרה">
                                     <option value="">בחר ציוד</option>
                                     @if (FilteredCheckedOutEquipment.Any())
                                     {
@@ -98,8 +119,16 @@
                             </div>
 
                             <div class="form-group">
+                                <label class="input-label" for="return-quantity">כמות להחזרה</label>
+                                <input id="return-quantity" class="form-control" type="number" 
+                                       @bind="ReturnQuantity" min="1" max="@GetCheckedOutQuantity(SelectedEquipmentId)" 
+                                       placeholder="הזן כמות להחזרה" aria-label="כמות להחזרה" />
+                                <small class="text-muted">כמות מקסימלית: @GetCheckedOutQuantity(SelectedEquipmentId)</small>
+                            </div>
+
+                            <div class="form-group">
                                 <label class="input-label" for="condition-select">מצב הציוד</label>
-                                <select id="condition-select" @bind="EquipmentCondition" class="form-control">
+                                <select id="condition-select" @bind="EquipmentCondition" class="form-control" aria-label="בחירת מצב הציוד">
                                     <option value="Good">תקין</option>
                                     <option value="Damaged">ניזוק</option>
                                     <option value="NeedsRepair">דרוש תיקון</option>
@@ -108,27 +137,37 @@
 
                             <div class="form-group">
                                 <label class="input-label" for="return-notes">הערות</label>
-                                <textarea id="return-notes" @bind="ReturnNotes" class="form-control" rows="3" placeholder="הערות נוספות לגבי הציוד המוחזר"></textarea>
+                                <textarea id="return-notes" @bind="ReturnNotes" class="form-control" rows="3" 
+                                          placeholder="הערות נוספות לגבי הציוד המוחזר" aria-label="הערות להחזרה"></textarea>
                             </div>
 
-                            <button class="btn-submit" @onclick="ReturnEquipment" disabled="@(isSubmitting || SelectedTeamId == null || SelectedEquipmentId == null)">
+                            <button class="btn-submit" @onclick="ReturnEquipment" 
+                                    disabled="@(isSubmitting || SelectedTeamId == null || SelectedEquipmentId == null || ReturnQuantity <= 0 || ReturnQuantity > GetCheckedOutQuantity(SelectedEquipmentId))"
+                                    aria-busy="@isSubmitting">
                                 @if (isSubmitting)
                                 {
                                     <div class="inline-flex items-center">
-                                        <div class="spinner spinner-sm mr-2"></div>
+                                        <div class="spinner spinner-sm mr-2" aria-hidden="true"></div>
                                         <span>מחזיר ציוד...</span>
                                     </div>
                                 }
                                 else
                                 {
-                                    <i class="bi bi-box-arrow-in-left mr-2"></i>
+                                    <i class="bi bi-box-arrow-in-left mr-2" aria-hidden="true"></i>
                                     <span>החזר ציוד</span>
                                 }
                             </button>
+
+                            @if (ReturnQuantity > GetCheckedOutQuantity(SelectedEquipmentId))
+                            {
+                                <div class="alert-danger mt-2">
+                                    <p>הכמות המבוקשת גדולה מהכמות שהושאלה</p>
+                                </div>
+                            }
                         }
                         else
                         {
-                            <div class="alert-info mt-3">
+                            <div class="alert-info mt-3" role="status">
                                 <p>לצוות זה אין ציוד שהושאל וניתן להחזיר</p>
                             </div>
                         }
@@ -136,10 +175,11 @@
 
                     @if (!string.IsNullOrEmpty(Message))
                     {
-                        <div class="@(IsError ? "alert-danger" : "alert-success") mt-4">
+                        <div class="@(IsError ? "alert-danger" : "alert-success") mt-4" role="alert" aria-live="assertive">
                             <p>@Message</p>
                         </div>
                     }
+
                 </div>
 
                 @if (SelectedTeamId.HasValue && SelectedTeamId > 0)
@@ -148,15 +188,19 @@
                         <div class="widget-header">
                             <h3 class="widget-title">ציוד בהשאלה לצוות</h3>
                             <div class="widget-actions">
-                                <button class="btn-refresh" title="רענן רשימה" @onclick="TeamSelected">
-                                    <i class="bi bi-arrow-clockwise"></i>
+                                <button class="btn-refresh" title="רענן רשימה" @onclick="TeamSelected" aria-label="רענן רשימה">
+                                    <i class="bi bi-arrow-clockwise" aria-hidden="true"></i>
                                 </button>
                                 <div class="flex gap-2">
-                                    <button class="btn-icon @(viewMode == ViewMode.List ? "active" : "")" title="תצוגת רשימה" @onclick="() => viewMode = ViewMode.List">
-                                        <i class="bi bi-list-ul"></i>
+                                    <button class="btn-icon @(viewMode == ViewMode.List ? "active" : "")" 
+                                            title="תצוגת רשימה" @onclick="() => viewMode = ViewMode.List"
+                                            aria-label="שנה לתצוגת רשימה" aria-pressed="@(viewMode == ViewMode.List)">
+                                        <i class="bi bi-list-ul" aria-hidden="true"></i>
                                     </button>
-                                    <button class="btn-icon @(viewMode == ViewMode.Cards ? "active" : "")" title="תצוגת קלפים" @onclick="() => viewMode = ViewMode.Cards">
-                                        <i class="bi bi-grid-3x3-gap"></i>
+                                    <button class="btn-icon @(viewMode == ViewMode.Cards ? "active" : "")" 
+                                            title="תצוגת קלפים" @onclick="() => viewMode = ViewMode.Cards"
+                                            aria-label="שנה לתצוגת קלפים" aria-pressed="@(viewMode == ViewMode.Cards)">
+                                        <i class="bi bi-grid-3x3-gap" aria-hidden="true"></i>
                                     </button>
                                 </div>
                             </div>
@@ -164,19 +208,20 @@
 
                         @if (!CheckedOutEquipment.Any())
                         {
-                            <div class="empty-state">
-                                <i class="bi bi-box-seam empty-icon"></i>
+                            <div class="empty-state" role="status">
+                                <i class="bi bi-box-seam empty-icon" aria-hidden="true"></i>
                                 <p>אין ציוד בהשאלה לצוות זה</p>
                             </div>
                         }
                         else
                         {
                             <div class="info-bar">
-                                <span class="records-count">@CheckedOutEquipment.Count פריטים בהשאלה לצוות</span>
+                                <span class="records-count" role="status">@CheckedOutEquipment.Count פריטים בהשאלה לצוות</span>
                                 @if (CheckedOutEquipment.Count > 1)
                                 {
-                                    <button class="btn-action btn-sm" @onclick="ReturnAllEquipment" disabled="@isSubmitting">
-                                        <i class="bi bi-box-arrow-in-left"></i> החזר הכל
+                                    <button class="btn-action btn-sm" @onclick="ReturnAllEquipment" 
+                                            disabled="@isSubmitting" aria-label="החזר את כל הציוד">
+                                        <i class="bi bi-box-arrow-in-left" aria-hidden="true"></i> החזר הכל
                                     </button>
                                 }
                             </div>
@@ -184,27 +229,31 @@
                             @if (viewMode == ViewMode.List)
                             {
                                 <div class="table-responsive">
-                                    <table class="history-table">
+                                    <table class="history-table" role="grid" aria-label="ציוד בהשאלה">
                                         <thead>
                                             <tr>
-                                                <th>שם פריט</th>
-                                                <th>מספר סידורי</th>
-                                                <th>מיקום</th>
-                                                <th>תאריך השאלה</th>
-                                                <th>פעולות</th>
+                                                <th scope="col">שם פריט</th>
+                                                <th scope="col">מספר סידורי</th>
+                                                <th scope="col">כמות</th>
+                                                <th scope="col">מיקום</th>
+                                                <th scope="col">תאריך השאלה</th>
+                                                <th scope="col">פעולות</th>
                                             </tr>
                                         </thead>
                                         <tbody>
                                             @foreach (var item in CheckedOutEquipment)
                                             {
-                                                <tr class="@(SelectedEquipmentId == item.EquipmentID ? "selected-row" : "")">
+                                                <tr class="@(SelectedEquipmentId == item.EquipmentID ? "selected-row" : "")" 
+                                                    aria-selected="@(SelectedEquipmentId == item.EquipmentID)">
                                                     <td>@item.Name</td>
                                                     <td>@(string.IsNullOrEmpty(item.SerialNumber) ? "-" : item.SerialNumber)</td>
+                                                    <td>@item.Quantity</td>
                                                     <td>@item.StorageLocation</td>
                                                     <td>@(GetCheckoutDate(item.EquipmentID))</td>
                                                     <td>
-                                                        <button class="btn-action btn-sm" @onclick="() => QuickReturn(item)">
-                                                            <i class="bi bi-box-arrow-in-left"></i> החזר
+                                                        <button class="btn-action btn-sm" @onclick="() => QuickReturn(item)" 
+                                                                aria-label="החזר @item.Name">
+                                                            <i class="bi bi-box-arrow-in-left" aria-hidden="true"></i> החזר
                                                         </button>
                                                     </td>
                                                 </tr>
@@ -215,23 +264,28 @@
                             }
                             else
                             {
-                                <div class="dashboard-cards">
+                                <div class="dashboard-cards" role="grid" aria-label="ציוד בהשאלה בתצוגת קלפים">
                                     @foreach (var item in CheckedOutEquipment)
                                     {
-                                        <div class="dashboard-card @(SelectedEquipmentId == item.EquipmentID ? "primary" : "")">
+                                        <div class="dashboard-card @(SelectedEquipmentId == item.EquipmentID ? "primary" : "")"
+                                             role="gridcell" aria-selected="@(SelectedEquipmentId == item.EquipmentID)">
                                             <div class="card-header">
                                                 <div>
                                                     <h3 class="card-title">@item.Name</h3>
                                                     <p class="card-subtitle">@(string.IsNullOrEmpty(item.SerialNumber) ? "ללא מספר סידורי" : $"סידורי: {item.SerialNumber}")</p>
                                                 </div>
                                                 <div class="card-icon">
-                                                    <i class="bi bi-box-seam"></i>
+                                                    <i class="bi bi-box-seam" aria-hidden="true"></i>
                                                 </div>
                                             </div>
                                             <div class="card-content">
                                                 <div class="flex items-center justify-between mb-2">
                                                     <span>מיקום:</span>
                                                     <span>@item.StorageLocation</span>
+                                                </div>
+                                                <div class="flex items-center justify-between mb-2">
+                                                    <span>כמות:</span>
+                                                    <span>@item.Quantity</span>
                                                 </div>
                                                 <div class="flex items-center justify-between mb-2">
                                                     <span>הושאל בתאריך:</span>
@@ -246,8 +300,9 @@
                                                 }
                                             </div>
                                             <div class="card-footer">
-                                                <button class="btn-action w-full" @onclick="() => QuickReturn(item)">
-                                                    <i class="bi bi-box-arrow-in-left"></i> החזר ציוד
+                                                <button class="btn-action w-full" @onclick="() => QuickReturn(item)" 
+                                                        aria-label="החזר @item.Name">
+                                                    <i class="bi bi-box-arrow-in-left" aria-hidden="true"></i> החזר ציוד
                                                 </button>
                                             </div>
                                         </div>
@@ -263,12 +318,12 @@
 }
 else if (ActiveTab == "history")
 {
-    <div class="dashboard-section slide-in">
+    <div id="history-panel" role="tabpanel" aria-labelledby="history-tab" class="dashboard-section slide-in">
         <div class="widget-header">
             <h3 class="widget-title">היסטורית ציוד</h3>
             <div class="widget-actions">
-                <button class="btn-refresh" title="רענן רשימה" @onclick="LoadHistory">
-                    <i class="bi bi-arrow-clockwise"></i>
+                <button class="btn-refresh" title="רענן רשימה" @onclick="LoadHistory" aria-label="טען היסטוריה מחדש">
+                    <i class="bi bi-arrow-clockwise" aria-hidden="true"></i>
                 </button>
             </div>
         </div>
@@ -279,19 +334,21 @@ else if (ActiveTab == "history")
                        placeholder="חיפוש לפי צוות"
                        class="search-bar"
                        @bind="HistoryTeamFilter"
-                       @oninput="FilterHistory" />
-                <i class="bi bi-search search-icon"></i>
+                       @oninput="FilterHistory" 
+                       aria-label="חיפוש לפי צוות" />
+                <i class="bi bi-search search-icon" aria-hidden="true"></i>
             </div>
             <div class="search-input-container">
                 <input type="text"
                        placeholder="חיפוש לפי ציוד"
                        class="search-bar"
                        @bind="HistoryEquipmentFilter"
-                       @oninput="FilterHistory" />
-                <i class="bi bi-search search-icon"></i>
+                       @oninput="FilterHistory" 
+                       aria-label="חיפוש לפי ציוד" />
+                <i class="bi bi-search search-icon" aria-hidden="true"></i>
             </div>
             <div class="search-field">
-                <select class="form-control" @bind="ConditionFilter" @bind:after="FilterHistory">
+                <select class="form-control" @bind="ConditionFilter" @bind:after="FilterHistory" aria-label="סינון לפי מצב ציוד">
                     <option value="">כל המצבים</option>
                     <option value="Good">תקין</option>
                     <option value="Damaged">ניזוק</option>
@@ -301,31 +358,37 @@ else if (ActiveTab == "history")
         </div>
 
         <div class="info-bar">
-            <span class="records-count">@FilteredCheckoutHistory.Count רשומות מתוך @CheckoutHistory.Count</span>
+            <span class="records-count" role="status">@FilteredCheckoutHistory.Count רשומות מתוך @CheckoutHistory.Count</span>
             <div class="flex gap-2">
-                <button class="btn-icon @(showReturned == null ? "active" : "")" title="הצג הכל" @onclick="() => ToggleReturnedFilter(null)">
-                    <i class="bi bi-grid-3x3"></i>
+                <button class="btn-icon @(showReturned == null ? "active" : "")" 
+                        title="הצג הכל" @onclick="() => ToggleReturnedFilter(null)"
+                        aria-label="הצג את כל הציוד" aria-pressed="@(showReturned == null)">
+                    <i class="bi bi-grid-3x3" aria-hidden="true"></i>
                 </button>
-                <button class="btn-icon @(showReturned == true ? "active" : "")" title="הצג מוחזרים בלבד" @onclick="() => ToggleReturnedFilter(true)">
-                    <i class="bi bi-check-circle"></i>
+                <button class="btn-icon @(showReturned == true ? "active" : "")" 
+                        title="הצג מוחזרים בלבד" @onclick="() => ToggleReturnedFilter(true)"
+                        aria-label="הצג ציוד מוחזר בלבד" aria-pressed="@(showReturned == true)">
+                    <i class="bi bi-check-circle" aria-hidden="true"></i>
                 </button>
-                <button class="btn-icon @(showReturned == false ? "active" : "")" title="הצג לא מוחזרים בלבד" @onclick="() => ToggleReturnedFilter(false)">
-                    <i class="bi bi-exclamation-circle"></i>
+                <button class="btn-icon @(showReturned == false ? "active" : "")" 
+                        title="הצג לא מוחזרים בלבד" @onclick="() => ToggleReturnedFilter(false)"
+                        aria-label="הצג ציוד שלא הוחזר" aria-pressed="@(showReturned == false)">
+                    <i class="bi bi-exclamation-circle" aria-hidden="true"></i>
                 </button>
             </div>
         </div>
 
         @if (isLoadingHistory)
         {
-            <div class="loading-container">
-                <div class="spinner"></div>
+            <div class="loading-container" aria-live="polite">
+                <div class="spinner" role="status"></div>
                 <p>טוען היסטורית הוצעות והחזרות...</p>
             </div>
         }
         else if (FilteredCheckoutHistory.Count == 0)
         {
-            <div class="empty-state">
-                <i class="bi bi-clock-history empty-icon"></i>
+            <div class="empty-state" role="status">
+                <i class="bi bi-clock-history empty-icon" aria-hidden="true"></i>
                 <p class="no-history">אין היסטורית הוצעות והחזרות</p>
                 <div class="empty-buttons">
                     <button class="btn-action" @onclick="LoadHistory">טען היסטוריה</button>
@@ -335,27 +398,33 @@ else if (ActiveTab == "history")
         else
         {
             <div class="table-responsive">
-                <table class="history-table">
+                <table class="history-table" role="grid" aria-label="היסטורית ציוד">
                     <thead>
                         <tr>
-                            <th>צוות</th>
-                            <th>ציוד</th>
-                            <th>תאריך הוצאה</th>
-                            <th>תאריך החזרה</th>
-                            <th>סטטוס</th>
-                            <th>מצב ציוד</th>
-                            <th>משתמש</th>
-                            <th>תפקיד</th>
+                            <th scope="col">צוות</th>
+                            <th scope="col">ציוד</th>
+                            <th scope="col">כמות</th>
+                            <th scope="col">תאריך הוצאה</th>
+                            <th scope="col">תאריך החזרה</th>
+                            <th scope="col">סטטוס</th>
+                            <th scope="col">מצב ציוד</th>
+                            <th scope="col">משתמש</th>
+                            <th scope="col">תפקיד</th>
                         </tr>
                     </thead>
                     <tbody>
                         @foreach (var record in FilteredCheckoutHistory)
                         {
-                            <tr class="@(record.ReturnedAt.HasValue ? "returned" : "checked-out")" @onclick="() => ShowRecordDetails(record)">
+                            <tr class="@(record.ReturnedAt.HasValue ? "returned" : "checked-out")" 
+                                @onclick="() => ShowRecordDetails(record)"
+                                tabindex="0"
+                                @onkeydown="@(e => OnKeyPressRecordRow(e, record))"
+                                role="row">
                                 <td>@record.TeamName</td>
                                 <td>@record.EquipmentName</td>
-                                <td>@record.CheckedOutAt.ToString("dd/MM/yyyy HH:mm")</td>
-                                <td>@(record.ReturnedAt.HasValue? record.ReturnedAt.Value.ToString("dd/MM/yyyy HH:mm") : "-")</td>
+                                <td>@record.Quantity</td>
+                                <td>@(record.CheckedOutAt.HasValue? record.CheckedOutAt.Value.ToString("dd/MM/yyyy HH:mm", System.Globalization.CultureInfo.InvariantCulture) : "-")</td>
+                                <td>@(record.ReturnedAt.HasValue? record.ReturnedAt.Value.ToString("dd/MM/yyyy HH:mm", System.Globalization.CultureInfo.InvariantCulture) : "-")</td>
                                 <td>
                                     <span class="status-badge @(record.ReturnedAt.HasValue ? "returned-badge" : "checked-out-badge")">
                                         @(record.ReturnedAt.HasValue ? "הוחזר" : "לא הוחזר")
@@ -409,23 +478,23 @@ else if (ActiveTab == "history")
 }
 else if (ActiveTab == "log")
 {
-    <div class="dashboard-section slide-in">
+    <div id="log-panel" role="tabpanel" aria-labelledby="log-tab" class="dashboard-section slide-in">
         <div class="widget-header">
             <h3 class="widget-title">לוג פעולות</h3>
             <div class="widget-actions">
-                <button class="btn-icon" title="נקה לוג" @onclick="ClearLogs">
-                    <i class="bi bi-trash"></i>
+                <button class="btn-icon" title="נקה לוג" @onclick="ClearLogs" aria-label="נקה לוג פעולות">
+                    <i class="bi bi-trash" aria-hidden="true"></i>
                 </button>
-                <button class="btn-icon" title="יצא לקובץ" @onclick="ExportLogs">
-                    <i class="bi bi-download"></i>
+                <button class="btn-icon" title="יצא לקובץ" @onclick="ExportLogs" aria-label="יצא לוג לקובץ">
+                    <i class="bi bi-download" aria-hidden="true"></i>
                 </button>
             </div>
         </div>
 
         @if (ActionLogs.Count == 0)
         {
-            <div class="empty-state">
-                <i class="bi bi-journal-text empty-icon"></i>
+            <div class="empty-state" role="status">
+                <i class="bi bi-journal-text empty-icon" aria-hidden="true"></i>
                 <p class="no-log">אין לוג פעולות להצגה</p>
             </div>
         }
@@ -437,16 +506,17 @@ else if (ActiveTab == "log")
                            placeholder="חפש בלוג פעולות..."
                            class="search-bar"
                            @bind="logSearchQuery"
-                           @oninput="FilterLogs" />
-                    <i class="bi bi-search search-icon"></i>
+                           @oninput="FilterLogs" 
+                           aria-label="חיפוש בלוג פעולות" />
+                    <i class="bi bi-search search-icon" aria-hidden="true"></i>
                 </div>
             </div>
 
-            <ul class="log-list">
+            <ul class="log-list" role="log" aria-label="לוג פעולות">
                 @foreach (var log in filteredLogs)
                 {
                     <li class="log-item">
-                        <span class="log-timestamp">@log.Timestamp.ToString("dd/MM HH:mm:ss")</span>
+                        <span class="log-timestamp">@(log.Timestamp?.ToString("dd/MM HH:mm:ss") ?? "-")</span>
                         <span class="log-message">@log.Message</span>
                     </li>
                 }
@@ -457,18 +527,27 @@ else if (ActiveTab == "log")
 
 @if (showReturnModal && selectedQuickReturnItem != null)
 {
-    <div class="modal-backdrop" @onclick="CloseModal"></div>
-    <div class="modal-container" @onclick:stopPropagation="true">
+    <div class="modal-backdrop" @onclick="CloseModal" tabindex="-1"></div>
+    <div class="modal-container" @onclick:stopPropagation="true" 
+         role="dialog" aria-labelledby="quick-return-title" aria-modal="true">
         <div class="modal-header">
-            <h3>החזרת ציוד מהירה</h3>
-            <button class="modal-close" @onclick="CloseModal">×</button>
+            <h3 id="quick-return-title">החזרת ציוד מהירה</h3>
+            <button class="modal-close" @onclick="CloseModal" aria-label="סגור חלון">×</button>
         </div>
         <div class="modal-body">
             <p class="mb-3">אתה עומד להחזיר את הפריט: <strong>@selectedQuickReturnItem.Name</strong></p>
+            
+            <div class="form-group">
+                <label class="input-label" for="quick-quantity">כמות להחזרה</label>
+                <input id="quick-quantity" class="form-control" type="number" 
+                       @bind="quickReturnQuantity" min="1" max="@selectedQuickReturnItem.Quantity" 
+                       placeholder="הזן כמות להחזרה" aria-label="כמות להחזרה" />
+                <small class="text-muted">כמות מקסימלית: @selectedQuickReturnItem.Quantity</small>
+            </div>
 
             <div class="form-group">
                 <label class="input-label" for="quick-condition">מצב הציוד</label>
-                <select id="quick-condition" @bind="quickReturnCondition" class="form-control">
+                <select id="quick-condition" @bind="quickReturnCondition" class="form-control" aria-label="בחר מצב ציוד">
                     <option value="Good">תקין</option>
                     <option value="Damaged">ניזוק</option>
                     <option value="NeedsRepair">דרוש תיקון</option>
@@ -477,22 +556,24 @@ else if (ActiveTab == "log")
 
             <div class="form-group">
                 <label class="input-label" for="quick-notes">הערות</label>
-                <textarea id="quick-notes" @bind="quickReturnNotes" class="form-control" rows="3" placeholder="הערות נוספות לגבי הציוד המוחזר"></textarea>
+                <textarea id="quick-notes" @bind="quickReturnNotes" class="form-control" rows="3" 
+                          placeholder="הערות נוספות לגבי הציוד המוחזר" aria-label="הערות להחזרה"></textarea>
             </div>
         </div>
         <div class="modal-footer">
             <button class="btn-action secondary" @onclick="CloseModal">ביטול</button>
-            <button class="btn-action" @onclick="ProcessQuickReturn" disabled="@isSubmitting">
+            <button class="btn-action" @onclick="ProcessQuickReturn" 
+                    disabled="@(isSubmitting || quickReturnQuantity <= 0 || quickReturnQuantity > selectedQuickReturnItem.Quantity)" aria-busy="@isSubmitting">
                 @if (isSubmitting)
                 {
                     <div class="inline-flex items-center">
-                        <div class="spinner spinner-sm mr-2"></div>
+                        <div class="spinner spinner-sm mr-2" aria-hidden="true"></div>
                         <span>מחזיר...</span>
                     </div>
                 }
                 else
                 {
-                    <i class="bi bi-box-arrow-in-left mr-2"></i>
+                    <i class="bi bi-box-arrow-in-left mr-2" aria-hidden="true"></i>
                     <span>החזר ציוד</span>
                 }
             </button>
@@ -502,18 +583,39 @@ else if (ActiveTab == "log")
 
 @if (showReturnAllModal)
 {
-    <div class="modal-backdrop" @onclick="CloseModal"></div>
-    <div class="modal-container" @onclick:stopPropagation="true">
+    <div class="modal-backdrop" @onclick="CloseModal" tabindex="-1"></div>
+    <div class="modal-container" @onclick:stopPropagation="true" 
+         role="dialog" aria-labelledby="return-all-title" aria-modal="true">
         <div class="modal-header">
-            <h3>החזרת כל הציוד</h3>
-            <button class="modal-close" @onclick="CloseModal">×</button>
+            <h3 id="return-all-title">החזרת כל הציוד</h3>
+            <button class="modal-close" @onclick="CloseModal" aria-label="סגור חלון">×</button>
         </div>
         <div class="modal-body">
             <p class="mb-3">אתה עומד להחזיר <strong>@CheckedOutEquipment.Count פריטים</strong> עבור הצוות <strong>@Teams.FirstOrDefault(t => t.TeamID == SelectedTeamId)?.TeamName</strong></p>
 
             <div class="form-group">
+                <label class="input-label">בחר כמויות להחזרה:</label>
+                @foreach (var item in CheckedOutEquipment)
+                {
+                    <div class="flex justify-between items-center mb-2 p-2 border-b">
+                        <span>@item.Name</span>
+                        <div>
+                            <input type="number" class="form-control"
+                                   value="@item.GetReturnQuantity()"
+                                   @onchange="@(e => UpdateReturnQuantity(item, e))"
+                                   min="0" max="@item.Quantity"
+                                   style="width: 80px; display: inline-block;" />
+                            <span class="mr-2">מתוך @item.Quantity</span>
+                        </div>
+                    </div>
+                }
+            </div>
+
+
+
+            <div class="form-group">
                 <label class="input-label" for="bulk-condition">מצב הציוד</label>
-                <select id="bulk-condition" @bind="bulkReturnCondition" class="form-control">
+                <select id="bulk-condition" @bind="bulkReturnCondition" class="form-control" aria-label="בחר מצב ציוד">
                     <option value="Good">תקין</option>
                     <option value="Damaged">ניזוק</option>
                     <option value="NeedsRepair">דרוש תיקון</option>
@@ -522,40 +624,44 @@ else if (ActiveTab == "log")
 
             <div class="form-group">
                 <label class="input-label" for="bulk-notes">הערות</label>
-                <textarea id="bulk-notes" @bind="bulkReturnNotes" class="form-control" rows="3" placeholder="הערות נוספות לגבי הציוד המוחזר"></textarea>
+                <textarea id="bulk-notes" @bind="bulkReturnNotes" class="form-control" rows="3" 
+                          placeholder="הערות נוספות לגבי הציוד המוחזר" aria-label="הערות להחזרת הציוד"></textarea>
             </div>
 
-            <div class="alert-warning mt-3">
-                <p><i class="bi bi-exclamation-triangle"></i> שים לב: פעולה זו תחזיר את כל הפריטים בבת אחת!</p>
+            <div class="alert-warning mt-3" role="alert">
+                <p><i class="bi bi-exclamation-triangle" aria-hidden="true"></i> שים לב: פעולה זו תחזיר את כל הפריטים שנבחרו בבת אחת!</p>
             </div>
         </div>
         <div class="modal-footer">
             <button class="btn-action secondary" @onclick="CloseModal">ביטול</button>
-            <button class="btn-action" @onclick="ProcessReturnAll" disabled="@isSubmitting">
+            <button class="btn-action" @onclick="ProcessReturnAll"
+                    disabled="@(isSubmitting || !CheckedOutEquipment.Any(e => e.GetReturnQuantity() > 0))" aria-busy="@isSubmitting">
                 @if (isSubmitting)
                 {
                     <div class="inline-flex items-center">
-                        <div class="spinner spinner-sm mr-2"></div>
+                        <div class="spinner spinner-sm mr-2" aria-hidden="true"></div>
                         <span>מחזיר...</span>
                     </div>
                 }
                 else
                 {
-                    <i class="bi bi-box-arrow-in-left mr-2"></i>
+                    <i class="bi bi-box-arrow-in-left mr-2" aria-hidden="true"></i>
                     <span>החזר הכל</span>
                 }
             </button>
+
         </div>
     </div>
 }
 
 @if (showRecordDetailsModal && selectedRecordDetails != null)
 {
-    <div class="modal-backdrop" @onclick="CloseRecordDetailsModal"></div>
-    <div class="modal-container" @onclick:stopPropagation="true">
+    <div class="modal-backdrop" @onclick="CloseRecordDetailsModal" tabindex="-1"></div>
+    <div class="modal-container" @onclick:stopPropagation="true" 
+         role="dialog" aria-labelledby="record-details-title" aria-modal="true">
         <div class="modal-header">
-            <h3>פרטי רשומה</h3>
-            <button class="modal-close" @onclick="CloseRecordDetailsModal">×</button>
+            <h3 id="record-details-title">פרטי רשומה</h3>
+            <button class="modal-close" @onclick="CloseRecordDetailsModal" aria-label="סגור חלון">×</button>
         </div>
         <div class="modal-body">
             <div class="record-details">
@@ -568,16 +674,20 @@ else if (ActiveTab == "log")
                     <div class="detail-value">@selectedRecordDetails.EquipmentName</div>
                 </div>
                 <div class="detail-row">
+                    <div class="detail-label">כמות:</div>
+                    <div class="detail-value">@selectedRecordDetails.Quantity</div>
+                </div>
+                <div class="detail-row">
                     <div class="detail-label">מזהה רשומה:</div>
                     <div class="detail-value">@selectedRecordDetails.Id</div>
                 </div>
                 <div class="detail-row">
                     <div class="detail-label">תאריך הוצאה:</div>
-                    <div class="detail-value">@selectedRecordDetails.CheckedOutAt.ToString("dd/MM/yyyy HH:mm:ss")</div>
+                    <div class="detail-value">@(selectedRecordDetails.CheckedOutAt.HasValue? selectedRecordDetails.CheckedOutAt.Value.ToString("dd/MM/yyyy HH:mm:ss", System.Globalization.CultureInfo.InvariantCulture) : "-")</div>
                 </div>
                 <div class="detail-row">
                     <div class="detail-label">תאריך החזרה:</div>
-                    <div class="detail-value">@(selectedRecordDetails.ReturnedAt.HasValue? selectedRecordDetails.ReturnedAt.Value.ToString("dd/MM/yyyy HH:mm:ss") : "-")</div>
+                    <div class="detail-value">@(selectedRecordDetails.ReturnedAt.HasValue? selectedRecordDetails.ReturnedAt.Value.ToString("dd/MM/yyyy HH:mm:ss", System.Globalization.CultureInfo.InvariantCulture) : "-")</div>
                 </div>
                 <div class="detail-row">
                     <div class="detail-label">סטטוס:</div>
@@ -618,63 +728,28 @@ else if (ActiveTab == "log")
     </div>
 }
 
-<style>
-    .selected-row {
-        background-color: rgba(84, 101, 255, 0.1);
-    }
-
-    .truncate-text {
-        max-width: 150px;
-        white-space: nowrap;
-        overflow: hidden;
-        text-overflow: ellipsis;
-    }
-
-    .record-details {
-        display: flex;
-        flex-direction: column;
-        gap: var(--space-3);
-    }
-
-    .detail-row {
-        display: flex;
-        border-bottom: 1px solid var(--border);
-        padding-bottom: var(--space-2);
-    }
-
-    .detail-label {
-        flex: 0 0 120px;
-        font-weight: 600;
-        color: var(--text-secondary);
-    }
-
-    .detail-value {
-        flex: 1;
-    }
-
-    .notes-text {
-        white-space: pre-wrap;
-        padding: var(--space-2);
-        background-color: var(--surface-variant);
-        border-radius: var(--radius-md);
-        max-height: 150px;
-        overflow-y: auto;
-    }
-</style>
-
 @code {
+    private string TabIndicatorPosition => $"{GetTabIndicatorPosition()}px";
+    private string TabIndicatorWidth => $"{GetTabIndicatorWidth()}px";
+
+    // Methods to calculate tab indicator position and width
+    private int GetTabIndicatorPosition()
+    {
+        return ActiveTab switch
+        {
+            "return" => 0,
+            "history" => 120, // Adjust based on your tab width
+            "log" => 240,     // Adjust based on your tab width
+            _ => 0
+        };
+    }
+
+    private int GetTabIndicatorWidth()
+    {
+        return 120; // Set to the width of your tabs
+    }
     private enum ViewMode { List, Cards }
 
-    // Updated properties for the tab indicator to support RTL layout correctly
-    private string TabIndicatorPosition => ActiveTab switch
-    {
-        "return" => "0%",
-        "history" => "33.33%",
-        "log" => "66.66%",
-        _ => "0%"
-    };
-
-    private string TabIndicatorWidth => "33.33%";
 
     private string ActiveTab = "return";
     private List<TeamDto> Teams = new();
@@ -683,6 +758,7 @@ else if (ActiveTab == "log")
     private List<EquipmentModel> FilteredCheckedOutEquipment = new();
     private List<ExtendedCheckoutRecordDto> CheckoutHistory = new();
     private List<ExtendedCheckoutRecordDto> FilteredCheckoutHistory = new();
+    private Dictionary<string, List<ExtendedCheckoutRecordDto>> HistoryCache = new();
     private List<ActionLog> ActionLogs = new();
     private int? SelectedTeamId;
     private int? SelectedEquipmentId;
@@ -706,6 +782,11 @@ else if (ActiveTab == "log")
     private ViewMode viewMode = ViewMode.List;
     private int CurrentUserId = 1; // Default user ID
     private bool? showReturned = null; // For filtering history by return status
+    private DateTime lastHistoryRefresh = DateTime.MinValue;
+    private TimeSpan historyRefreshThreshold = TimeSpan.FromMinutes(5);
+    
+    // Quantity-related properties
+    private int ReturnQuantity = 1;
 
     // Record Details
     private bool showRecordDetailsModal = false;
@@ -714,6 +795,7 @@ else if (ActiveTab == "log")
     // Quick return modal properties
     private bool showReturnModal = false;
     private EquipmentModel? selectedQuickReturnItem;
+    private int quickReturnQuantity = 1;
     private string quickReturnCondition = "Good";
     private string quickReturnNotes = string.Empty;
 
@@ -725,7 +807,7 @@ else if (ActiveTab == "log")
     // Extended DTO to include condition and notes
     private class ExtendedCheckoutRecordDto : CheckoutRecordDto
     {
-        public string ItemCondition { get; set; } = "Good";
+        public string? ItemCondition { get; set; } = "Good";
         public string ItemNotes { get; set; } = string.Empty;
     }
 
@@ -746,12 +828,39 @@ else if (ActiveTab == "log")
                 if (userIdClaim != null && int.TryParse(userIdClaim.Value, out int userId))
                 {
                     CurrentUserId = userId;
+                    Logger.LogInformation($"Current user ID: {userId}");
                 }
             }
         }
         catch (Exception ex)
         {
             Logger.LogWarning(ex, "Unable to retrieve current user ID from authentication state. Using default.");
+        }
+
+        // Register JavaScript function for saving files
+        await EnsureSaveAsFileJsFunction();
+    }
+
+    private async Task EnsureSaveAsFileJsFunction()
+    {
+        try
+        {
+            await JSRuntime.InvokeVoidAsync("eval", @"
+                window.saveAsFile = function (filename, data) {
+                    var blob = new Blob([data], { type: 'text/plain' });
+                    var url = window.URL.createObjectURL(blob);
+                    var a = document.createElement('a');
+                    a.href = url;
+                    a.download = filename;
+                    document.body.appendChild(a);
+                    a.click();
+                    window.URL.revokeObjectURL(url);
+                    document.body.removeChild(a);
+                }");
+        }
+        catch (Exception ex)
+        {
+            Logger.LogError(ex, "Error initializing JavaScript save function");
         }
     }
 
@@ -763,9 +872,21 @@ else if (ActiveTab == "log")
         // Add a slight delay for the animation to complete before loading data
         await Task.Delay(50);
 
-        if (tab == "history" && CheckoutHistory.Count == 0)
+        if (tab == "history")
         {
-            await LoadHistory();
+            // Only reload if history is empty or it's been more than the threshold time since last refresh
+            if (CheckoutHistory.Count == 0 || DateTime.Now - lastHistoryRefresh > historyRefreshThreshold)
+            {
+                await LoadHistory();
+            }
+        }
+    }
+
+    private void OnKeyPressRecordRow(KeyboardEventArgs e, ExtendedCheckoutRecordDto record)
+    {
+        if (e.Code == "Enter" || e.Code == "Space")
+        {
+            ShowRecordDetails(record);
         }
     }
 
@@ -855,6 +976,7 @@ else if (ActiveTab == "log")
         // When a new equipment is selected, reset the condition and notes
         EquipmentCondition = "Good";
         ReturnNotes = string.Empty;
+        ReturnQuantity = 1;
         StateHasChanged();
     }
 
@@ -873,7 +995,12 @@ else if (ActiveTab == "log")
                 StateHasChanged();
 
                 // Get checked out equipment for this team
-                CheckedOutEquipment = await EquipmentRequestService.GetCheckedOutEquipmentByTeamAsync(SelectedTeamId.Value);
+                var equipment = await EquipmentRequestService.GetCheckedOutEquipmentByTeamAsync(SelectedTeamId.Value);
+
+                // Initialize ReturnQuantity for each equipment
+                equipment.InitializeReturnQuantities();
+
+                CheckedOutEquipment = equipment;
 
                 // Initialize filtered equipment
                 FilteredCheckedOutEquipment = new List<EquipmentModel>(CheckedOutEquipment);
@@ -902,6 +1029,13 @@ else if (ActiveTab == "log")
         }
     }
 
+
+    private int GetCheckedOutQuantity(int? equipmentId)
+    {
+        if (!equipmentId.HasValue) return 0;
+        return CheckedOutEquipment.FirstOrDefault(e => e.EquipmentID == equipmentId)?.Quantity ?? 0;
+    }
+
     private string GetCheckoutDate(int equipmentId)
     {
         // If we have checkout history loaded
@@ -914,7 +1048,9 @@ else if (ActiveTab == "log")
 
             if (record != null)
             {
-                return record.CheckedOutAt.ToString("dd/MM/yyyy");
+                return record.CheckedOutAt.HasValue
+                                    ? record.CheckedOutAt.Value.ToString("dd/MM/yyyy HH:mm")
+                                    : "לא ידוע";
             }
         }
 
@@ -939,6 +1075,7 @@ else if (ActiveTab == "log")
     private void QuickReturn(EquipmentModel equipment)
     {
         selectedQuickReturnItem = equipment;
+        quickReturnQuantity = equipment.Quantity; // Default to full quantity
         quickReturnCondition = "Good";
         quickReturnNotes = string.Empty;
         showReturnModal = true;
@@ -950,11 +1087,22 @@ else if (ActiveTab == "log")
         if (!SelectedTeamId.HasValue || !CheckedOutEquipment.Any())
             return;
 
+        // Initialize return quantities if needed
+        foreach (var item in CheckedOutEquipment)
+        {
+            // Initialize to full quantity if not already set
+            if (item.GetReturnQuantity() <= 0)
+            {
+                item.SetReturnQuantity(item.Quantity);
+            }
+        }
+
         showReturnAllModal = true;
         bulkReturnCondition = "Good";
         bulkReturnNotes = string.Empty;
         StateHasChanged();
     }
+
 
     private void CloseModal()
     {
@@ -969,18 +1117,27 @@ else if (ActiveTab == "log")
         if (selectedQuickReturnItem == null || !SelectedTeamId.HasValue)
             return;
 
+        if (quickReturnQuantity <= 0 || quickReturnQuantity > selectedQuickReturnItem.Quantity)
+        {
+            Message = $"כמות להחזרה אינה תקינה. ודא שהכמות בין 1 ל-{selectedQuickReturnItem.Quantity}";
+            IsError = true;
+            StateHasChanged();
+            return;
+        }
+
         isSubmitting = true;
         StateHasChanged();
 
         try
         {
-            Logger.LogInformation($"Quick returning equipment (ID: {selectedQuickReturnItem.EquipmentID}) for team {SelectedTeamId}...");
+            Logger.LogInformation($"Quick returning equipment (ID: {selectedQuickReturnItem.EquipmentID}, Quantity: {quickReturnQuantity}) for team {SelectedTeamId}...");
 
-            // Use EquipmentReturnService's UpdateReturnedEquipmentByTeamAsync method
+            // Use EquipmentReturnService's UpdateReturnedEquipmentByTeamAsync method with quantity
             bool isReturned = await EquipmentReturnService.UpdateReturnedEquipmentByTeamAsync(
                 selectedQuickReturnItem.EquipmentID,
                 SelectedTeamId.Value,
                 CurrentUserId,
+                quickReturnQuantity,
                 quickReturnCondition,
                 quickReturnNotes
             );
@@ -988,15 +1145,33 @@ else if (ActiveTab == "log")
             // Handle the result
             if (isReturned)
             {
-                Message = "הציוד הוחזר בהצלחה!";
+                Message = $"הציוד הוחזר בהצלחה! כמות: {quickReturnQuantity}";
                 IsError = false;
-                Logger.LogInformation($"Equipment (ID: {selectedQuickReturnItem.EquipmentID}) returned successfully for team {SelectedTeamId}.");
-                AddLog($"הציוד {selectedQuickReturnItem.Name} הוחזר בהצלחה!");
+                Logger.LogInformation($"Equipment (ID: {selectedQuickReturnItem.EquipmentID}, Quantity: {quickReturnQuantity}) returned successfully for team {SelectedTeamId}.");
+                AddLog($"הציוד {selectedQuickReturnItem.Name} הוחזר בהצלחה! כמות: {quickReturnQuantity}");
+
+                // Clear cache to force a refresh on next history tab visit
+                ClearHistoryCache();
 
                 // Close modal and refresh checked-out equipment
                 showReturnModal = false;
                 selectedQuickReturnItem = null;
-                await TeamSelected();
+                
+                // If all were returned, update the local list
+                if (quickReturnQuantity >= selectedQuickReturnItem.Quantity)
+                {
+                    await TeamSelected(); // Full refresh of the equipment list
+                }
+                else
+                {
+                    // Update the item quantity in the local list
+                    var item = CheckedOutEquipment.FirstOrDefault(e => e.EquipmentID == selectedQuickReturnItem.EquipmentID);
+                    if (item != null)
+                    {
+                        item.Quantity -= quickReturnQuantity;
+                    }
+                    StateHasChanged();
+                }
             }
             else
             {
@@ -1020,6 +1195,30 @@ else if (ActiveTab == "log")
         }
     }
 
+    private void UpdateReturnQuantity(EquipmentModel item, ChangeEventArgs e)
+    {
+        if (item == null || e.Value == null)
+            return;
+
+        if (int.TryParse(e.Value.ToString(), out int quantity))
+        {
+            // Use the extension method to set return quantity
+            item.SetReturnQuantity(quantity);
+
+            Logger.LogInformation($"Updated return quantity for {item.Name} to {quantity}");
+            StateHasChanged();
+        }
+        else
+        {
+            Logger.LogWarning($"Invalid quantity value: {e.Value}");
+        }
+    }
+
+
+
+
+
+
     private async Task ProcessReturnAll()
     {
         if (!SelectedTeamId.HasValue || !CheckedOutEquipment.Any())
@@ -1030,36 +1229,57 @@ else if (ActiveTab == "log")
 
         try
         {
-            Logger.LogInformation($"Returning all equipment for team {SelectedTeamId}...");
+            Logger.LogInformation($"Returning multiple equipment items for team {SelectedTeamId}...");
             int successCount = 0;
             int failCount = 0;
 
-            foreach (var equipment in CheckedOutEquipment)
+            // Create a copy of the list to avoid issues during iteration
+            var equipmentToReturn = CheckedOutEquipment
+                .Where(e => e.GetReturnQuantity() > 0 && e.GetReturnQuantity() <= e.Quantity)
+                .ToList();
+
+            foreach (var equipment in equipmentToReturn)
             {
                 try
                 {
+                    // Get the current return quantity for this equipment
+                    int returnQuantity = equipment.GetReturnQuantity();
+
+                    Logger.LogInformation($"Returning {returnQuantity} units of equipment ID {equipment.EquipmentID}");
+
                     bool isReturned = await EquipmentReturnService.UpdateReturnedEquipmentByTeamAsync(
                         equipment.EquipmentID,
                         SelectedTeamId.Value,
                         CurrentUserId,
+                        returnQuantity,
                         bulkReturnCondition,
                         bulkReturnNotes
                     );
 
                     if (isReturned)
+                    {
                         successCount++;
+                        AddLog($"הוחזר בהצלחה: {equipment.Name}, כמות: {returnQuantity}");
+                    }
                     else
+                    {
                         failCount++;
+                        AddLog($"שגיאה בהחזרת: {equipment.Name}");
+                    }
                 }
                 catch (Exception ex)
                 {
                     Logger.LogError(ex, $"Error returning equipment (ID: {equipment.EquipmentID})");
                     failCount++;
+                    AddLog($"שגיאה בהחזרת {equipment.Name}: {ex.Message}");
                 }
             }
 
             // Close modal
             showReturnAllModal = false;
+
+            // Clear cache to force a refresh on next history tab visit
+            ClearHistoryCache();
 
             // Show result message
             if (successCount > 0)
@@ -1094,10 +1314,22 @@ else if (ActiveTab == "log")
         }
     }
 
+
+
+
+
     private async Task ReturnEquipment()
     {
         if (!SelectedTeamId.HasValue || !SelectedEquipmentId.HasValue)
             return;
+
+        // Validate return quantity
+        if (ReturnQuantity <= 0 || ReturnQuantity > GetCheckedOutQuantity(SelectedEquipmentId))
+        {
+            Message = "כמות להחזרה אינה תקינה.";
+            IsError = true;
+            return;
+        }
 
         isSubmitting = true;
         Message = null;
@@ -1106,13 +1338,14 @@ else if (ActiveTab == "log")
 
         try
         {
-            Logger.LogInformation($"Returning equipment (ID: {SelectedEquipmentId}) for team {SelectedTeamId}...");
+            Logger.LogInformation($"Returning equipment (ID: {SelectedEquipmentId}, Quantity: {ReturnQuantity}) for team {SelectedTeamId}...");
 
-            // Use EquipmentReturnService's UpdateReturnedEquipmentByTeamAsync method
+            // Use EquipmentReturnService's UpdateReturnedEquipmentByTeamAsync method with quantity
             bool isReturned = await EquipmentReturnService.UpdateReturnedEquipmentByTeamAsync(
                 SelectedEquipmentId.Value,
                 SelectedTeamId.Value,
                 CurrentUserId,
+                ReturnQuantity,
                 EquipmentCondition,
                 ReturnNotes
             );
@@ -1121,15 +1354,21 @@ else if (ActiveTab == "log")
             if (isReturned)
             {
                 var equipmentName = CheckedOutEquipment.FirstOrDefault(e => e.EquipmentID == SelectedEquipmentId)?.Name ?? "ציוד";
-                Message = $"{equipmentName} הוחזר בהצלחה!";
+                Message = $"{equipmentName} הוחזר בהצלחה! כמות: {ReturnQuantity}";
                 IsError = false;
-                Logger.LogInformation($"Equipment (ID: {SelectedEquipmentId}) returned successfully for team {SelectedTeamId}.");
-                AddLog($"הציוד {equipmentName} הוחזר בהצלחה!");
+                Logger.LogInformation($"Equipment (ID: {SelectedEquipmentId}, Quantity: {ReturnQuantity}) returned successfully for team {SelectedTeamId}.");
+                AddLog($"הציוד {equipmentName} הוחזר בהצלחה! כמות: {ReturnQuantity}");
 
-                // Reset form and refresh checked-out equipment
+                // Clear cache to force a refresh on next history tab visit
+                ClearHistoryCache();
+
+                // Update the equipment list
                 await TeamSelected();
+                
+                // Reset form fields
                 SelectedEquipmentId = null;
                 ReturnNotes = string.Empty;
+                ReturnQuantity = 1;
                 EquipmentCondition = "Good";
             }
             else
@@ -1157,12 +1396,6 @@ else if (ActiveTab == "log")
     private async Task LoadHistory()
     {
         isLoadingHistory = true;
-        CheckoutHistory.Clear();
-        FilteredCheckoutHistory.Clear();
-        HistoryTeamFilter = string.Empty;
-        HistoryEquipmentFilter = string.Empty;
-        ConditionFilter = string.Empty;
-        showReturned = null;
         StateHasChanged();
 
         try
@@ -1170,35 +1403,42 @@ else if (ActiveTab == "log")
             Logger.LogInformation("Loading checkout history...");
             var history = await CheckoutService.GetCheckoutHistoryAsync();
 
-            // Add the condition field if not present in the original DTO
-            CheckoutHistory = history.Select(h => new ExtendedCheckoutRecordDto
+            if (history != null)
             {
-                Id = h.Id,
-                EquipmentId = h.EquipmentId,
-                TeamId = h.TeamId,
-                UserId = h.UserId,
-                CheckedOutAt = h.CheckedOutAt,
-                ReturnedAt = h.ReturnedAt,
-                EquipmentName = h.EquipmentName ?? "ציוד לא ידוע",
-                TeamName = h.TeamName ?? "צוות לא ידוע",
-                UserName = h.UserName ?? "משתמש לא ידוע",
-                UserRole = h.UserRole ?? "משתמש",
-                // Default to Good if not provided
-                ItemCondition = h is ExtendedCheckoutRecordDto extended ? extended.ItemCondition : "Good",
-                // Default to empty if not provided
-                ItemNotes = h is ExtendedCheckoutRecordDto extended2 ? extended2.ItemNotes : string.Empty
-            }).ToList();
+                CheckoutHistory = history.Select(h => new ExtendedCheckoutRecordDto
+                {
+                    Id = h.Id,
+                    EquipmentId = h.EquipmentId,
+                    TeamId = h.TeamId,
+                    UserId = h.UserId,
+                    CheckedOutAt = h.CheckedOutAt,
+                    ReturnedAt = h.ReturnedAt,
+                    EquipmentName = h.EquipmentName ?? "ציוד לא ידוע",
+                    TeamName = h.TeamName ?? "צוות לא ידוע",
+                    UserName = h.UserName ?? "משתמש לא ידוע",
+                    UserRole = h.UserRole ?? "משתמש",
+                    Quantity = h.Quantity,
+                    ItemCondition = h.ItemCondition,
+                    ItemNotes = h.ItemNotes
+                }).ToList();
 
-            // Initialize filtered records with all records
-            FilteredCheckoutHistory = new List<ExtendedCheckoutRecordDto>(CheckoutHistory);
-
-            Logger.LogInformation($"Loaded {CheckoutHistory.Count} history records");
-            AddLog($"נטענו {CheckoutHistory.Count} רשומות היסטוריה");
+                FilterHistory(); // Apply any existing filters
+                lastHistoryRefresh = DateTime.Now;
+                Logger.LogInformation($"Loaded {CheckoutHistory.Count} history records");
+                AddLog($"נטענו {CheckoutHistory.Count} רשומות היסטוריה");
+            }
+            else
+            {
+                CheckoutHistory = new List<ExtendedCheckoutRecordDto>();
+                FilteredCheckoutHistory = new List<ExtendedCheckoutRecordDto>();
+                Logger.LogWarning("No history records returned from service");
+                AddLog("לא נמצאו רשומות היסטוריה");
+            }
         }
         catch (Exception ex)
         {
             Logger.LogError(ex, "Error loading checkout history.");
-            AddLog($"שגיאה בטעינת היסטורית הוצעות: {ex.Message}");
+            AddLog($"שגיאה בטעינת היסטורית הוצעות והחזרות: {ex.Message}");
         }
         finally
         {
@@ -1209,26 +1449,61 @@ else if (ActiveTab == "log")
 
     private void FilterHistory()
     {
+        // Apply all filters (team, equipment, condition, return status)
         FilteredCheckoutHistory = CheckoutHistory
             .Where(h =>
                 (string.IsNullOrEmpty(HistoryTeamFilter) ||
-                 (h.TeamName?.Contains(HistoryTeamFilter, StringComparison.OrdinalIgnoreCase) ?? false)) &&
+                 h.TeamName.Contains(HistoryTeamFilter, StringComparison.OrdinalIgnoreCase)) &&
                 (string.IsNullOrEmpty(HistoryEquipmentFilter) ||
-                 (h.EquipmentName?.Contains(HistoryEquipmentFilter, StringComparison.OrdinalIgnoreCase) ?? false)) &&
-                (showReturned == null || h.ReturnedAt.HasValue == showReturned) &&
+                 h.EquipmentName.Contains(HistoryEquipmentFilter, StringComparison.OrdinalIgnoreCase)) &&
                 (string.IsNullOrEmpty(ConditionFilter) ||
-                 (h.ItemCondition?.Equals(ConditionFilter, StringComparison.OrdinalIgnoreCase) ?? false))
+                 (h.ItemCondition != null && h.ItemCondition.Equals(ConditionFilter, StringComparison.OrdinalIgnoreCase))) &&
+                (showReturned == null || h.ReturnedAt.HasValue == showReturned)
             )
-            .OrderByDescending(h => h.ReturnedAt ?? h.CheckedOutAt)
             .ToList();
 
         StateHasChanged();
     }
 
-    private void ToggleReturnedFilter(bool? filter)
+    private void ToggleReturnedFilter(bool? status)
     {
-        showReturned = filter;
+        showReturned = status;
         FilterHistory();
+    }
+
+    private void ClearHistoryCache()
+    {
+        // Clear the history cache to force a refresh on next history tab visit
+        HistoryCache.Clear();
+        lastHistoryRefresh = DateTime.MinValue;
+    }
+
+    private string GetConditionBadgeClass(string? condition)
+    {
+        if (string.IsNullOrEmpty(condition))
+            return "default-badge";
+
+        return condition.ToLower() switch
+        {
+            "good" => "returned-badge",
+            "damaged" => "warning-badge",
+            "needsrepair" => "danger-badge",
+            _ => "default-badge"
+        };
+    }
+
+    private string GetConditionText(string? condition)
+    {
+        if (string.IsNullOrEmpty(condition))
+            return "לא ידוע";
+
+        return condition.ToLower() switch
+        {
+            "good" => "תקין",
+            "damaged" => "ניזוק",
+            "needsrepair" => "דרוש תיקון",
+            _ => condition
+        };
     }
 
     private string FormatUserRole(string? role)
@@ -1246,57 +1521,7 @@ else if (ActiveTab == "log")
         };
     }
 
-    private string GetConditionText(string? condition)
-    {
-        if (string.IsNullOrEmpty(condition))
-            return "תקין";
-
-        return condition.ToLower() switch
-        {
-            "good" => "תקין",
-            "damaged" => "ניזוק",
-            "needsrepair" => "דרוש תיקון",
-            _ => condition
-        };
-    }
-
-    private string GetConditionBadgeClass(string? condition)
-    {
-        if (string.IsNullOrEmpty(condition))
-            return "returned-badge";
-
-        return condition.ToLower() switch
-        {
-            "good" => "returned-badge",
-            "damaged" => "checked-out-badge",
-            "needsrepair" => "warning-badge",
-            _ => "default-badge"
-        };
-    }
-
-    private async Task ExportLogs()
-    {
-        try
-        {
-            var logs = ActionLogs.Select(log => $"{log.Timestamp:yyyy-MM-dd HH:mm:ss} - {log.Message}");
-            string logText = string.Join(Environment.NewLine, logs);
-
-            // Use JavaScript to download the file
-            await JSRuntime.InvokeVoidAsync(
-                "saveAsFile",
-                $"equipment_return_log_{DateTime.Now:yyyyMMdd_HHmmss}.txt",
-                logText
-            );
-
-            AddLog("יוצא לוג פעולות לקובץ");
-        }
-        catch (Exception ex)
-        {
-            Logger.LogError(ex, "Error exporting logs");
-            AddLog($"שגיאה ביצוא לוג: {ex.Message}");
-        }
-    }
-
+    // Add a method to add logs to the action log list
     private void AddLog(string message)
     {
         ActionLogs.Insert(0, new ActionLog
@@ -1305,23 +1530,45 @@ else if (ActiveTab == "log")
             Message = message
         });
 
-        // Keep the log size manageable
-        if (ActionLogs.Count > 50)
+        // Keep log size manageable
+        if (ActionLogs.Count > 100)
         {
             ActionLogs.RemoveAt(ActionLogs.Count - 1);
         }
     }
 
+    // Methods for log panel functionality
     private void ClearLogs()
     {
         ActionLogs.Clear();
-        logSearchQuery = string.Empty;
         StateHasChanged();
+    }
+
+    private async Task ExportLogs()
+    {
+        if (ActionLogs.Count == 0)
+        {
+            return;
+        }
+
+        try
+        {
+            var fileName = $"equipment_return_log_{DateTime.Now:yyyyMMdd_HHmmss}.txt";
+            var logText = string.Join("\n", ActionLogs.Select(log => $"[{log.Timestamp?.ToString("dd/MM/yyyy HH:mm:ss") ?? "-"}] {log.Message}"));
+
+            await JSRuntime.InvokeVoidAsync("saveAsFile", fileName, logText);
+            AddLog("יוצא קובץ לוג בהצלחה");
+        }
+        catch (Exception ex)
+        {
+            Logger.LogError(ex, "Error exporting logs");
+            AddLog($"שגיאה ביצוא לוג: {ex.Message}");
+        }
     }
 
     private class ActionLog
     {
-        public DateTime Timestamp { get; set; }
+        public DateTime? Timestamp { get; set; }
         public string Message { get; set; } = string.Empty;
     }
 }
