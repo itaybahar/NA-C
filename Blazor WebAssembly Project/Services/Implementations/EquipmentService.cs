@@ -589,79 +589,226 @@ namespace Blazor_WebAssembly.Services.Implementations
             {
                 _logger.LogInformation($"Fetching equipment with ID: {id}");
 
-                var response = await _httpClient.GetAsync($"{_apiEndpoint}/{id}");
-                _logger.LogInformation($"Response status: {response.StatusCode}");
+                using var cts = new CancellationTokenSource();
+                cts.CancelAfter(TimeSpan.FromSeconds(10)); // 10 second timeout
 
-                if (response.IsSuccessStatusCode)
+                // First try to get equipment data with checkout history separately
+                try
                 {
-                    var content = await response.Content.ReadAsStringAsync();
-                    _logger.LogDebug($"Response content: {content}");
+                    // Create a custom request with special header to indicate we want a projection without circular references
+                    using var requestMessage = new HttpRequestMessage(HttpMethod.Get, $"{_apiEndpoint}/{id}");
+                    requestMessage.Headers.Accept.Add(new System.Net.Http.Headers.MediaTypeWithQualityHeaderValue("application/json"));
+                    requestMessage.Headers.Add("X-Return-Projection", "true"); // Signal to API we want a projection
 
-                    // Try direct deserialization first
-                    try
+                    var response = await _httpClient.SendAsync(requestMessage, cts.Token);
+
+                    if (response.IsSuccessStatusCode)
                     {
-                        var equipment = JsonSerializer.Deserialize<EquipmentModel>(content, _jsonOptions);
-                        if (equipment != null)
-                        {
-                            // Initialize empty collections to prevent null reference errors
-                            equipment.CheckoutRecords ??= new List<CheckoutRecord>();
+                        var content = await response.Content.ReadAsStringAsync();
+                        _logger.LogDebug($"Response content length: {content.Length}");
 
-                            return equipment;
+                        // Try deserializing with our custom options
+                        try
+                        {
+                            var equipment = JsonSerializer.Deserialize<EquipmentModel>(content, _jsonOptions);
+                            if (equipment != null)
+                            {
+                                // Initialize empty collections to prevent null reference errors
+                                equipment.CheckoutRecords ??= new List<CheckoutRecord>();
+
+                                // Set default values for any null string properties
+                                equipment.Name ??= "Unknown";
+                                equipment.Status ??= "Unknown";
+                                equipment.StorageLocation ??= "Unknown";
+
+                                // Make a separate call to fetch checkout records if they're not included
+                                if (equipment.CheckoutRecords.Count == 0)
+                                {
+                                    await TryFetchCheckoutRecordsAsync(equipment, id, cts.Token);
+                                }
+
+                                return equipment;
+                            }
+                        }
+                        catch (Exception ex)
+                        {
+                            _logger.LogWarning($"Direct deserialization failed: {ex.Message}");
+                        }
+
+                        // Try manual parsing as fallback
+                        var parsedEquipment = await TryManualParsingAsync(content, id, cts.Token);
+                        if (parsedEquipment != null)
+                        {
+                            return parsedEquipment;
                         }
                     }
-                    catch (Exception ex)
+                    else
                     {
-                        _logger.LogWarning($"Direct deserialization failed: {ex.Message}");
-                    }
+                        _logger.LogWarning($"API returned error status: {response.StatusCode}");
 
-                    // Try manual parsing as fallback
-                    try
-                    {
-                        using var document = JsonDocument.Parse(content);
-                        var root = document.RootElement;
+                        // If we get a 500 error, try an alternative request without checkout records
+                        if ((int)response.StatusCode == 500)
+                        {
+                            _logger.LogWarning("Received 500 error, trying alternative approach without circular references");
+                            return await TryFetchSimplifiedEquipmentAsync(id, cts.Token);
+                        }
 
-                        // Check if we got a direct item or a wrapped item
-                        if (root.ValueKind == JsonValueKind.Object)
-                        {
-                            return ParseEquipmentFromJson(root);
-                        }
-                        else if (root.ValueKind == JsonValueKind.Array && root.GetArrayLength() > 0)
-                        {
-                            return ParseEquipmentFromJson(root[0]);
-                        }
-                        else if (root.TryGetProperty("$values", out var valuesElement) &&
-                                 valuesElement.ValueKind == JsonValueKind.Array &&
-                                 valuesElement.GetArrayLength() > 0)
-                        {
-                            return ParseEquipmentFromJson(valuesElement[0]);
-                        }
+                        return await HandleErrorResponseAsync(response, id);
                     }
-                    catch (Exception ex)
-                    {
-                        _logger.LogWarning($"Manual parsing failed: {ex.Message}");
-                    }
-
-                    _logger.LogWarning("Failed to parse equipment response");
-                    return null;
                 }
-                else
+                catch (Exception ex)
                 {
-                    var errorContent = await response.Content.ReadAsStringAsync();
-                    _logger.LogWarning($"API returned error status: {response.StatusCode}. Content: {errorContent}");
+                    _logger.LogWarning($"Primary request approach failed: {ex.Message}");
 
-                    if (response.StatusCode == System.Net.HttpStatusCode.NotFound)
-                    {
-                        _logger.LogWarning($"Equipment with ID {id} not found");
-                    }
-
-                    return null;
+                    // Second approach - try the fallback method
+                    return await TryFetchSimplifiedEquipmentAsync(id, cts.Token);
                 }
+
+                return null;
+            }
+            catch (TaskCanceledException)
+            {
+                _logger.LogWarning($"Request timed out when fetching equipment ID {id}");
+                _isApiAddressInitialized = false; // Try with a different endpoint next time
+                return null;
+            }
+            catch (HttpRequestException httpEx)
+            {
+                _logger.LogError(httpEx, $"HTTP request failed for equipment ID {id}");
+                _logger.LogWarning($"Status code: {httpEx.StatusCode}, Inner exception: {httpEx.InnerException?.Message ?? "none"}");
+                _isApiAddressInitialized = false; // Try with a different endpoint next time
+                return null;
             }
             catch (Exception ex)
             {
                 _logger.LogError(ex, $"Exception in GetEquipmentByIdAsync for ID {id}");
                 return null;
             }
+        }
+
+        private async Task<EquipmentModel?> TryFetchSimplifiedEquipmentAsync(int id, CancellationToken ct)
+        {
+            try
+            {
+                _logger.LogInformation($"Trying alternative approach for fetching equipment {id}");
+
+                // Use basic endpoint without projection for simpler data
+                var response = await _httpClient.GetAsync($"{_apiEndpoint}/{id}/basic", ct);
+
+                if (response.IsSuccessStatusCode)
+                {
+                    var content = await response.Content.ReadAsStringAsync();
+                    var equipment = JsonSerializer.Deserialize<EquipmentModel>(content, _jsonOptions);
+
+                    if (equipment != null)
+                    {
+                        equipment.CheckoutRecords ??= new List<CheckoutRecord>();
+                        equipment.Name ??= "Unknown";
+                        equipment.Status ??= "Unknown";
+                        equipment.StorageLocation ??= "Unknown";
+
+                        // Fetch checkout history separately
+                        await TryFetchCheckoutRecordsAsync(equipment, id, ct);
+
+                        return equipment;
+                    }
+                }
+                else
+                {
+                    _logger.LogWarning($"Alternative approach failed with status: {response.StatusCode}");
+                }
+            }
+            catch (Exception ex)
+            {
+                _logger.LogWarning($"Alternative approach failed: {ex.Message}");
+            }
+
+            return null;
+        }
+
+        private async Task<bool> TryFetchCheckoutRecordsAsync(EquipmentModel equipment, int id, CancellationToken ct)
+        {
+            try
+            {
+                var historyResponse = await _httpClient.GetAsync($"api/equipmentcheckout/equipment/{id}/history", ct);
+                if (historyResponse.IsSuccessStatusCode)
+                {
+                    var historyContent = await historyResponse.Content.ReadAsStringAsync();
+                    var checkoutHistory = JsonSerializer.Deserialize<List<CheckoutRecord>>(historyContent, _jsonOptions);
+                    if (checkoutHistory != null && checkoutHistory.Any())
+                    {
+                        equipment.CheckoutRecords = checkoutHistory;
+                        _logger.LogInformation($"Added {checkoutHistory.Count} checkout records to equipment {id}");
+                        return true;
+                    }
+                }
+            }
+            catch (Exception ex)
+            {
+                _logger.LogWarning($"Failed to fetch checkout history: {ex.Message}");
+            }
+
+            return false;
+        }
+
+        private async Task<EquipmentModel?> TryManualParsingAsync(string content, int id, CancellationToken ct)
+        {
+            try
+            {
+                using var document = JsonDocument.Parse(content);
+                var root = document.RootElement;
+
+                // Check if we got a direct item or a wrapped item
+                if (root.ValueKind == JsonValueKind.Object)
+                {
+                    var equipment = ParseEquipmentFromJson(root);
+                    await TryFetchCheckoutRecordsAsync(equipment, id, ct);
+                    return equipment;
+                }
+                else if (root.ValueKind == JsonValueKind.Array && root.GetArrayLength() > 0)
+                {
+                    var equipment = ParseEquipmentFromJson(root[0]);
+                    await TryFetchCheckoutRecordsAsync(equipment, id, ct);
+                    return equipment;
+                }
+                else if (root.TryGetProperty("$values", out var valuesElement) &&
+                        valuesElement.ValueKind == JsonValueKind.Array &&
+                        valuesElement.GetArrayLength() > 0)
+                {
+                    var equipment = ParseEquipmentFromJson(valuesElement[0]);
+                    await TryFetchCheckoutRecordsAsync(equipment, id, ct);
+                    return equipment;
+                }
+            }
+            catch (Exception ex)
+            {
+                _logger.LogWarning($"Manual parsing failed: {ex.Message}");
+            }
+
+            return null;
+        }
+
+        private async Task<EquipmentModel?> HandleErrorResponseAsync(HttpResponseMessage response, int id)
+        {
+            var errorContent = await response.Content.ReadAsStringAsync();
+            _logger.LogWarning($"API returned error status: {response.StatusCode}. Content: {errorContent}");
+
+            if (response.StatusCode == System.Net.HttpStatusCode.NotFound)
+            {
+                _logger.LogWarning($"Equipment with ID {id} not found");
+            }
+            else if (response.StatusCode == System.Net.HttpStatusCode.Unauthorized)
+            {
+                _logger.LogWarning("Authentication required to access equipment data");
+            }
+            else if ((int)response.StatusCode >= 500)
+            {
+                _logger.LogWarning("Server error occurred when retrieving equipment data");
+                // If it's a server error, try re-discovering the API on next request
+                _isApiAddressInitialized = false;
+            }
+
+            return null;
         }
 
         public async Task<bool> AddEquipmentAsync(EquipmentModel equipment)

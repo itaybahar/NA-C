@@ -234,17 +234,15 @@ namespace API_Project
                     throw new InvalidOperationException("SecretKey is missing in AuthenticationSettings.");
                 }
 
-                options.TokenValidationParameters = new TokenValidationParameters
-                {
-                    ValidateIssuer = true,
-                    ValidIssuer = authSettings.Issuer,
-                    ValidateAudience = true,
-                    ValidAudience = authSettings.Audience,
-                    ValidateLifetime = true,
-                    ValidateIssuerSigningKey = true,
-                    IssuerSigningKey = new SymmetricSecurityKey(
-                        Encoding.UTF8.GetBytes(authSettings.SecretKey))
-                };
+                 options.TokenValidationParameters = new TokenValidationParameters
+                 {
+                     ValidateIssuer = true,
+                     ValidateAudience = true,
+                     ValidateLifetime = true,
+                     ValidateIssuerSigningKey = true,
+                     IssuerSigningKey = new SymmetricSecurityKey(
+                                     Encoding.UTF8.GetBytes(authSettings.SecretKey))
+                 };
 
                 // Add debugging
                 options.Events = new JwtBearerEvents

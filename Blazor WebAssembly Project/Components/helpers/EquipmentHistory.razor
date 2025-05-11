@@ -1,0 +1,408 @@
+﻿@using Domain_Project.DTOs
+@using System.Globalization
+
+<link href="css/helpers.css" rel="stylesheet" />
+
+<div class="widget-header">
+    <h3 class="widget-title">היסטורית ציוד</h3>
+    <div class="widget-actions">
+        <button class="btn-refresh" title="רענן רשימה" @onclick="() => OnRefresh.InvokeAsync()">
+            <i class="bi bi-arrow-clockwise"></i>
+        </button>
+        <div class="view-toggle">
+            <button class="btn-icon @(ViewMode == "list" ? "active" : "")" title="תצוגת רשימה" @onclick="@(() => ToggleViewMode("list"))">
+                <i class="bi bi-list-ul"></i>
+            </button>
+            <button class="btn-icon @(ViewMode == "calendar" ? "active" : "")" title="תצוגת לוח שנה" @onclick="@(() => ToggleViewMode("calendar"))">
+                <i class="bi bi-calendar3"></i>
+            </button>
+        </div>
+    </div>
+</div>
+
+<div class="search-filters">
+    <div class="search-input-container">
+        <input type="text"
+               placeholder="חיפוש לפי צוות"
+               class="search-bar"
+               @bind="TeamFilter"
+               @oninput="HandleTeamFilterChange" />
+        <i class="bi bi-search search-icon"></i>
+    </div>
+    <div class="search-input-container">
+        <input type="text"
+               placeholder="חיפוש לפי ציוד"
+               class="search-bar"
+               @bind="EquipmentFilter"
+               @oninput="HandleEquipmentFilterChange" />
+        <i class="bi bi-search search-icon"></i>
+    </div>
+</div>
+
+@if (IsLoading)
+{
+    <div class="loading-container">
+        <div class="spinner"></div>
+        <p>טוען היסטורית הוצעות והחזרות...</p>
+    </div>
+}
+else if (!FilteredRecords.Any())
+{
+    <div class="empty-state">
+        <i class="bi bi-clock-history empty-icon"></i>
+        <p class="no-history">אין היסטורית הוצעות והחזרות</p>
+    </div>
+}
+else
+{
+    <div class="info-bar">
+        <span class="records-count">@FilteredRecords.Count רשומות מתוך @HistoryRecords.Count</span>
+    </div>
+
+    @if (ViewMode == "list")
+    {
+        <div class="table-responsive">
+            <table class="history-table">
+                <thead>
+                    <tr>
+                        <th>צוות</th>
+                        <th>ציוד</th>
+                        <th>כמות</th>
+                        <th>תאריך הוצאה</th>
+                        <th>תאריך החזרה</th>
+                        <th>סטטוס</th>
+                        <th>משתמש</th>
+                        <th>תפקיד</th>
+                    </tr>
+                </thead>
+                <tbody>
+                    @foreach (var record in FilteredRecords)
+                    {
+                        <tr class="@(record.ReturnedAt.HasValue ? "returned" : "checked-out")" @onclick="() => ShowRecordDetails(record)">
+                            <td>@record.TeamName</td>
+                            <td>@record.EquipmentName</td>
+                            <td>@record.Quantity</td>
+                            <td>@(record.CheckedOutAt?.ToString("dd/MM/yyyy HH:mm", CultureInfo.InvariantCulture) ?? "-")</td>
+                            <td>@(record.ReturnedAt?.ToString("dd/MM/yyyy HH:mm", CultureInfo.InvariantCulture) ?? "-")</td>
+                            <td>
+                                <span class="status-badge @(record.ReturnedAt.HasValue ? "returned-badge" : "checked-out-badge")">
+                                    @(record.ReturnedAt.HasValue ? "הוחזר" : "לא הוחזר")
+                                </span>
+                            </td>
+                            <td>@(string.IsNullOrEmpty(record.UserName) ? "לא ידוע" : record.UserName)</td>
+                            <td>@(string.IsNullOrEmpty(record.UserRole) ? "-" : FormatUserRole(record.UserRole))</td>
+                        </tr>
+                    }
+                </tbody>
+            </table>
+        </div>
+    }
+    else
+    {
+        <div class="calendar-container">
+            <div class="calendar-header">
+                <button class="btn-icon" @onclick="PreviousMonth">
+                    <i class="bi bi-chevron-right"></i>
+                </button>
+                <h3 class="calendar-title">@CurrentMonth.ToString("MMMM yyyy", CultureInfo.CurrentCulture)</h3>
+                <button class="btn-icon" @onclick="NextMonth">
+                    <i class="bi bi-chevron-left"></i>
+                </button>
+            </div>
+
+            <div class="calendar-week-header">
+                <div class="calendar-day-name">ראשון</div>
+                <div class="calendar-day-name">שני</div>
+                <div class="calendar-day-name">שלישי</div>
+                <div class="calendar-day-name">רביעי</div>
+                <div class="calendar-day-name">חמישי</div>
+                <div class="calendar-day-name">שישי</div>
+                <div class="calendar-day-name">שבת</div>
+            </div>
+
+            <div class="calendar-grid">
+                @{
+                    // Get the first day of the current month
+                    var firstDayOfMonth = new DateTime(CurrentMonth.Year, CurrentMonth.Month, 1);
+                    var lastDayOfMonth = firstDayOfMonth.AddMonths(1).AddDays(-1);
+
+                    // Calculate the offset for the first day of the month
+                    // In Israel Sunday is the first day of the week (value 0)
+                    var startOffset = ((int)firstDayOfMonth.DayOfWeek + 6) % 7;
+
+                    // Get the starting date for the first calendar cell
+                    var currentDate = firstDayOfMonth.AddDays(-startOffset);
+
+                    // Generate 6 weeks worth of dates to ensure all days are shown
+                    for (int i = 0; i < 42; i++)
+                    {
+                        var isCurrentMonth = currentDate.Month == CurrentMonth.Month;
+                        var dateStr = currentDate.ToString("yyyy-MM-dd");
+                        var dayEvents = FilteredRecords.Where(r =>
+                        (r.CheckedOutAt?.Date == currentDate.Date ||
+                        r.ReturnedAt?.Date == currentDate.Date)).ToList();
+
+                        <div class="calendar-day @(!isCurrentMonth ? "other-month" : "")">
+                            <div class="calendar-date">@currentDate.Day</div>
+
+                            @if (dayEvents.Any())
+                            {
+                                <div class="calendar-events">
+                                    @foreach (var evt in dayEvents.Take(3))
+                                    {
+                                        <div class="calendar-event @(evt.ReturnedAt?.Date == currentDate.Date ? "returned" : "checked-out")"
+                                             @onclick="() => ShowRecordDetails(evt)" @onclick:stopPropagation="true">
+                                            <span>@evt.EquipmentName</span>
+                                            <small>@(evt.ReturnedAt?.Date == currentDate.Date ? "הוחזר" : "הושאל")</small>
+                                        </div>
+                                    }
+
+                                    @if (dayEvents.Count > 3)
+                                    {
+                                        <div class="calendar-more-events" @onclick="() => ShowDayEvents(currentDate)">
+                                            +@(dayEvents.Count - 3) עוד
+                                        </div>
+                                    }
+                                </div>
+                            }
+                        </div>
+
+                        currentDate = currentDate.AddDays(1);
+                    }
+                }
+            </div>
+        </div>
+    }
+}
+
+@if (SelectedRecord != null)
+{
+    <div class="modal-backdrop" @onclick="CloseRecordDetails"></div>
+    <div class="modal-container" @onclick:stopPropagation="true">
+        <div class="modal-header">
+            <h3>פרטי רשומה</h3>
+            <button class="modal-close" @onclick="CloseRecordDetails">×</button>
+        </div>
+        <div class="modal-body">
+            <div class="record-details">
+                <div class="detail-row">
+                    <div class="detail-label">צוות:</div>
+                    <div class="detail-value">@SelectedRecord.TeamName</div>
+                </div>
+                <div class="detail-row">
+                    <div class="detail-label">ציוד:</div>
+                    <div class="detail-value">@SelectedRecord.EquipmentName</div>
+                </div>
+                <div class="detail-row">
+                    <div class="detail-label">כמות:</div>
+                    <div class="detail-value">@SelectedRecord.Quantity</div>
+                </div>
+                <div class="detail-row">
+                    <div class="detail-label">תאריך הוצאה:</div>
+                    <div class="detail-value">@(SelectedRecord.CheckedOutAt?.ToString("dd/MM/yyyy HH:mm", CultureInfo.InvariantCulture) ?? "-")</div>
+                </div>
+                <div class="detail-row">
+                    <div class="detail-label">תאריך החזרה:</div>
+                    <div class="detail-value">@(SelectedRecord.ReturnedAt?.ToString("dd/MM/yyyy HH:mm", CultureInfo.InvariantCulture) ?? "-")</div>
+                </div>
+                <div class="detail-row">
+                    <div class="detail-label">סטטוס:</div>
+                    <div class="detail-value">
+                        <span class="status-badge @(SelectedRecord.ReturnedAt.HasValue ? "returned-badge" : "checked-out-badge")">
+                            @(SelectedRecord.ReturnedAt.HasValue ? "הוחזר" : "לא הוחזר")
+                        </span>
+                    </div>
+                </div>
+                <div class="detail-row">
+                    <div class="detail-label">משתמש:</div>
+                    <div class="detail-value">@(string.IsNullOrEmpty(SelectedRecord.UserName) ? "לא ידוע" : SelectedRecord.UserName)</div>
+                </div>
+                <div class="detail-row">
+                    <div class="detail-label">תפקיד:</div>
+                    <div class="detail-value">@(string.IsNullOrEmpty(SelectedRecord.UserRole) ? "-" : FormatUserRole(SelectedRecord.UserRole))</div>
+                </div>
+                @if (!string.IsNullOrEmpty(SelectedRecord.ItemNotes))
+                {
+                    <div class="detail-row">
+                        <div class="detail-label">הערות:</div>
+                        <div class="detail-value">@SelectedRecord.ItemNotes</div>
+                    </div>
+                }
+                @if (!string.IsNullOrEmpty(SelectedRecord.ItemCondition))
+                {
+                    <div class="detail-row">
+                        <div class="detail-label">מצב הציוד:</div>
+                        <div class="detail-value">@GetConditionText(SelectedRecord.ItemCondition)</div>
+                    </div>
+                }
+            </div>
+        </div>
+        <div class="modal-footer">
+            <button class="btn-action" @onclick="CloseRecordDetails">סגור</button>
+        </div>
+    </div>
+}
+
+@if (SelectedDate.HasValue && DayEvents.Any())
+{
+    <div class="modal-backdrop" @onclick="CloseDayEvents"></div>
+    <div class="modal-container" @onclick:stopPropagation="true">
+        <div class="modal-header">
+            <h3>אירועים ב- @SelectedDate.Value.ToString("dd/MM/yyyy", CultureInfo.InvariantCulture)</h3>
+            <button class="modal-close" @onclick="CloseDayEvents">×</button>
+        </div>
+        <div class="modal-body">
+            <div class="day-events-list">
+                @foreach (var evt in DayEvents)
+                {
+                    <div class="day-event-item @(evt.ReturnedAt?.Date == SelectedDate.Value.Date ? "returned" : "checked-out")"
+                         @onclick="() => ShowRecordDetails(evt)">
+                        <div class="event-time">
+                            @(evt.ReturnedAt?.Date == SelectedDate.Value.Date
+                                                ? evt.ReturnedAt?.ToString("HH:mm", CultureInfo.InvariantCulture)
+                                                : evt.CheckedOutAt?.ToString("HH:mm", CultureInfo.InvariantCulture))
+                </div>
+                <div class="event-content">
+                    <div class="event-title">
+                        @evt.EquipmentName
+                        <span class="status-badge @(evt.ReturnedAt?.Date == SelectedDate.Value.Date ? "returned-badge" : "checked-out-badge")">
+                            @(evt.ReturnedAt?.Date == SelectedDate.Value.Date ? "הוחזר" : "הושאל")
+                        </span>
+                    </div>
+                    <div class="event-details">
+                        <span>צוות: @evt.TeamName</span>
+                        <span>כמות: @evt.Quantity</span>
+                        <span>משתמש: @(string.IsNullOrEmpty(evt.UserName) ? "לא ידוע" : evt.UserName)</span>
+                    </div>
+                </div>
+            </div>
+                        }
+            </div>
+        </div>
+        <div class="modal-footer">
+            <button class="btn-action" @onclick="CloseDayEvents">סגור</button>
+        </div>
+    </div>
+}
+
+@code {
+    [Parameter]
+    public List<CheckoutRecordDto> HistoryRecords { get; set; } = new();
+
+    [Parameter]
+    public EventCallback OnRefresh { get; set; }
+
+    [Parameter]
+    public bool IsLoading { get; set; }
+
+    [Parameter]
+    public string TeamFilter { get; set; } = string.Empty;
+
+    [Parameter]
+    public string EquipmentFilter { get; set; } = string.Empty;
+
+    [Parameter]
+    public EventCallback<string> OnTeamFilterChanged { get; set; }
+
+    [Parameter]
+    public EventCallback<string> OnEquipmentFilterChanged { get; set; }
+
+    private string ViewMode { get; set; } = "list";
+    private DateTime CurrentMonth { get; set; } = DateTime.Today;
+    private CheckoutRecordDto? SelectedRecord { get; set; }
+    private DateTime? SelectedDate { get; set; }
+    private List<CheckoutRecordDto> DayEvents { get; set; } = new();
+
+    private List<CheckoutRecordDto> FilteredRecords => HistoryRecords
+        .Where(h =>
+            (string.IsNullOrEmpty(TeamFilter) || h.TeamName?.Contains(TeamFilter, StringComparison.OrdinalIgnoreCase) == true) &&
+            (string.IsNullOrEmpty(EquipmentFilter) || h.EquipmentName?.Contains(EquipmentFilter, StringComparison.OrdinalIgnoreCase) == true))
+        .ToList();
+
+    protected override void OnInitialized()
+    {
+        base.OnInitialized();
+        CurrentMonth = DateTime.Today;
+    }
+
+    private void ToggleViewMode(string mode)
+    {
+        ViewMode = mode;
+    }
+
+    private void NextMonth()
+    {
+        CurrentMonth = CurrentMonth.AddMonths(1);
+    }
+
+    private void PreviousMonth()
+    {
+        CurrentMonth = CurrentMonth.AddMonths(-1);
+    }
+
+    private async Task HandleTeamFilterChange(ChangeEventArgs e)
+    {
+        if (e.Value is string value)
+        {
+            TeamFilter = value;
+            await OnTeamFilterChanged.InvokeAsync(TeamFilter);
+        }
+    }
+
+    private async Task HandleEquipmentFilterChange(ChangeEventArgs e)
+    {
+        if (e.Value is string value)
+        {
+            EquipmentFilter = value;
+            await OnEquipmentFilterChanged.InvokeAsync(EquipmentFilter);
+        }
+    }
+
+    private void ShowRecordDetails(CheckoutRecordDto record)
+    {
+        SelectedRecord = record;
+        CloseDayEvents();
+    }
+
+    private void CloseRecordDetails()
+    {
+        SelectedRecord = null;
+    }
+
+    private void ShowDayEvents(DateTime date)
+    {
+        SelectedDate = date;
+        DayEvents = FilteredRecords.Where(r =>
+            r.CheckedOutAt?.Date == date.Date ||
+            r.ReturnedAt?.Date == date.Date).ToList();
+    }
+
+    private void CloseDayEvents()
+    {
+        SelectedDate = null;
+        DayEvents.Clear();
+    }
+
+    private string FormatUserRole(string? role)
+    {
+        return role?.ToLower() switch
+        {
+            "admin" => "מנהל",
+            "warehousemanager" => "אחראי מחסן",
+            "warehouseoperator" => "עובד מחסן",
+            "user" => "משתמש",
+            _ => role ?? "-"
+        };
+    }
+
+    private string GetConditionText(string? condition)
+    {
+        return condition?.ToLower() switch
+        {
+            "good" => "תקין",
+            "damaged" => "ניזוק",
+            "needsrepair" => "דרוש תיקון",
+            _ => condition ?? "-"
+        };
+    }
+}

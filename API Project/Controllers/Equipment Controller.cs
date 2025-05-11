@@ -36,7 +36,6 @@ namespace API_Project.Controllers
             {
                 _logger.LogInformation("Getting all equipment");
                 var equipment = await _equipmentService.GetAllAsync();
-
                 if (equipment == null || !equipment.Any())
                 {
                     return NotFound("No equipment found.");
@@ -77,25 +76,65 @@ namespace API_Project.Controllers
         }
 
 
-        // GET: api/equipment/5
         [HttpGet("{id}")]
         [AllowAnonymous]
-        public async Task<ActionResult<Equipment>> GetEquipment(int id)
+        public async Task<ActionResult<object>> GetEquipment(int id)
         {
             try
             {
                 _logger.LogInformation($"Getting equipment with ID: {id}");
 
-                // Use the service properly and capture its return value
+                // First check if equipment exists in database to provide better error messages
+                var equipmentExists = await _dbContext.Equipment.AnyAsync(e => e.Id == id);
+                if (!equipmentExists)
+                {
+                    _logger.LogWarning($"Equipment with ID {id} not found in database");
+                    return NotFound($"Equipment with ID {id} not found");
+                }
+
+                // Use the service to get equipment data
                 var equipment = await _equipmentService.GetEquipmentByIdAsync(id);
 
                 if (equipment == null)
                 {
-                    _logger.LogWarning($"Equipment with ID {id} not found");
+                    _logger.LogWarning($"Equipment with ID {id} returned null from service");
                     return NotFound($"Equipment with ID {id} not found");
                 }
 
-                return Ok(equipment);
+                if (equipment.CheckoutRecords == null)
+                {
+                    equipment.CheckoutRecords = new List<CheckoutRecord>();
+                }
+
+                // Create a properly formatted response that includes checkout records
+                var result = new
+                {
+                    id = equipment.Id,                   // Use lowercase to match JSON naming conventions
+                    equipmentID = equipment.Id,          // Include for backward compatibility 
+                    name = equipment.Name ?? "Unknown",
+                    description = equipment.Description ?? string.Empty,
+                    serialNumber = equipment.SerialNumber ?? string.Empty,
+                    purchaseDate = equipment.PurchaseDate,
+                    value = equipment.Value,
+                    status = equipment.Status ?? "Unknown",
+                    quantity = equipment.Quantity,
+                    storageLocation = equipment.StorageLocation ?? string.Empty,
+                    categoryId = equipment.CategoryId,
+                    modelNumber = equipment.ModelNumber ?? string.Empty,
+                    // Include the actual checkout records
+                    checkoutRecords = equipment.CheckoutRecords.Select(cr => new {
+                        id = cr.Id,
+                        equipmentId = cr.EquipmentId,
+                        teamId = cr.TeamId,
+                        userId = cr.UserId,
+                        checkedOutAt = cr.CheckedOutAt,
+                        returnedAt = cr.ReturnedAt,
+                        quantity = cr.Quantity
+                    }).ToList()
+                };
+
+                _logger.LogInformation($"Successfully retrieved equipment with ID: {id} with {equipment.CheckoutRecords.Count} checkout records");
+                return Ok(result);
             }
             catch (Exception ex)
             {
@@ -109,9 +148,53 @@ namespace API_Project.Controllers
                     _logger.LogError(ex.InnerException, "Inner exception: {Message}", ex.InnerException.Message);
                 }
 
-                return StatusCode(500, "Internal server error. Please check server logs for details.");
+                return StatusCode(500, $"Internal server error retrieving equipment {id}: {ex.Message}");
             }
         }
+
+
+        // Add this new endpoint for basic equipment data without related entities
+        [HttpGet("{id}/basic")]
+        [AllowAnonymous]
+        public async Task<ActionResult<object>> GetBasicEquipment(int id)
+        {
+            try
+            {
+                _logger.LogInformation($"Getting basic equipment with ID: {id}");
+
+                var equipment = await _dbContext.Equipment.FindAsync(id);
+
+                if (equipment == null)
+                {
+                    _logger.LogWarning($"Equipment with ID {id} not found");
+                    return NotFound($"Equipment with ID {id} not found");
+                }
+
+                // Return simplified projection with no related entities
+                var result = new
+                {
+                    Id = equipment.Id,
+                    Name = equipment.Name ?? "Unknown",
+                    Description = equipment.Description ?? string.Empty,
+                    SerialNumber = equipment.SerialNumber ?? string.Empty,
+                    Value = equipment.Value,
+                    Status = equipment.Status ?? "Unknown",
+                    Quantity = equipment.Quantity,
+                    StorageLocation = equipment.StorageLocation ?? string.Empty,
+                    CategoryId = equipment.CategoryId,
+                    ModelNumber = equipment.ModelNumber ?? string.Empty
+                };
+
+                _logger.LogInformation($"Successfully retrieved basic equipment with ID: {id}");
+                return Ok(result);
+            }
+            catch (Exception ex)
+            {
+                _logger.LogError(ex, "Error retrieving basic equipment with ID: {ID}", id);
+                return StatusCode(500, $"Internal server error retrieving basic equipment {id}: {ex.Message}");
+            }
+        }
+
 
 
         // GET: api/equipment/available

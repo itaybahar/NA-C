@@ -13,6 +13,6 @@ public interface ICheckoutService
     Task<bool> CreateCheckoutAsync(EquipmentCheckout checkout);
     Task<List<EquipmentCheckout>> GetActiveCheckoutsAsync();
     Task<List<EquipmentCheckout>> GetOverdueCheckoutsAsync();
-    Task<bool> CheckoutEquipmentAsync(int teamId, int equipmentId, int userId);
+    Task<bool> CheckoutEquipmentAsync(int teamId, int equipmentId, int userId, int quantity);
     Task<List<CheckoutRecordDto>> GetCheckoutHistoryAsync();
 }

@@ -98,6 +98,13 @@ namespace Domain_Project.Models
     {
         [Key]
         public int Id { get; set; }
+        
+        [NotMapped] // This tells EF Core not to map this property to a database column
+        public int EquipmentID
+        {
+            get { return Id; }
+            set { Id = value; }
+        }
 
         [Required]
         [MaxLength(100)]
@@ -137,7 +144,7 @@ namespace Domain_Project.Models
         public int CategoryId { get; set; }
         [NotMapped] // Add this attribute
         public required string ModelNumber { get; set; } = string.Empty;
-        public int EquipmentID { get; set; }
+        //public int EquipmentID { get; set; }
 
         public static implicit operator Equipment(EquipmentDto dto)
         {
@@ -207,25 +214,30 @@ public class EquipmentCheckout
 
 
 public class CheckoutRecord
-    {
-        public string Id { get; set; } = Guid.NewGuid().ToString();
-        public required int EquipmentId { get; set; }
-        public required Equipment Equipment { get; set; }
+{
+    public string Id { get; set; } = Guid.NewGuid().ToString();
 
-        public required int TeamId { get; set; }
-        public required Team Team { get; set; } = new Team
-        {
-            TeamName = string.Empty
-        };
-        public required int UserId { get; set; }
-        public string User { get; set; } = string.Empty;
+    public int EquipmentId { get; set; }
 
-        public DateTime CheckedOutAt { get; set; } = DateTime.UtcNow;
-        public DateTime? ReturnedAt { get; set; }
-    public int Quantity { get; set; }
+    // Make navigation property nullable to avoid serialization issues
+    [JsonIgnore]
+    public Equipment? Equipment { get; set; }
+
+    public int TeamId { get; set; }
+
+    // Make navigation property nullable with a default value
+    [JsonIgnore]
+    public Team? Team { get; set; } = new Team { TeamName = string.Empty };
+
+    public int UserId { get; set; }
+    public string User { get; set; } = string.Empty;
+
+    public DateTime CheckedOutAt { get; set; } = DateTime.UtcNow;
+    public DateTime? ReturnedAt { get; set; }
+    public int Quantity { get; set; } = 1;
 }
 
-    public class Checkout
+public class Checkout
     {
         public int Id { get; set; } // Unique identifier for the checkout
 

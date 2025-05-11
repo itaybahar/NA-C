@@ -67,7 +67,7 @@
             <input id="value" class="form-control" placeholder="ערך כספי של הפריט" type="number" @bind="NewItem.Value" min="0" step="0.01" />
         </div>
 
-        <button class="btn-submit" @onclick="AddEquipment" disabled="@IsSubmitting">
+        <button class="btn-submit" @onclick="HandleAddEquipment" disabled="@IsSubmitting">
             @if (IsSubmitting)
             {
                 <div class="inline-flex items-center">
@@ -84,6 +84,59 @@
 </div>
 
 @code {
+    [Parameter]
+    public EventCallback OnEquipmentAdded { get; set; }
+
+    private async Task HandleAddEquipment()
+    {
+        await AddEquipment();
+    }
+
+    private async Task AddEquipment()
+    {
+        if (!ValidateForm())
+            return;
+
+        IsSubmitting = true;
+        StateHasChanged();
+
+        try
+        {
+            // Log fields to console for debugging
+            Console.WriteLine($"Adding equipment: Name={NewItem.Name}, StorageLocation={NewItem.StorageLocation}, Status={NewItem.Status}, Quantity={NewItem.Quantity}, Value={NewItem.Value}");
+
+            var result = await EquipmentService.AddEquipmentAsync(NewItem);
+
+            if (result)
+            {
+                Message = "הפריט נוסף בהצלחה!";
+                IsError = false;
+
+                // Notify parent component
+                await OnEquipmentAdded.InvokeAsync();
+
+                // Reset form
+                ResetForm();
+            }
+            else
+            {
+                Message = "שגיאה בהוספת הפריט";
+                IsError = true;
+            }
+        }
+        catch (Exception ex)
+        {
+            Message = $"שגיאה: {ex.Message}";
+            IsError = true;
+            Console.WriteLine($"Error adding equipment: {ex}");
+        }
+        finally
+        {
+            IsSubmitting = false;
+            StateHasChanged();
+        }
+    }
+
     private EquipmentModel NewItem = new()
     {
         Name = string.Empty,
@@ -117,48 +170,6 @@
         finally
         {
             IsLoading = false;
-            StateHasChanged();
-        }
-    }
-
-    private async Task AddEquipment()
-    {
-        if (!ValidateForm())
-            return;
-
-        IsSubmitting = true;
-        StateHasChanged();
-
-        try
-        {
-            // Log fields to console for debugging
-            Console.WriteLine($"Adding equipment: Name={NewItem.Name}, StorageLocation={NewItem.StorageLocation}, Status={NewItem.Status}, Quantity={NewItem.Quantity}, Value={NewItem.Value}");
-
-            var result = await EquipmentService.AddEquipmentAsync(NewItem);
-
-            if (result)
-            {
-                Message = "הפריט נוסף בהצלחה!";
-                IsError = false;
-
-                // Reset form
-                ResetForm();
-            }
-            else
-            {
-                Message = "שגיאה בהוספת הפריט";
-                IsError = true;
-            }
-        }
-        catch (Exception ex)
-        {
-            Message = $"שגיאה: {ex.Message}";
-            IsError = true;
-            Console.WriteLine($"Error adding equipment: {ex}");
-        }
-        finally
-        {
-            IsSubmitting = false;
             StateHasChanged();
         }
     }

@@ -11,276 +11,715 @@
 @using Blazor_WebAssembly.Services
 @inject ApiErrorHandler ApiErrorHandler
 @implements IDisposable
+@using Domain_Project.DTOs
 
 <link href="css/dashboard.css" rel="stylesheet" />
 
 <h2 class="text-center text-xl font-bold mb-6">רשימת ציוד</h2>
-
-<div id="equipmentListContainer" class="dashboard-section @(isApiConnected ? "" : "api-connecting")">
-    @if (!isApiConnected && !apiConnectionFailed)
-    {
-        <div class="api-connection-overlay">
-            <div class="spinner"></div>
-            <p>מתחבר לשרת...</p>
-        </div>
-    }
-    else if (apiConnectionFailed)
-    {
-        <div class="api-error-overlay">
-            <div class="error-icon">
-                <i class="bi bi-exclamation-triangle"></i>
-            </div>
-            <p>לא ניתן להתחבר לשרת. בדוק את החיבור שלך ונסה שוב.</p>
-            <button class="btn-action mt-3" @onclick="RetryApiConnection">נסה להתחבר שוב</button>
-        </div>
-    }
-    else
-    {
-        <!-- Your existing component markup here -->
-    }
+<div class="tabs mb-4">
+    <button class="tab @(ActiveTab == "list" ? "active" : "")" @onclick="@(() => OnTabChanged("list"))">
+        <i class="bi bi-box-seam"></i> רשימת ציוד
+    </button>
+    <button class="tab @(ActiveTab == "history" ? "active" : "")" @onclick="@(() => OnTabChanged("history"))">
+        <i class="bi bi-clock-history"></i> היסטורית ציוד
+    </button>
+    <div class="tab-indicator" style="right: @TabIndicatorPosition; width: @TabIndicatorWidth"></div>
 </div>
 
-<style>
-    .api-connection-overlay, .api-error-overlay {
-        position: absolute;
-        top: 0;
-        left: 0;
-        right: 0;
-        bottom: 0;
-        background: rgba(0,0,0,0.7);
-        display: flex;
-        flex-direction: column;
-        justify-content: center;
-        align-items: center;
-        z-index: 1000;
-        color: white;
-        text-align: center;
-        padding: 20px;
-    }
+@if (ActiveTab == "list")
+{
+    <div id="equipmentListContainer" class="dashboard-section @(isApiConnected ? "" : "api-connecting")">
+        @if (!isApiConnected && !apiConnectionFailed)
+        {
+            <div class="api-connection-overlay">
+                <div class="spinner"></div>
+                <p>מתחבר לשרת...</p>
+            </div>
+        }
+        else if (apiConnectionFailed)
+        {
+            <div class="api-error-overlay">
+                <div class="error-icon">
+                    <i class="bi bi-exclamation-triangle"></i>
+                </div>
+                <p>לא ניתן להתחבר לשרת. בדוק את החיבור שלך ונסה שוב.</p>
+                <button class="btn-action mt-3" @onclick="RetryApiConnection">נסה להתחבר שוב</button>
+            </div>
+        }
+        else
+        {
+            <!-- Your existing component markup here -->
+        }
+    </div>
 
-    .api-error-overlay {
-        background: rgba(220,53,69,0.9);
-    }
+    <style>
+        .api-connection-overlay, .api-error-overlay {
+            position: absolute;
+            top: 0;
+            left: 0;
+            right: 0;
+            bottom: 0;
+            background: rgba(0,0,0,0.7);
+            display: flex;
+            flex-direction: column;
+            justify-content: center;
+            align-items: center;
+            z-index: 1000;
+            color: white;
+            text-align: center;
+            padding: 20px;
+        }
 
-    .error-icon {
-        font-size: 48px;
-        margin-bottom: 20px;
-    }
+        .api-error-overlay {
+            background: rgba(220,53,69,0.9);
+        }
 
-    .api-connecting {
-        position: relative;
-        min-height: 200px;
-    }
-</style>
+        .error-icon {
+            font-size: 48px;
+            margin-bottom: 20px;
+        }
 
-<div class="dashboard-section">
-    <div class="widget-header">
-        <h3 class="widget-title">ניהול ציוד</h3>
-        <div class="widget-actions">
-            <button class="btn-refresh" title="רענן נתונים" @onclick="RefreshData">
-                <i class="bi bi-arrow-clockwise"></i>
-            </button>
-            @if (IsAdminOrWarehouseManager)
-            {
-                <button class="btn-action btn-sm" @onclick="() => NavigateToAddEquipment()">
-                    <i class="bi bi-plus-circle"></i> הוסף ציוד חדש
+        .api-connecting {
+            position: relative;
+            min-height: 200px;
+        }
+    </style>
+
+    <div class="dashboard-section">
+        <div class="widget-header">
+            <h3 class="widget-title">ניהול ציוד</h3>
+            <div class="widget-actions">
+                <button class="btn-refresh" title="רענן נתונים" @onclick="RefreshData">
+                    <i class="bi bi-arrow-clockwise"></i>
                 </button>
-            }
-        </div>
-    </div>
-
-    <div class="search-container">
-        <div class="search-input-container">
-            <input class="search-bar" placeholder="חפש לפי שם, מספר סידורי או מיקום..." @bind="searchTerm" @bind:event="oninput" />
-            <i class="bi bi-search search-icon"></i>
-        </div>
-
-        <div class="search-filters mt-3">
-            <div class="search-field">
-                <select class="form-control" @bind="statusFilter">
-                    <option value="">כל הסטטוסים</option>
-                    <option value="Available">זמין</option>
-                    <option value="InUse">בשימוש</option>
-                    <option value="Maintenance">בתיקון</option>
-                    <option value="Returned">מוחזר</option>
-                    <option value="Unavailable">לא זמין</option>
-                </select>
-            </div>
-            <div class="search-field">
-                <select class="form-control" @bind="locationFilter">
-                    <option value="">כל המיקומים</option>
-                    @foreach (var location in UniqueLocations)
-                    {
-                        <option value="@location">@location</option>
-                    }
-                </select>
-            </div>
-        </div>
-    </div>
-
-    @if (isLoading)
-    {
-        <div class="loading-container">
-            <div class="spinner"></div>
-            <p>טוען נתונים...</p>
-        </div>
-    }
-    else if (errorMessage != null)
-    {
-        <div class="alert-danger mb-4">
-            <p>שגיאה: @errorMessage</p>
-            <button class="btn-action mt-2" @onclick="RefreshData">נסה שנית</button>
-        </div>
-    }
-    else if (FilteredEquipment.Count == 0)
-    {
-        <div class="empty-state">
-            <i class="bi bi-box-seam empty-icon"></i>
-            <p class="no-history">אין ציוד להצגה</p>
-            <div class="empty-buttons">
-                <button class="btn-action" @onclick="RefreshData">טען נתונים</button>
                 @if (IsAdminOrWarehouseManager)
                 {
-                    <button class="btn-action secondary" @onclick="AddDemoData">הוסף נתוני הדגמה</button>
+                    <button class="btn-action btn-sm" @onclick="ShowAddEquipmentModal">
+                        <i class="bi bi-plus-circle"></i> הוסף ציוד חדש
+                    </button>
+
+                    @if (showAddEquipmentModal)
+                    {
+                        <div class="modal-overlay">
+                            <div class="modal-content">
+                                <button class="modal-close" @onclick="CloseAddEquipmentModal">×</button>
+                                <AddEquipmentForm OnEquipmentAdded="OnEquipmentAdded" />
+                            </div>
+                        </div>
+                    }
+
+                    <style>
+                        .modal-overlay {
+                            position: fixed;
+                            top: 0;
+                            left: 0;
+                            right: 0;
+                            bottom: 0;
+                            background: rgba(0, 0, 0, 0.5);
+                            display: flex;
+                            justify-content: center;
+                            align-items: center;
+                            z-index: 1000;
+                        }
+
+                        .modal-content {
+                            background: white;
+                            padding: 20px;
+                            border-radius: 8px;
+                            width: 90%;
+                            max-width: 600px;
+                            position: relative;
+                        }
+
+                        .modal-close {
+                            position: absolute;
+                            top: 10px;
+                            right: 10px;
+                            background: none;
+                            border: none;
+                            font-size: 1.5rem;
+                            cursor: pointer;
+                        }
+                    </style>
                 }
             </div>
         </div>
-    }
-    else
-    {
-        <div class="info-bar">
-            <span class="records-count">@FilteredEquipment.Count פריטים מתוך @equipmentList.Count</span>
-            <div class="flex gap-2">
-                <button class="btn-icon" title="תצוגת רשימה" @onclick="() => viewMode = ViewMode.List">
-                    <i class="bi bi-list-ul"></i>
-                </button>
-                <button class="btn-icon" title="תצוגת קלפים" @onclick="() => viewMode = ViewMode.Cards">
-                    <i class="bi bi-grid-3x3-gap"></i>
+
+        <div class="search-container">
+            <div class="search-input-container">
+                <input class="search-bar" placeholder="חפש לפי שם, מספר סידורי או מיקום..." @bind="searchTerm" @bind:event="oninput" />
+                <i class="bi bi-search search-icon"></i>
+            </div>
+        </div>
+
+        @if (isLoading)
+        {
+            <div class="loading-container">
+                <div class="spinner"></div>
+                <p>טוען נתונים...</p>
+            </div>
+        }
+        else if (errorMessage != null)
+        {
+            <div class="alert-danger mb-4">
+                <p>שגיאה: @errorMessage</p>
+                <button class="btn-action mt-2" @onclick="RefreshData">נסה שנית</button>
+            </div>
+        }
+        else if (FilteredEquipment.Count == 0)
+        {
+            <div class="empty-state">
+                <i class="bi bi-box-seam empty-icon"></i>
+                <p class="no-history">אין ציוד להצגה</p>
+                <div class="empty-buttons">
+                    <button class="btn-action" @onclick="RefreshData">טען נתונים</button>
+                    @if (IsAdminOrWarehouseManager)
+                    {
+                        <button class="btn-action secondary" @onclick="AddDemoData">הוסף נתוני הדגמה</button>
+                    }
+                </div>
+            </div>
+        }
+        else
+        {
+            <div class="info-bar">
+                <span class="records-count">@FilteredEquipment.Count פריטים מתוך @equipmentList.Count</span>
+                <div class="flex gap-2">
+                    <button class="btn-icon" title="תצוגת רשימה" @onclick="() => viewMode = ViewMode.List">
+                        <i class="bi bi-list-ul"></i>
+                    </button>
+                    <button class="btn-icon" title="תצוגת קלפים" @onclick="() => viewMode = ViewMode.Cards">
+                        <i class="bi bi-grid-3x3-gap"></i>
+                    </button>
+                </div>
+            </div>
+
+            @if (viewMode == ViewMode.List)
+            {
+                <div class="table-responsive">
+                    <table class="history-table">
+                        <thead>
+                            <tr>
+                                <th>מזהה</th>
+                                <th>שם</th>
+                                <th>תיאור</th>
+                                <th>מספר סידורי</th>
+                                <th>סטטוס</th>
+                                <th>כמות</th>
+                                <th>כמות זמינה</th>
+                                <th>ערך (ש״ח)</th>
+                                <th>מיקום אחסון</th>
+                                @if (IsAdminOrWarehouseManager)
+                                {
+                                    <th>פעולות</th>
+                                }
+                            </tr>
+                        </thead>
+                        <tbody>
+                            @foreach (var equipment in FilteredEquipment)
+                            {
+                                <tr>
+                                    <td>@equipment.EquipmentID</td>
+                                    <td>@equipment.Name</td>
+                                    <td>@(string.IsNullOrEmpty(equipment.Description) ? "-" : equipment.Description)</td>
+                                    <td>@(string.IsNullOrEmpty(equipment.SerialNumber) ? "-" : equipment.SerialNumber)</td>
+                                    <td>
+                                        <span class="status-badge @GetStatusBadgeClass(equipment.Status)">
+                                            @GetStatusText(equipment.Status)
+                                        </span>
+                                    </td>
+                                    <td>@equipment.Quantity</td>
+                                    <td>@GetAvailableQuantity(equipment.EquipmentID)</td>
+                                    <td>@(equipment.Value > 0 ? equipment.Value.ToString("N0") : "-")</td>
+                                    <td>@equipment.StorageLocation</td>
+                                    @if (IsAdminOrWarehouseManager)
+                                    {
+                                        <td class="text-center">
+                                            <button class="btn-icon edit" title="ערוך פריט" @onclick="() => EditEquipment(equipment)">
+                                                <i class="bi bi-pencil-square"></i>
+                                            </button>
+                                            <button class="btn-icon delete" title="מחק פריט" @onclick="() => ConfirmDelete(equipment)">
+                                                <i class="bi bi-trash"></i>
+                                            </button>
+                                        </td>
+                                    }
+                                </tr>
+                            }
+                        </tbody>
+                    </table>
+                </div>
+            }
+            else
+            {
+                <div class="dashboard-cards">
+                    @foreach (var equipment in FilteredEquipment)
+                    {
+                        <div class="dashboard-card @GetCardStatusClass(equipment.Status)">
+                            <!-- Card content remains the same -->
+                        </div>
+                    }
+                </div>
+            }
+            <!-- Move the modals outside the loops -->
+            @if (showEditModal && editingEquipment != null)
+            {
+                <div class="modal-overlay">
+                    <div class="modal-content">
+                        <button class="modal-close" @onclick="CloseModal">×</button>
+                        <h3 class="text-center text-xl font-bold mb-4">עריכת פריט ציוד</h3>
+
+                        <div class="form-container">
+                            <div class="form-group">
+                                <label class="input-label" for="edit-name">שם הפריט</label>
+                                <input id="edit-name" class="form-control" @bind="editingEquipment.Name" required />
+                            </div>
+
+                            <div class="form-group">
+                                <label class="input-label" for="edit-description">תיאור</label>
+                                <textarea id="edit-description" class="form-control" @bind="editingEquipment.Description"></textarea>
+                            </div>
+
+                            <div class="form-group">
+                                <label class="input-label" for="edit-serialNumber">מספר סידורי</label>
+                                <input id="edit-serialNumber" class="form-control" @bind="editingEquipment.SerialNumber" />
+                            </div>
+
+                            <div class="form-group">
+                                <label class="input-label" for="edit-quantity">כמות</label>
+                                <input id="edit-quantity" class="form-control" type="number" @bind="editingEquipment.Quantity" min="0" />
+                            </div>
+
+                            <div class="form-group">
+                                <label class="input-label" for="edit-location">מיקום</label>
+                                <input id="edit-location" class="form-control" @bind="editingEquipment.StorageLocation" />
+                            </div>
+
+                            <div class="form-group">
+                                <label class="input-label" for="edit-status">סטטוס</label>
+                                <select id="edit-status" class="form-control" @bind="editingEquipment.Status">
+                                    <option value="Available">זמין</option>
+                                    <option value="InUse">בשימוש</option>
+                                    <option value="Maintenance">בתחזוקה</option>
+                                    <option value="Returned">מוחזר</option>
+                                    <option value="Unavailable">לא זמין</option>
+                                </select>
+                            </div>
+
+                            <div class="form-group">
+                                <label class="input-label" for="edit-value">ערך (ש״ח)</label>
+                                <input id="edit-value" class="form-control" type="number" @bind="editingEquipment.Value" min="0" step="0.01" />
+                            </div>
+
+                            <div class="form-actions mt-4">
+                                <button class="btn-action" @onclick="SaveEquipment">שמור שינויים</button>
+                                <button class="btn-action secondary" @onclick="CloseModal">בטל</button>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+            }
+
+            @if (showDeleteModal && equipmentToDelete != null)
+            {
+                <div class="modal-overlay">
+                    <div class="modal-content">
+                        <button class="modal-close" @onclick="CloseModal">×</button>
+                        <h3 class="text-center text-xl font-bold mb-4">אישור מחיקת פריט</h3>
+
+                        <div class="confirmation-content text-center">
+                            <p class="mb-4">האם אתה בטוח שברצונך למחוק את הפריט הבא?</p>
+                            <p class="font-bold text-xl mb-1">@equipmentToDelete.Name</p>
+                            <p class="text-muted mb-4">@(string.IsNullOrEmpty(equipmentToDelete.SerialNumber) ? "ללא מספר סידורי" : equipmentToDelete.SerialNumber)</p>
+
+                            <div class="warning-message mb-4">
+                                <i class="bi bi-exclamation-triangle-fill"></i>
+                                <span>פעולה זו תמחק את הפריט לצמיתות ואינה ניתנת לביטול!</span>
+                            </div>
+
+                            <div class="form-actions">
+                                <button class="btn-action delete" @onclick="() => RemoveEquipment(equipmentToDelete)">
+                                    <i class="bi bi-trash"></i> מחק פריט
+                                </button>
+                                <button class="btn-action secondary" @onclick="CloseModal">ביטול</button>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+            }
+            else
+            {
+                <div class="dashboard-cards">
+                    @foreach (var equipment in FilteredEquipment)
+                    {
+                        <div class="dashboard-card @GetCardStatusClass(equipment.Status)">
+                            <div class="card-header">
+                                <div>
+                                    <h3 class="card-title">@equipment.Name</h3>
+                                    <p class="card-subtitle">@(string.IsNullOrEmpty(equipment.SerialNumber) ? "ללא מספר סידורי" : equipment.SerialNumber)</p>
+                                </div>
+                                <div class="card-icon">
+                                    <i class="bi bi-box-seam"></i>
+                                </div>
+                            </div>
+                            <div class="card-content">
+                                <p class="mb-3">@(string.IsNullOrEmpty(equipment.Description) ? "אין תיאור זמין" : equipment.Description)</p>
+
+                                <div class="flex items-center justify-between mb-2">
+                                    <span class="text-muted">סטטוס:</span>
+                                    <span class="status-badge @GetStatusBadgeClass(equipment.Status)">
+                                        @GetStatusText(equipment.Status)
+                                    </span>
+                                </div>
+
+                                <div class="flex items-center justify-between mb-2">
+                                    <span class="text-muted">כמות:</span>
+                                    <span>@equipment.Quantity</span>
+                                </div>
+
+                                <div class="flex items-center justify-between mb-2">
+                                    <span class="text-muted">כמות זמינה:</span>
+                                    <span>@GetAvailableQuantity(equipment.EquipmentID)</span>
+                                </div>
+
+                                <div class="flex items-center justify-between mb-2">
+                                    <span class="text-muted">ערך:</span>
+                                    <span>@(equipment.Value > 0 ? equipment.Value.ToString("N0") + " ₪" : "-")</span>
+                                </div>
+
+                                <div class="flex items-center justify-between mb-2">
+                                    <span class="text-muted">מיקום:</span>
+                                    <span>@equipment.StorageLocation</span>
+                                </div>
+                            </div>
+
+                            @if (IsAdminOrWarehouseManager)
+                            {
+                                <div class="card-footer">
+                                    <div class="flex justify-center gap-2 w-full">
+                                        <button class="btn-action secondary btn-sm" @onclick="() => EditEquipment(equipment)">
+                                            <i class="bi bi-pencil-square"></i> ערוך
+                                        </button>
+                                        <button class="btn-action delete btn-sm" @onclick="() => ConfirmDelete(equipment)">
+                                            <i class="bi bi-trash"></i> מחק
+                                        </button>
+                                    </div>
+                                </div>
+                            }
+                        </div>
+                    }
+                </div>
+            }
+        }
+    </div>
+}
+ else if (ActiveTab == "history")
+ {
+    <div class="dashboard-section slide-in">
+        <!-- Equipment history tab content -->
+        <div class="widget-header">
+            <h3 class="widget-title">היסטורית ציוד</h3>
+            <div class="widget-actions">
+                <button class="btn-refresh" title="רענן רשימה" @onclick="LoadHistory">
+                    <i class="bi bi-arrow-clockwise"></i>
                 </button>
             </div>
         </div>
 
-        @if (viewMode == ViewMode.List)
+        <!-- Replace the text inputs with dropdowns in the history tab -->
+        <div class="search-filters">
+            <div class="search-field">
+                <label class="input-label">צוות</label>
+                <select class="form-control" @bind="historyTeamFilter" @bind:after="FilterHistory">
+                    <option value="">כל הצוותים</option>
+                    @foreach (var team in UniqueTeamsInHistory)
+                    {
+                        <option value="@team">@team</option>
+                    }
+                </select>
+            </div>
+            <div class="search-field">
+                <label class="input-label">ציוד</label>
+                <select class="form-control" @bind="historyEquipmentFilter" @bind:after="FilterHistory">
+                    <option value="">כל סוגי הציוד</option>
+                    @foreach (var equipment in UniqueEquipmentInHistory)
+                    {
+                        <option value="@equipment">@equipment</option>
+                    }
+                </select>
+            </div>
+            <div class="search-field">
+                <label class="input-label">מצב</label>
+                <select class="form-control" @bind="historyConditionFilter" @bind:after="FilterHistory">
+                    <option value="">כל המצבים</option>
+                    <option value="Good">תקין</option>
+                    <option value="Damaged">ניזוק</option>
+                    <option value="NeedsRepair">דרוש תיקון</option>
+                </select>
+            </div>
+        </div>
+
+
+        <!-- Add a clear filters button to the info-bar -->
+        <div class="info-bar">
+            <span class="records-count">@filteredCheckoutHistory.Count רשומות מתוך @checkoutHistory.Count</span>
+            <div class="flex gap-2">
+                <button class="btn-action btn-sm" @onclick="ClearHistoryFilters" title="נקה סינון">
+                    <i class="bi bi-funnel-fill"></i> נקה סינון
+                </button>
+                <button class="btn-icon @(showReturned == null ? "active" : "")"
+                        title="הצג הכל" @onclick="() => ToggleReturnedFilter(null)">
+                    <i class="bi bi-grid-3x3"></i>
+                </button>
+                <button class="btn-icon @(showReturned == true ? "active" : "")"
+                        title="הצג מוחזרים בלבד" @onclick="() => ToggleReturnedFilter(true)">
+                    <i class="bi bi-check-circle"></i>
+                </button>
+                <button class="btn-icon @(showReturned == false ? "active" : "")"
+                        title="הצג לא מוחזרים בלבד" @onclick="() => ToggleReturnedFilter(false)">
+                    <i class="bi bi-exclamation-circle"></i>
+                </button>
+            </div>
+        </div>
+
+        <td>
+        @if (isLoadingHistory)
+        {
+            <div class="loading-container">
+                <div class="spinner"></div>
+                <p>טוען היסטורית הוצעות והחזרות...</p>
+            </div>
+        }
+        else
         {
             <div class="table-responsive">
+                <!-- In the history tab section -->
                 <table class="history-table">
                     <thead>
                         <tr>
-                            <th>מזהה</th>
-                            <th>שם</th>
-                            <th>תיאור</th>
-                            <th>מספר סידורי</th>
-                            <th>סטטוס</th>
+                            <th>צוות</th>
+                            <th>ציוד</th>
                             <th>כמות</th>
-                            <th>כמות זמינה</th>
-                            <th>ערך (ש״ח)</th>
-                            <th>מיקום אחסון</th>
-                            @if (IsAdminOrWarehouseManager)
-                            {
-                                <th>פעולות</th>
-                            }
+                            <th>תאריך הוצאה</th>
+                            <th>תאריך החזרה</th>
+                            <th>סטטוס</th>
+                            <th>מצב ציוד</th>
+                            <th>כמות זמינה אחרי</th>  <!-- Added column header -->
+                            <th>משתמש</th>
+                            <th>תפקיד</th>
                         </tr>
                     </thead>
                     <tbody>
-                        @foreach (var equipment in FilteredEquipment)
+                        @foreach (var record in filteredCheckoutHistory)
                         {
-                            <tr>
-                                <td>@equipment.EquipmentID</td>
-                                <td>@equipment.Name</td>
-                                <td>@(string.IsNullOrEmpty(equipment.Description) ? "-" : equipment.Description)</td>
-                                <td>@(string.IsNullOrEmpty(equipment.SerialNumber) ? "-" : equipment.SerialNumber)</td>
+                            <tr class="@(record.ReturnedAt.HasValue ? "returned" : "checked-out")"
+                                @onclick="() => ShowRecordDetails(record)">
+                                <td>@record.TeamName</td>
+                                <td>@record.EquipmentName</td>
+                                <td>@record.Quantity</td>
+                                <td>@(record.CheckedOutAt.HasValue? record.CheckedOutAt.Value.ToString("dd/MM/yyyy HH:mm") : "-")</td>
+                                <td>@(record.ReturnedAt.HasValue? record.ReturnedAt.Value.ToString("dd/MM/yyyy HH:mm") : "-")</td>
                                 <td>
-                                    <span class="status-badge @GetStatusBadgeClass(equipment.Status)">
-                                        @GetStatusText(equipment.Status)
+                                    <span class="status-badge @(record.ReturnedAt.HasValue ? "returned-badge" : "checked-out-badge")">
+                                        @(record.ReturnedAt.HasValue ? "הוחזר" : "לא הוחזר")
                                     </span>
                                 </td>
-                                <td>@equipment.Quantity</td>
-                                <td>@GetAvailableQuantity(equipment.EquipmentID)</td>
-                                <td>@(equipment.Value > 0 ? equipment.Value.ToString("N0") : "-")</td>
-                                <td>@equipment.StorageLocation</td>
-                                @if (IsAdminOrWarehouseManager)
-                                {
-                                    <td class="text-center">
-                                        <button class="btn-icon edit" title="ערוך פריט" @onclick="() => EditEquipment(equipment)">
-                                            <i class="bi bi-pencil-square"></i>
-                                        </button>
-                                        <button class="btn-icon delete" title="מחק פריט" @onclick="() => ConfirmDelete(equipment)">
-                                            <i class="bi bi-trash"></i>
-                                        </button>
-                                    </td>
-                                }
+                                <td>
+                                    @if (record.ReturnedAt.HasValue)
+                                    {
+                                        <span class="status-badge @GetConditionBadgeClass(record.ItemCondition)">
+                                            @GetConditionText(record.ItemCondition)
+                                        </span>
+                                    }
+                                    else
+                                    {
+                                        <span class="text-muted">-</span>
+                                    }
+                                </td>
+                                <!-- New column for available quantity after operation -->
+                                <td>
+                                    <span class="availability @(record.AvailableAfterOperation <= 0 ? "out-of-stock" : "")">
+                                        @record.AvailableAfterOperation
+                                    </span>
+                                </td>
+                                <td>
+                                    <div class="user-info">
+                                        @if (!string.IsNullOrEmpty(record.UserName))
+                                        {
+                                            <span class="username">@record.UserName</span>
+                                        }
+                                        else if (record.UserId > 0)
+                                        {
+                                            <span>משתמש #@record.UserId</span>
+                                        }
+                                        else
+                                        {
+                                            <span class="text-muted">לא ידוע</span>
+                                        }
+                                    </div>
+                                </td>
+                                <td>
+                                    @if (!string.IsNullOrEmpty(record.UserRole))
+                                    {
+                                        <span class="role-badge">@FormatUserRole(record.UserRole)</span>
+                                    }
+                                    else
+                                    {
+                                        <span class="text-muted">-</span>
+                                    }
+                                </td>
                             </tr>
                         }
                     </tbody>
                 </table>
             </div>
         }
-        else
-        {
-            <div class="dashboard-cards">
-                @foreach (var equipment in FilteredEquipment)
-                {
-                    <div class="dashboard-card @GetCardStatusClass(equipment.Status)">
-                        <div class="card-header">
-                            <div>
-                                <h3 class="card-title">@equipment.Name</h3>
-                                <p class="card-subtitle">@(string.IsNullOrEmpty(equipment.SerialNumber) ? "ללא מספר סידורי" : equipment.SerialNumber)</p>
-                            </div>
-                            <div class="card-icon">
-                                <i class="bi bi-box-seam"></i>
-                            </div>
-                        </div>
-                        <div class="card-content">
-                            <p class="mb-3">@(string.IsNullOrEmpty(equipment.Description) ? "אין תיאור זמין" : equipment.Description)</p>
+        </td>
+    </div>
+    if (showRecordDetailsModal && selectedRecordDetails != null)
+    {
+        <div class="modal-overlay">
+            <div class="modal-content">
+                <button class="modal-close" @onclick="CloseRecordDetailsModal">×</button>
+                <h3 class="text-center text-xl font-bold mb-4">פרטי רשומה</h3>
 
-                            <div class="flex items-center justify-between mb-2">
-                                <span class="text-muted">סטטוס:</span>
-                                <span class="status-badge @GetStatusBadgeClass(equipment.Status)">
-                                    @GetStatusText(equipment.Status)
+                <div class="record-details">
+                    <div class="detail-row">
+                        <div class="detail-label">צוות:</div>
+                        <div class="detail-value">@selectedRecordDetails.TeamName</div>
+                    </div>
+                    <div class="detail-row">
+                        <div class="detail-label">ציוד:</div>
+                        <div class="detail-value">@selectedRecordDetails.EquipmentName</div>
+                    </div>
+                    <div class="detail-row">
+                        <div class="detail-label">כמות:</div>
+                        <div class="detail-value">@selectedRecordDetails.Quantity</div>
+                    </div>
+                    <div class="detail-row">
+                        <div class="detail-label">מזהה רשומה:</div>
+                        <div class="detail-value">@selectedRecordDetails.Id</div>
+                    </div>
+                    <div class="detail-row">
+                        <div class="detail-label">תאריך הוצאה:</div>
+                        <div class="detail-value">@(selectedRecordDetails.CheckedOutAt?.ToString("dd/MM/yyyy HH:mm:ss") ?? "-")</div>
+                    </div>
+                    <div class="detail-row">
+                        <div class="detail-label">תאריך החזרה:</div>
+                        <div class="detail-value">@(selectedRecordDetails.ReturnedAt?.ToString("dd/MM/yyyy HH:mm:ss") ?? "-")</div>
+                    </div>
+                    <div class="detail-row">
+                        <div class="detail-label">סטטוס:</div>
+                        <div class="detail-value">
+                            <span class="status-badge @(selectedRecordDetails.ReturnedAt.HasValue ? "returned-badge" : "checked-out-badge")">
+                                @(selectedRecordDetails.ReturnedAt.HasValue ? "הוחזר" : "לא הוחזר")
+                            </span>
+                        </div>
+                    </div>
+                    <div class="detail-row">
+                        <div class="detail-label">כמות זמינה אחרי:</div>
+                        <div class="detail-value">@selectedRecordDetails.AvailableAfterOperation</div>
+                    </div>
+                    @if (selectedRecordDetails.ReturnedAt.HasValue)
+                    {
+                        <div class="detail-row">
+                            <div class="detail-label">מצב הציוד:</div>
+                            <div class="detail-value">
+                                <span class="status-badge @GetConditionBadgeClass(selectedRecordDetails.ItemCondition)">
+                                    @GetConditionText(selectedRecordDetails.ItemCondition)
                                 </span>
                             </div>
-
-                            <div class="flex items-center justify-between mb-2">
-                                <span class="text-muted">כמות:</span>
-                                <span>@equipment.Quantity</span>
-                            </div>
-
-                            <div class="flex items-center justify-between mb-2">
-                                <span class="text-muted">כמות זמינה:</span>
-                                <span>@GetAvailableQuantity(equipment.EquipmentID)</span>
-                            </div>
-
-                            <div class="flex items-center justify-between mb-2">
-                                <span class="text-muted">ערך:</span>
-                                <span>@(equipment.Value > 0 ? equipment.Value.ToString("N0") + " ₪" : "-")</span>
-                            </div>
-
-                            <div class="flex items-center justify-between mb-2">
-                                <span class="text-muted">מיקום:</span>
-                                <span>@equipment.StorageLocation</span>
-                            </div>
                         </div>
-
-                        @if (IsAdminOrWarehouseManager)
-                        {
-                            <div class="card-footer">
-                                <div class="flex justify-center gap-2 w-full">
-                                    <button class="btn-action secondary btn-sm" @onclick="() => EditEquipment(equipment)">
-                                        <i class="bi bi-pencil-square"></i> ערוך
-                                    </button>
-                                    <button class="btn-action delete btn-sm" @onclick="() => ConfirmDelete(equipment)">
-                                        <i class="bi bi-trash"></i> מחק
-                                    </button>
-                                </div>
-                            </div>
-                        }
+                    }
+                    <div class="detail-row">
+                        <div class="detail-label">משתמש:</div>
+                        <div class="detail-value">@(string.IsNullOrEmpty(selectedRecordDetails.UserName) ? "לא ידוע" : selectedRecordDetails.UserName)</div>
                     </div>
-                }
-            </div>
-        }
-    }
-</div>
+                    <div class="detail-row">
+                        <div class="detail-label">תפקיד:</div>
+                        <div class="detail-value">@FormatUserRole(selectedRecordDetails.UserRole)</div>
+                    </div>
+                    <div class="detail-row">
+                        <div class="detail-label">הערות:</div>
+                        <div class="detail-value">@(string.IsNullOrEmpty(selectedRecordDetails.ItemNotes) ? "-" : selectedRecordDetails.ItemNotes)</div>
+                    </div>
+                </div>
 
+                <div class="form-actions mt-4">
+                    <button class="btn-action" @onclick="CloseRecordDetailsModal">סגור</button>
+                </div>
+            </div>
+        </div>
+
+    }
+    <style>
+        /* Existing styles... */
+
+        .record-details {
+            display: flex;
+            flex-direction: column;
+            gap: 10px;
+        }
+
+        .detail-row {
+            display: flex;
+            border-bottom: 1px solid #eee;
+            padding-bottom: 8px;
+        }
+
+        .detail-label {
+            font-weight: bold;
+            width: 130px;
+            color: #555;
+        }
+
+        .detail-value {
+            flex: 1;
+        }
+
+        .role-badge {
+            background-color: #e2e8f0;
+            padding: 2px 8px;
+            border-radius: 4px;
+            font-size: 0.85rem;
+        }
+
+        .availability {
+            font-weight: bold;
+        }
+
+        .out-of-stock {
+            color: #dc3545;
+        }
+        .out-of-stock::before {
+            content: "";
+            display: inline-block;
+            width: 8px;
+            height: 8px;
+            border-radius: 50%;
+            background-color: #dc3545;
+            margin-right: 5px;
+        }
+        .availability {
+            font-weight: bold;
+        }
+
+        .out-of-stock {
+            color: #dc3545;
+        }
+
+            .out-of-stock::before {
+                content: "";
+                display: inline-block;
+                width: 8px;
+                height: 8px;
+                border-radius: 50%;
+                background-color: #dc3545;
+                margin-right: 5px;
+            }
+    </style>
+
+
+}
 
 @code {
     private enum ViewMode { List, Cards }
@@ -338,12 +777,571 @@
         .OrderBy(e => e.Name)
         .ToList();
 
+    // Tab navigation
+    private string ActiveTab = "list";
+    private string TabIndicatorPosition => ActiveTab == "list" ? "0px" : "120px";
+    private string TabIndicatorWidth => "120px";
+
+    // History-related properties
+    private List<CheckoutRecordDto> checkoutHistory = new();
+    private List<CheckoutRecordDto> filteredCheckoutHistory = new();
+    private bool isLoadingHistory = false;
+    private string historyTeamFilter = string.Empty;
+    private string historyEquipmentFilter = string.Empty;
+    private string historyConditionFilter = string.Empty;
+    private bool? showReturned = null;
+    private DateTime lastHistoryRefresh = DateTime.MinValue;
+    private TimeSpan historyRefreshThreshold = TimeSpan.FromMinutes(5);
+
+    // Record details modal
+    private bool showRecordDetailsModal = false;
+    private CheckoutRecordDto? selectedRecordDetails = null;
+
+    // Fix the nullability issues
+    private List<string> UniqueTeamsInHistory => checkoutHistory
+        .Select(h => h.TeamName ?? string.Empty)  // Replace null with empty string
+        .Where(name => !string.IsNullOrEmpty(name))
+        .Distinct()
+        .OrderBy(name => name)
+        .ToList();
+
+    private List<string> UniqueEquipmentInHistory => checkoutHistory
+        .Select(h => h.EquipmentName ?? string.Empty)  // Replace null with empty string
+        .Where(name => !string.IsNullOrEmpty(name))
+        .Distinct()
+        .OrderBy(name => name)
+        .ToList();
+
+
+    private void ClearHistoryFilters()
+    {
+        historyTeamFilter = string.Empty;
+        historyEquipmentFilter = string.Empty;
+        historyConditionFilter = string.Empty;
+        showReturned = null;
+        FilterHistory();
+    }
+
+
     protected override async Task OnInitializedAsync()
     {
         Logger.LogInformation("Initializing EquipmentList component...");
         await CheckUserRole();
         await LoadEquipment();
     }
+    // Tab change handler
+    private async Task OnTabChanged(string tab)
+    {
+        Logger.LogInformation($"Tab changed to: {tab}");
+
+        if (tab == "history")
+        {
+            // First check if we need to load history data
+            if (checkoutHistory.Count == 0 || DateTime.Now - lastHistoryRefresh > historyRefreshThreshold)
+            {
+                isLoadingHistory = true;
+                StateHasChanged();
+                await LoadHistory();
+            }
+
+            // Only show history tab if there's actually history data
+            if (checkoutHistory.Count > 0)
+            {
+                ActiveTab = tab;
+            }
+            else
+            {
+                // If no history data, show a message and stay on the current tab
+                errorMessage = "אין נתוני היסטוריה להצגה";
+                StateHasChanged();
+                return;
+            }
+        }
+        else
+        {
+            ActiveTab = tab;
+        }
+
+        // Add a slight delay for animation
+        await Task.Delay(50);
+    }
+
+    // Modify LoadHistory to calculate available quantities after each checkout/return
+    private async Task LoadHistory()
+    {
+        isLoadingHistory = true;
+        checkoutHistory.Clear();
+        filteredCheckoutHistory.Clear();
+
+        // Reset filters
+        historyTeamFilter = string.Empty;
+        historyEquipmentFilter = string.Empty;
+        historyConditionFilter = string.Empty;
+        showReturned = null;
+
+        StateHasChanged();
+
+        try
+        {
+            Logger.LogInformation("Loading checkout history...");
+            var history = await CheckoutService.GetCheckoutHistoryAsync();
+
+            if (history != null && history.Any())
+            {
+                // Create a dictionary to track available quantities for equipment
+                var equipmentAvailability = new Dictionary<string, int>();
+
+                // Sort history by date (oldest first) to properly calculate quantities over time
+                var sortedHistory = history.OrderBy(h => h.CheckedOutAt ?? DateTime.MaxValue).ToList();
+
+                // For each record, calculate and store the available quantity after the operation
+                foreach (var record in sortedHistory)
+                {
+                    // Convert equipment ID to string because it comes as string from the API
+                    string equipmentId = record.EquipmentId;
+
+                    // Get total quantity for this equipment
+                    var equipment = equipmentList.FirstOrDefault(e => e.EquipmentID.ToString() == equipmentId);
+                    int totalQuantity = equipment?.Quantity ?? 0;
+
+                    // Calculate current availability if not already in dictionary
+                    if (!equipmentAvailability.ContainsKey(equipmentId))
+                    {
+                        // Initialize with current availability
+                        equipmentAvailability[equipmentId] =
+                            await CheckoutService.GetAvailableQuantityForEquipmentAsync(
+                                int.Parse(equipmentId), totalQuantity);
+                    }
+
+                    // Calculate and store post-operation available quantity
+                    int availability = equipmentAvailability[equipmentId];
+
+                    // If this is a checkout, reduce available quantity
+                    if (!record.ReturnedAt.HasValue)
+                    {
+                        // This was a checkout, calculate the quantity after checkout
+                        availability -= record.Quantity;
+                    }
+                    else
+                    {
+                        // This was a return, calculate the quantity after return
+                        availability += record.Quantity;
+                    }
+
+                    // Store the calculated availability after this operation
+                    record.AvailableAfterOperation = availability;
+
+                    // Update the tracking dictionary
+                    equipmentAvailability[equipmentId] = availability;
+                }
+
+                // Set to chronological order (newest first) for display
+                checkoutHistory = sortedHistory.OrderByDescending(h => h.CheckedOutAt ?? DateTime.MinValue).ToList();
+
+                // Initialize filtered records with all records
+                filteredCheckoutHistory = new List<CheckoutRecordDto>(checkoutHistory);
+
+                lastHistoryRefresh = DateTime.Now;
+                Logger.LogInformation($"Loaded {checkoutHistory.Count} history records with availability tracking");
+            }
+            else
+            {
+                checkoutHistory = new List<CheckoutRecordDto>();
+                filteredCheckoutHistory = new List<CheckoutRecordDto>();
+                Logger.LogWarning("No history records returned from service");
+
+                // If we're on the history tab and there's no data, switch back to list tab
+                if (ActiveTab == "history")
+                {
+                    ActiveTab = "list";
+                    errorMessage = "אין נתוני היסטוריה להצגה";
+                }
+            }
+        }
+        catch (Exception ex)
+        {
+            Logger.LogError(ex, "Error loading checkout history.");
+            errorMessage = $"שגיאה בטעינת היסטוריה: {ex.Message}";
+
+            // If error on history tab, switch back to list tab
+            if (ActiveTab == "history")
+            {
+                ActiveTab = "list";
+            }
+        }
+        finally
+        {
+            isLoadingHistory = false;
+            StateHasChanged();
+        }
+    }
+
+    private async Task SaveEquipment()
+    {
+        if (editingEquipment == null)
+        {
+            return;
+        }
+
+        try
+        {
+            isLoading = true;
+            showEditModal = false;
+            StateHasChanged();
+
+            Logger.LogInformation($"Saving equipment: {editingEquipment.Name} (ID: {editingEquipment.EquipmentID})");
+
+            // Find the original equipment to compare changes
+            var originalEquipment = equipmentList.FirstOrDefault(e => e.EquipmentID == editingEquipment.EquipmentID);
+            int quantityChange = originalEquipment != null ? (editingEquipment.Quantity - originalEquipment.Quantity) : 0;
+
+            // Generate change note
+            string changeNote = "עריכת פריט: ";
+
+            if (originalEquipment != null)
+            {
+                // Detect and log key changes
+                if (editingEquipment.Name != originalEquipment.Name)
+                    changeNote += $"שם שונה מ'{originalEquipment.Name}' ל'{editingEquipment.Name}'. ";
+
+                if (editingEquipment.Quantity != originalEquipment.Quantity)
+                    changeNote += $"כמות שונתה מ'{originalEquipment.Quantity}' ל'{editingEquipment.Quantity}'. ";
+
+                if (editingEquipment.Status != originalEquipment.Status)
+                    changeNote += $"סטטוס שונה מ'{GetStatusText(originalEquipment.Status)}' ל'{GetStatusText(editingEquipment.Status)}'. ";
+
+                if (editingEquipment.StorageLocation != originalEquipment.StorageLocation)
+                    changeNote += $"מיקום שונה מ'{originalEquipment.StorageLocation}' ל'{editingEquipment.StorageLocation}'. ";
+            }
+
+            // Call the API to update the equipment
+            bool success = await EquipmentService.UpdateEquipmentAsync(editingEquipment);
+
+            if (success)
+            {
+                // Update the local list with the edited equipment
+                var index = equipmentList.FindIndex(e => e.EquipmentID == editingEquipment.EquipmentID);
+                if (index >= 0)
+                {
+                    equipmentList[index] = editingEquipment;
+                }
+
+                // Refresh available quantities
+                await UpdateAvailableQuantityForEquipment(editingEquipment.EquipmentID, editingEquipment.Quantity);
+
+                // Add history record for the edit if there was a quantity change
+                // Add history record for the edit if there was a quantity change
+                if (quantityChange != 0)
+                {
+                    // For equipment updates, we'll get the most relevant team
+                    bool historyCreated = await CreateAdminHistoryRecord(
+                        editingEquipment.EquipmentID,
+                        "עדכון",
+                        quantityChange,  // Use the quantity change as the "transaction" amount
+                        changeNote);
+
+                    if (!historyCreated)
+                    {
+                        Logger.LogWarning($"Failed to create history record for equipment update: {editingEquipment.Name} (ID: {editingEquipment.EquipmentID})");
+
+                        // Wait a moment and try again
+                        await Task.Delay(1000);
+
+                        historyCreated = await CreateAdminHistoryRecord(
+                            editingEquipment.EquipmentID,
+                            "עדכון",
+                            quantityChange,
+                            changeNote + " (ניסיון שני)");
+
+                        if (historyCreated)
+                        {
+                            Logger.LogInformation("Second attempt to create history record succeeded");
+                        }
+                    }
+
+                    // Force refresh history tab data regardless of current tab
+                    await LoadHistory();
+                }
+
+
+                Logger.LogInformation($"Equipment updated successfully: {editingEquipment.Name} (ID: {editingEquipment.EquipmentID})");
+            }
+            else
+            {
+                errorMessage = "שגיאה בעדכון הציוד";
+                Logger.LogError($"Failed to update equipment: {editingEquipment.Name} (ID: {editingEquipment.EquipmentID})");
+            }
+        }
+        catch (Exception ex)
+        {
+            errorMessage = $"שגיאה בעדכון הציוד: {ex.Message}";
+            Logger.LogError(ex, $"Error updating equipment: {editingEquipment.Name} (ID: {editingEquipment.EquipmentID})");
+        }
+        finally
+        {
+            editingEquipment = null;
+            isLoading = false;
+
+            // Make sure we refresh the UI
+            StateHasChanged();
+        }
+    }
+    private async Task<(int TeamId, string TeamName)> GetRelevantTeamForEquipment(int equipmentId)
+    {
+        try
+        {
+            // First, check if there are any active checkouts for this equipment
+            var checkoutHistory = await CheckoutService.GetCheckoutHistoryAsync();
+
+            // Find the most recent checkout that's not returned for this equipment
+            var activeCheckout = checkoutHistory
+                .Where(c => c.EquipmentId == equipmentId.ToString() && !c.ReturnedAt.HasValue)
+                .OrderByDescending(c => c.CheckedOutAt)
+                .FirstOrDefault();
+
+            if (activeCheckout != null && !string.IsNullOrEmpty(activeCheckout.TeamName))
+            {
+                // This equipment is currently checked out to a team
+                return (activeCheckout.TeamId, activeCheckout.TeamName);
+            }
+
+            // If no active checkout, find the most recent history record for this equipment
+            var lastRecord = checkoutHistory
+                .Where(c => c.EquipmentId == equipmentId.ToString())
+                .OrderByDescending(c => c.CheckedOutAt)
+                .FirstOrDefault();
+
+            if (lastRecord != null && !string.IsNullOrEmpty(lastRecord.TeamName))
+            {
+                // Use the team from the most recent history record
+                return (lastRecord.TeamId, lastRecord.TeamName);
+            }
+
+            // Default to System team if no relevant team found
+            return (1, "מערכת");
+        }
+        catch (Exception ex)
+        {
+            Logger.LogError(ex, $"Error finding relevant team for equipment ID {equipmentId}");
+            return (1, "מערכת");
+        }
+    }
+
+    
+    private async Task<bool> CreateAdminHistoryRecord(int equipmentId, string action, int quantityChanged, string notes)
+    {
+        try
+        {
+            Logger.LogInformation($"Creating admin history record for equipment ID {equipmentId}, action: {action}, quantity change: {quantityChanged}");
+
+            // Get current user info for the history record
+            var authStateProvider = await AuthenticationStateProvider.GetAuthenticationStateAsync();
+            var userIdValue = authStateProvider.User.FindFirst(ClaimTypes.NameIdentifier)?.Value;
+            var userNameValue = authStateProvider.User.Identity?.Name;
+
+            Logger.LogInformation($"Current user: {userNameValue} (ID: {userIdValue})");
+
+            // Make sure we have a valid equipment name
+            var equipment = equipmentList.FirstOrDefault(e => e.EquipmentID == equipmentId);
+            if (equipment == null)
+            {
+                Logger.LogWarning($"Cannot find equipment with ID {equipmentId} in local list");
+                await LoadEquipment();
+                equipment = equipmentList.FirstOrDefault(e => e.EquipmentID == equipmentId);
+
+                if (equipment == null)
+                {
+                    Logger.LogError($"Still cannot find equipment with ID {equipmentId} after refresh");
+                    return false;
+                }
+            }
+
+            // Create a history record using the equipment info passed to this method
+            string itemNote = notes;
+            if (string.IsNullOrEmpty(itemNote))
+            {
+                itemNote = $"{action} פריט: {equipment.Name} (מזהה: {equipment.EquipmentID}) - כמות: {quantityChanged}";
+            }
+
+            // Parse user ID
+            int userId = 0;
+            if (!string.IsNullOrEmpty(userIdValue) && int.TryParse(userIdValue, out var id))
+            {
+                userId = id;
+            }
+
+            // Use the System Administration Team (ID: 0) for all equipment admin operations
+            int systemTeamId =11;
+            string systemTeamName = "System Administration";
+
+            // Use positive quantity for checkout
+            int checkoutQuantity = Math.Abs(quantityChanged);
+
+            // Create a checkout through the checkout service - using systemTeamId
+            bool checkoutSuccess = await CheckoutService.CheckoutEquipmentAsync(
+                systemTeamId,  // Always use system team with ID 0
+                equipmentId,
+                userId,
+                checkoutQuantity);
+
+            if (!checkoutSuccess)
+            {
+                Logger.LogError($"Failed to create checkout for admin history record. Equipment ID: {equipmentId}");
+                return false;
+            }
+
+            // We need to immediately return the checkout to complete the operation
+            // Get the checkout ID from the active checkouts
+            var activeCheckouts = await CheckoutService.GetActiveCheckoutsAsync();
+
+            // Note the property name is TeamID (uppercase ID) not TeamId
+            var newCheckout = activeCheckouts
+                .Where(c => c.EquipmentId == equipmentId && c.TeamID == systemTeamId)
+                .OrderByDescending(c => c.CheckoutDate)
+                .FirstOrDefault();
+
+            if (newCheckout != null)
+            {
+                // Return the equipment to complete the history record
+                bool returnSuccess = await CheckoutService.ReturnEquipmentAsync(newCheckout.CheckoutID);
+                if (!returnSuccess)
+                {
+                    Logger.LogError($"Failed to return equipment for admin history record. Checkout ID: {newCheckout.CheckoutID}");
+                    return false;
+                }
+
+                // Successfully created history record
+                Logger.LogInformation($"Successfully created admin history record for equipment ID {equipmentId} with system team");
+
+                // Reload history data
+                await LoadHistory();
+                return true;
+            }
+            else
+            {
+                Logger.LogError($"Could not find newly created checkout for equipment ID {equipmentId}");
+                return false;
+            }
+        }
+        catch (Exception ex)
+        {
+            Logger.LogError(ex, $"Error creating admin history record for equipment ID {equipmentId}");
+            errorMessage = $"שגיאה ביצירת רשומת היסטוריה: {ex.Message}";
+            StateHasChanged();
+            return false;
+        }
+    }
+
+
+    /// <summary>
+    /// Gets the system administration team info used for equipment operations
+    /// </summary>
+    private (int TeamId, string TeamName) GetSystemTeam()
+    {
+        // System Administration Team has fixed ID 0
+        return (0, "System Administration");
+    }
+
+
+    // Make sure the filter method handles empty values correctly
+    private void FilterHistory()
+    {
+        try
+        {
+            Logger.LogInformation($"Filtering history - Team: '{historyTeamFilter}', Equipment: '{historyEquipmentFilter}', Condition: '{historyConditionFilter}'");
+
+            filteredCheckoutHistory = checkoutHistory
+                .Where(h =>
+                    (string.IsNullOrEmpty(historyTeamFilter) ||
+                     string.Equals(h.TeamName, historyTeamFilter, StringComparison.OrdinalIgnoreCase)) &&
+                    (string.IsNullOrEmpty(historyEquipmentFilter) ||
+                     string.Equals(h.EquipmentName, historyEquipmentFilter, StringComparison.OrdinalIgnoreCase)) &&
+                    (string.IsNullOrEmpty(historyConditionFilter) ||
+                     string.Equals(h.ItemCondition, historyConditionFilter, StringComparison.OrdinalIgnoreCase)) &&
+                    (showReturned == null || h.ReturnedAt.HasValue == showReturned)
+                )
+                .ToList();
+
+            Logger.LogInformation($"Filtered history records: {filteredCheckoutHistory.Count}");
+            StateHasChanged();
+        }
+        catch (Exception ex)
+        {
+            Logger.LogError(ex, "Error filtering history records");
+        }
+    }
+
+
+
+    // Toggle returned filter
+    private void ToggleReturnedFilter(bool? status)
+    {
+        showReturned = status;
+        FilterHistory();
+    }
+
+    // Show record details
+    private void ShowRecordDetails(CheckoutRecordDto record)
+    {
+        selectedRecordDetails = record;
+        showRecordDetailsModal = true;
+        StateHasChanged();
+    }
+
+    // Close record details modal
+    private void CloseRecordDetailsModal()
+    {
+        showRecordDetailsModal = false;
+        selectedRecordDetails = null;
+        StateHasChanged();
+    }
+
+    // Get condition badge class
+    private string GetConditionBadgeClass(string? condition)
+    {
+        if (string.IsNullOrEmpty(condition))
+            return "default-badge";
+
+        return condition.ToLower() switch
+        {
+            "good" => "returned-badge",
+            "damaged" => "warning-badge",
+            "needsrepair" => "danger-badge",
+            _ => "default-badge"
+        };
+    }
+
+    // Get condition text
+    private string GetConditionText(string? condition)
+    {
+        if (string.IsNullOrEmpty(condition))
+            return "לא ידוע";
+
+        return condition.ToLower() switch
+        {
+            "good" => "תקין",
+            "damaged" => "ניזוק",
+            "needsrepair" => "דרוש תיקון",
+            _ => condition
+        };
+    }
+
+    // Format user role
+    private string FormatUserRole(string? role)
+    {
+        if (string.IsNullOrEmpty(role))
+            return "-";
+
+        return role.ToLower() switch
+        {
+            "admin" => "מנהל",
+            "warehousemanager" => "אחראי מחסן",
+            "warehouseoperator" => "עובד מחסן",
+            "user" => "משתמש",
+            _ => role
+        };
+    }
+
     protected override async Task OnAfterRenderAsync(bool firstRender)
     {
         if (firstRender)
@@ -376,8 +1374,9 @@
     private async Task RetryApiConnection()
     {
         apiConnectionFailed = false;
+        isApiConnected = false;
         StateHasChanged();
-        await JSRuntime.InvokeVoidAsync("apiConnection.initializeComponent", "equipmentListContainer", objRef);
+        await JSRuntime.InvokeVoidAsync("apiConnection.resetConnection", objRef);
     }
 
     public void Dispose()
@@ -509,9 +1508,12 @@
         }
     }
 
-    private string GetStatusText(string status)
+    private string GetStatusText(string? status)
     {
-        return status?.ToLower() switch
+        if (string.IsNullOrEmpty(status))
+            return "לא ידוע";
+
+        return status.ToLower() switch
         {
             "available" => "זמין",
             "inuse" => "בשימוש",
@@ -521,6 +1523,7 @@
             _ => status
         };
     }
+
 
     private string GetStatusBadgeClass(string status)
     {
@@ -612,100 +1615,45 @@
         StateHasChanged();
     }
 
-    private void EditEquipment(EquipmentModel equipment)
+    private async Task OnEquipmentAdded()
     {
-        // Check permissions before allowing edit
-        if (!IsAdminOrWarehouseManager)
-        {
-            errorMessage = "אין לך הרשאה לערוך פריטי ציוד";
-            Logger.LogWarning($"Unauthorized attempt to edit equipment: {equipment.Name} (ID: {equipment.EquipmentID})");
-            StateHasChanged();
-            return;
-        }
-
-        Logger.LogInformation($"Editing equipment: {equipment.Name} (ID: {equipment.EquipmentID})");
-
-        // Create a deep copy of the equipment to edit
-        editingEquipment = new EquipmentModel
-        {
-            EquipmentID = equipment.EquipmentID,
-            Name = equipment.Name,
-            Description = equipment.Description,
-            SerialNumber = equipment.SerialNumber,
-            Status = equipment.Status,
-            Quantity = equipment.Quantity,
-            StorageLocation = equipment.StorageLocation,
-            Value = equipment.Value,
-            CheckoutRecords = equipment.CheckoutRecords
-        };
-
-        // Show the edit modal
-        showEditModal = true;
-        StateHasChanged();
-    }
-
-    private async Task SaveEquipment()
-    {
-        if (editingEquipment == null)
-        {
-            return;
-        }
-
         try
         {
-            isLoading = true;
-            showEditModal = false;
+            // Close the modal
+            showAddEquipmentModal = false;
+
+            // Refresh the equipment list first to get the new item
+            await LoadEquipment();
+
+            // Find the newly added equipment (assuming it's the last one added)
+            var newlyAddedEquipment = equipmentList.OrderByDescending(e => e.EquipmentID).FirstOrDefault();
+
+            if (newlyAddedEquipment != null)
+            {
+                // Create a history record for the equipment addition with system team
+                string addNote = $"פריט חדש נוסף למערכת: {newlyAddedEquipment.Name} (מזהה: {newlyAddedEquipment.EquipmentID})";
+
+                // Get system team info
+                var (systemTeamId, systemTeamName) = GetSystemTeam();
+
+                await CreateAdminHistoryRecord(
+                    newlyAddedEquipment.EquipmentID,
+                    "הוספה",
+                    newlyAddedEquipment.Quantity,  // Positive quantity since we're adding items
+                    addNote);
+
+                Logger.LogInformation($"Equipment added successfully with history record: {newlyAddedEquipment.Name}");
+            }
+
+            // Refresh the UI
             StateHasChanged();
-
-            Logger.LogInformation($"Saving equipment: {editingEquipment.Name} (ID: {editingEquipment.EquipmentID})");
-
-            // Call the API to update the equipment
-            bool success = await EquipmentService.UpdateEquipmentAsync(editingEquipment);
-
-            if (success)
-            {
-                // Update the local list with the edited equipment
-                var index = equipmentList.FindIndex(e => e.EquipmentID == editingEquipment.EquipmentID);
-                if (index >= 0)
-                {
-                    equipmentList[index] = editingEquipment;
-                }
-
-                Logger.LogInformation($"Equipment updated successfully: {editingEquipment.Name} (ID: {editingEquipment.EquipmentID})");
-            }
-            else
-            {
-                errorMessage = "שגיאה בעדכון הציוד";
-                Logger.LogError($"Failed to update equipment: {editingEquipment.Name} (ID: {editingEquipment.EquipmentID})");
-            }
         }
         catch (Exception ex)
         {
-            errorMessage = $"שגיאה בעדכון הציוד: {ex.Message}";
-            Logger.LogError(ex, $"Error updating equipment: {editingEquipment.Name} (ID: {editingEquipment.EquipmentID})");
-        }
-        finally
-        {
-            editingEquipment = null;
-            isLoading = false;
+            Logger.LogError(ex, "Error handling equipment addition");
+            errorMessage = $"שגיאה בהוספת פריט ציוד להיסטוריה: {ex.Message}";
             StateHasChanged();
         }
-    }
-
-    private void ConfirmDelete(EquipmentModel equipment)
-    {
-        // Check permissions before showing delete confirmation
-        if (!IsAdminOrWarehouseManager)
-        {
-            errorMessage = "אין לך הרשאה למחוק פריטי ציוד";
-            Logger.LogWarning($"Unauthorized attempt to delete equipment: {equipment.Name} (ID: {equipment.EquipmentID})");
-            StateHasChanged();
-            return;
-        }
-
-        equipmentToDelete = equipment;
-        showDeleteModal = true;
-        StateHasChanged();
     }
 
     private async Task RemoveEquipment(EquipmentModel equipment)
@@ -726,6 +1674,60 @@
             StateHasChanged();
 
             Logger.LogInformation($"Removing equipment: {equipment.Name} (ID: {equipment.EquipmentID})...");
+
+            // Important: Create deletion history record BEFORE actually deleting
+            // so we still have access to equipment details
+            string deleteNote = $"פריט נמחק מהמערכת: {equipment.Name} (מזהה: {equipment.EquipmentID})";
+            bool historyCreated = await CreateAdminHistoryRecord(
+                equipment.EquipmentID,
+                "מחיקה",
+                -equipment.Quantity, // Negative quantity since we're removing all items
+                deleteNote);
+
+            if (!historyCreated)
+            {
+                Logger.LogWarning($"Failed to create history record for equipment deletion: {equipment.Name} (ID: {equipment.EquipmentID})");
+
+                // Try again but force "System Administration" team
+                try
+                {
+                    // Get system team info
+                    var (systemTeamId, systemTeamName) = GetSystemTeam();
+
+                    // Create a record DTO directly
+                    var adminRecord = new CheckoutRecordDto
+                    {
+                        Id = Guid.NewGuid().ToString(),
+                        EquipmentId = equipment.EquipmentID.ToString(),
+                        EquipmentName = equipment.Name,
+                        CheckedOutAt = DateTime.Now,
+                        ReturnedAt = DateTime.Now,
+                        Quantity = -equipment.Quantity,
+                        TeamName = systemTeamName,
+                        TeamId = systemTeamId,
+                        UserId = 0,
+                        UserName = "מנהל מערכת",
+                        UserRole = "Admin",
+                        ItemCondition = "Good",
+                        ItemNotes = deleteNote
+                    };
+
+                    bool succ = await CheckoutService.AddAdminHistoryRecordAsync(adminRecord);
+                    if (succ)
+                    {
+                        Logger.LogInformation("Created history record with system team");
+                    }
+                }
+                catch (Exception ex)
+                {
+                    Logger.LogError(ex, "Error creating fallback history record");
+                }
+            }
+
+            // Wait a moment for the history to be processed
+            await Task.Delay(500);
+
+            // Now try to delete the equipment
             bool success = await EquipmentService.DeleteEquipmentAsync(equipment.EquipmentID);
 
             if (success)
@@ -733,6 +1735,9 @@
                 // Remove from local list if deletion was successful
                 equipmentList.Remove(equipment);
                 Logger.LogInformation($"Equipment removed successfully: {equipment.Name} (ID: {equipment.EquipmentID})");
+
+                // Force refresh history tab data
+                await LoadHistory();
             }
             else
             {
@@ -752,6 +1757,127 @@
             StateHasChanged();
         }
     }
+
+
+    private void EditEquipment(EquipmentModel equipment)
+    {
+        // Check permissions before allowing edit
+        if (!IsAdminOrWarehouseManager)
+        {
+            errorMessage = "אין לך הרשאה לערוך פריטי ציוד";
+            Logger.LogWarning($"Unauthorized attempt to edit equipment: {equipment.Name} (ID: {equipment.EquipmentID})");
+            StateHasChanged();
+            return;
+        }
+
+        if (equipment == null)
+        {
+            Logger.LogWarning("EditEquipment called with null equipment");
+            return;
+        }
+
+        Logger.LogInformation($"Editing equipment: {equipment.Name} (ID: {equipment.EquipmentID})");
+
+        try
+        {
+            // First close any open modal
+            showDeleteModal = false;
+            showAddEquipmentModal = false;
+
+            // Create a deep copy of the equipment to edit
+            editingEquipment = new EquipmentModel
+            {
+                EquipmentID = equipment.EquipmentID,
+                Name = equipment.Name ?? "Unknown",
+                Description = equipment.Description ?? string.Empty,
+                SerialNumber = equipment.SerialNumber ?? string.Empty,
+                Status = equipment.Status ?? "Available",
+                Quantity = equipment.Quantity,
+                StorageLocation = equipment.StorageLocation ?? string.Empty,
+                Value = equipment.Value,
+                CheckoutRecords = equipment.CheckoutRecords?.ToList() ?? new List<CheckoutRecord>()
+            };
+
+            // Show the edit modal
+            showEditModal = true;
+            Logger.LogInformation($"Edit modal should be showing now. showEditModal = {showEditModal}");
+
+            // Force a UI refresh
+            StateHasChanged();
+        }
+        catch (Exception ex)
+        {
+            Logger.LogError(ex, "Error in EditEquipment method");
+            errorMessage = $"שגיאה בעריכת פריט: {ex.Message}";
+            StateHasChanged();
+        }
+    }
+
+
+    private void ConfirmDelete(EquipmentModel equipment)
+    {
+        // Check permissions before showing delete confirmation
+        if (!IsAdminOrWarehouseManager)
+        {
+            errorMessage = "אין לך הרשאה למחוק פריטי ציוד";
+            Logger.LogWarning($"Unauthorized attempt to delete equipment: {equipment.Name} (ID: {equipment.EquipmentID})");
+            StateHasChanged();
+            return;
+        }
+
+        try
+        {
+            equipmentToDelete = equipment;
+            showDeleteModal = true;
+            Logger.LogInformation($"Delete confirmation modal should be showing for: {equipment.Name}. showDeleteModal = true");
+            StateHasChanged();
+        }
+        catch (Exception ex)
+        {
+            Logger.LogError(ex, "Error in ConfirmDelete method");
+            errorMessage = $"שגיאה בהצגת חלון אישור מחיקה: {ex.Message}";
+            StateHasChanged();
+        }
+    }
+
+
+    // Add this new helper method to update a single equipment's available quantity
+    private async Task UpdateAvailableQuantityForEquipment(int equipmentId, int totalQuantity)
+    {
+        try
+        {
+            int available = await CheckoutService.GetAvailableQuantityForEquipmentAsync(
+                equipmentId,
+                totalQuantity);
+
+            availableQuantities[equipmentId] = available;
+
+            // Get the equipment from the list
+            var equipment = equipmentList.FirstOrDefault(e => e.EquipmentID == equipmentId);
+            if (equipment != null)
+            {
+                // Automatically update equipment status if available quantity is 0
+                if (available == 0 && equipment.Status != "Unavailable" && equipment.Quantity > 0)
+                {
+                    equipment.Status = "Unavailable";
+                    await EquipmentService.UpdateEquipmentAsync(equipment);
+                    Logger.LogInformation($"Equipment ID {equipmentId} status set to 'Unavailable' due to zero available quantity.");
+                }
+                else if (available > 0 && equipment.Status == "Unavailable")
+                {
+                    equipment.Status = "Available";
+                    await EquipmentService.UpdateEquipmentAsync(equipment);
+                    Logger.LogInformation($"Equipment ID {equipmentId} status set to 'Available' as items are now available.");
+                }
+            }
+        }
+        catch (Exception ex)
+        {
+            Logger.LogError(ex, $"Error calculating available quantity for equipment ID {equipmentId}");
+        }
+    }
+
+
     private async Task LoadAvailableQuantities()
     {
         if (equipmentList == null || !equipmentList.Any())
@@ -793,10 +1919,25 @@
 
     private void CloseModal()
     {
+        Logger.LogInformation("CloseModal called - closing modals");
         showEditModal = false;
         showDeleteModal = false;
         editingEquipment = null;
         equipmentToDelete = null;
         StateHasChanged();
     }
+
+
+    private bool showAddEquipmentModal = false;
+
+    private void ShowAddEquipmentModal()
+    {
+        showAddEquipmentModal = true;
+    }
+
+    private void CloseAddEquipmentModal()
+    {
+        showAddEquipmentModal = false;
+    }
+
 }

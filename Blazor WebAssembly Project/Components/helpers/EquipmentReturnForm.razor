@@ -28,14 +28,7 @@
             id="return-tab">
         <i class="bi bi-box-arrow-in-left" aria-hidden="true"></i> החזרת ציוד
     </button>
-    <button class="tab @(ActiveTab == "history" ? "active" : "")" 
-            @onclick='() => OnTabChanged("history")' 
-            role="tab" 
-            aria-selected="@(ActiveTab == "history")" 
-            aria-controls="history-panel"
-            id="history-tab">
-        <i class="bi bi-clock-history" aria-hidden="true"></i> היסטורית ציוד
-    </button>
+    
     <button class="tab @(ActiveTab == "log" ? "active" : "")" 
             @onclick='() => OnTabChanged("log")' 
             role="tab" 
@@ -105,17 +98,18 @@
                                            @bind="EquipmentSearchQuery" @oninput="FilterEquipment" aria-label="חיפוש ציוד" />
                                     <i class="bi bi-search search-icon" aria-hidden="true"></i>
                                 </div>
-                                <select id="equipment-select" @bind="SelectedEquipmentId" @bind:after="ResetEquipmentSelection" 
+                                <select id="equipment-select" @bind="SelectedEquipmentId" @bind:after="ResetEquipmentSelection"
                                         class="form-control mt-2" aria-label="בחירת ציוד להחזרה">
                                     <option value="">בחר ציוד</option>
                                     @if (FilteredCheckedOutEquipment.Any())
                                     {
                                         @foreach (var item in FilteredCheckedOutEquipment)
                                         {
-                                            <option value="@item.EquipmentID">@item.Name</option>
+                                            <option value="@item.EquipmentID">@item.Name (ID: @item.EquipmentID)</option>
                                         }
                                     }
                                 </select>
+
                             </div>
 
                             <div class="form-group">
@@ -601,7 +595,7 @@ else if (ActiveTab == "log")
                         <span>@item.Name</span>
                         <div>
                             <input type="number" class="form-control"
-                                   value="@item.GetReturnQuantity()"
+                                   value="@GetReturnQuantity(item)"
                                    @onchange="@(e => UpdateReturnQuantity(item, e))"
                                    min="0" max="@item.Quantity"
                                    style="width: 80px; display: inline-block;" />
@@ -805,15 +799,23 @@ else if (ActiveTab == "log")
     private string bulkReturnNotes = string.Empty;
 
     // Extended DTO to include condition and notes
+    // In EquipmentReturnForm.razor
     private class ExtendedCheckoutRecordDto : CheckoutRecordDto
     {
-        public string? ItemCondition { get; set; } = "Good";
-        public string ItemNotes { get; set; } = string.Empty;
+        // Use the new keyword to explicitly hide the base class member
+        public new string? ItemCondition { get; set; } = "Good";
+        public new string ItemNotes { get; set; } = string.Empty;
     }
+
 
     protected override async Task OnInitializedAsync()
     {
         Logger.LogInformation("Initializing EquipmentReturnForm component...");
+
+        // Reset selections to ensure clean state
+        SelectedTeamId = null;
+        SelectedEquipmentId = null;
+
         await LoadData();
 
         // Get current user ID from authentication state if available
@@ -840,6 +842,7 @@ else if (ActiveTab == "log")
         // Register JavaScript function for saving files
         await EnsureSaveAsFileJsFunction();
     }
+
 
     private async Task EnsureSaveAsFileJsFunction()
     {
@@ -973,12 +976,39 @@ else if (ActiveTab == "log")
 
     private void ResetEquipmentSelection()
     {
+        // Add logging to track selection changes
+        Logger.LogInformation($"ResetEquipmentSelection called with SelectedEquipmentId={SelectedEquipmentId}");
+
         // When a new equipment is selected, reset the condition and notes
         EquipmentCondition = "Good";
         ReturnNotes = string.Empty;
         ReturnQuantity = 1;
+
+        // Verify the equipment ID was properly selected
+        if (SelectedEquipmentId.HasValue && SelectedEquipmentId.Value > 0)
+        {
+            var selectedEquipment = CheckedOutEquipment.FirstOrDefault(e => e.EquipmentID == SelectedEquipmentId);
+            if (selectedEquipment != null)
+            {
+                Logger.LogInformation($"Equipment selected: {selectedEquipment.Name} (ID: {selectedEquipment.EquipmentID})");
+            }
+            else
+            {
+                Logger.LogWarning($"Selected equipment ID {SelectedEquipmentId} not found in CheckedOutEquipment list");
+            }
+        }
+        else if (SelectedEquipmentId.HasValue)
+        {
+            Logger.LogWarning($"Invalid SelectedEquipmentId: {SelectedEquipmentId}");
+        }
+        else
+        {
+            Logger.LogInformation("No equipment selected (SelectedEquipmentId is null)");
+        }
+
         StateHasChanged();
     }
+
 
     private async Task TeamSelected()
     {
@@ -994,25 +1024,41 @@ else if (ActiveTab == "log")
                 FilteredCheckedOutEquipment.Clear();
                 StateHasChanged();
 
-                // Get checked out equipment for this team
+                // First try with the standard service
                 var equipment = await EquipmentRequestService.GetCheckedOutEquipmentByTeamAsync(SelectedTeamId.Value);
 
-                // Initialize ReturnQuantity for each equipment
-                equipment.InitializeReturnQuantities();
-
-                CheckedOutEquipment = equipment;
-
-                // Initialize filtered equipment
-                FilteredCheckedOutEquipment = new List<EquipmentModel>(CheckedOutEquipment);
-
-                Logger.LogInformation($"Loaded {CheckedOutEquipment.Count} checked-out equipment items for team {SelectedTeamId}.");
-
-                if (CheckedOutEquipment.Count > 0)
+                // If no equipment was found, try the direct method as a fallback
+                if (equipment == null || !equipment.Any())
                 {
-                    AddLog($"נטענו {CheckedOutEquipment.Count} פריטי ציוד לצוות {Teams.FirstOrDefault(t => t.TeamID == SelectedTeamId)?.TeamName}");
+                    Logger.LogWarning($"First method returned no equipment for team {SelectedTeamId}. Trying fallback method...");
+                    equipment = await GetTeamCheckedOutEquipmentDirectly(SelectedTeamId.Value);
+                }
+
+                // Initialize ReturnQuantity for each equipment
+                if (equipment != null)
+                {
+                    InitializeReturnQuantities(equipment);
+                    CheckedOutEquipment = equipment;
+
+                    // Initialize filtered equipment
+                    FilteredCheckedOutEquipment = new List<EquipmentModel>(CheckedOutEquipment);
+
+                    Logger.LogInformation($"Loaded {CheckedOutEquipment.Count} checked-out equipment items for team {SelectedTeamId}.");
+
+                    if (CheckedOutEquipment.Count > 0)
+                    {
+                        AddLog($"נטענו {CheckedOutEquipment.Count} פריטי ציוד לצוות {Teams.FirstOrDefault(t => t.TeamID == SelectedTeamId)?.TeamName}");
+                    }
+                    else
+                    {
+                        AddLog($"לצוות {Teams.FirstOrDefault(t => t.TeamID == SelectedTeamId)?.TeamName} אין פריטי ציוד להחזרה");
+                    }
                 }
                 else
                 {
+                    CheckedOutEquipment = new List<EquipmentModel>();
+                    FilteredCheckedOutEquipment = new List<EquipmentModel>();
+                    Logger.LogWarning($"No equipment found for team {SelectedTeamId}");
                     AddLog($"לצוות {Teams.FirstOrDefault(t => t.TeamID == SelectedTeamId)?.TeamName} אין פריטי ציוד להחזרה");
                 }
             }
@@ -1028,6 +1074,56 @@ else if (ActiveTab == "log")
             }
         }
     }
+
+    private async Task<List<EquipmentModel>> GetTeamCheckedOutEquipmentDirectly(int teamId)
+    {
+        try
+        {
+            Logger.LogInformation($"Directly fetching checked-out equipment for team {teamId}");
+            var activeCheckouts = await CheckoutService.GetActiveCheckoutsAsync();
+
+            if (activeCheckouts == null || !activeCheckouts.Any())
+            {
+                Logger.LogWarning("No active checkouts found in the system");
+                return new List<EquipmentModel>();
+            }
+
+            var teamCheckouts = activeCheckouts
+                .Where(c => c.TeamID == teamId)
+                .ToList();
+
+            Logger.LogInformation($"Found {teamCheckouts.Count} checkouts for team {teamId}");
+
+            if (!teamCheckouts.Any())
+                return new List<EquipmentModel>();
+
+            var result = new List<EquipmentModel>();
+
+            foreach (var checkout in teamCheckouts)
+            {
+                var equipment = await EquipmentService.GetEquipmentByIdAsync(checkout.EquipmentId);
+                if (equipment != null)
+                {
+                    // Adjust the quantity to match what was checked out
+                    equipment.Quantity = checkout.Quantity;
+                    result.Add(equipment);
+                    Logger.LogInformation($"Added equipment {equipment.Name} with quantity {equipment.Quantity}");
+                }
+                else
+                {
+                    Logger.LogWarning($"Could not find equipment with ID {checkout.EquipmentId}");
+                }
+            }
+
+            return result;
+        }
+        catch (Exception ex)
+        {
+            Logger.LogError(ex, $"Error in GetTeamCheckedOutEquipmentDirectly: {ex.Message}");
+            return new List<EquipmentModel>();
+        }
+    }
+
 
 
     private int GetCheckedOutQuantity(int? equipmentId)
@@ -1091,7 +1187,7 @@ else if (ActiveTab == "log")
         foreach (var item in CheckedOutEquipment)
         {
             // Initialize to full quantity if not already set
-            if (item.GetReturnQuantity() <= 0)
+            if (GetReturnQuantity(item) <= 0)
             {
                 item.SetReturnQuantity(item.Quantity);
             }
@@ -1117,6 +1213,10 @@ else if (ActiveTab == "log")
         if (selectedQuickReturnItem == null || !SelectedTeamId.HasValue)
             return;
 
+        // Save a reference to the equipment ID before closing the modal
+        int equipmentId = selectedQuickReturnItem.EquipmentID;
+        string equipmentName = selectedQuickReturnItem.Name;
+
         if (quickReturnQuantity <= 0 || quickReturnQuantity > selectedQuickReturnItem.Quantity)
         {
             Message = $"כמות להחזרה אינה תקינה. ודא שהכמות בין 1 ל-{selectedQuickReturnItem.Quantity}";
@@ -1130,14 +1230,18 @@ else if (ActiveTab == "log")
 
         try
         {
-            Logger.LogInformation($"Quick returning equipment (ID: {selectedQuickReturnItem.EquipmentID}, Quantity: {quickReturnQuantity}) for team {SelectedTeamId}...");
+            Logger.LogInformation($"Quick returning equipment (ID: {equipmentId}, Quantity: {quickReturnQuantity}) for team {SelectedTeamId}...");
+
+            // Save the quantity to return before potentially clearing the reference
+            int quantityToReturn = quickReturnQuantity;
+            bool fullReturn = quickReturnQuantity >= selectedQuickReturnItem.Quantity;
 
             // Use EquipmentReturnService's UpdateReturnedEquipmentByTeamAsync method with quantity
             bool isReturned = await EquipmentReturnService.UpdateReturnedEquipmentByTeamAsync(
-                selectedQuickReturnItem.EquipmentID,
+                equipmentId,
                 SelectedTeamId.Value,
                 CurrentUserId,
-                quickReturnQuantity,
+                quantityToReturn,
                 quickReturnCondition,
                 quickReturnNotes
             );
@@ -1145,39 +1249,52 @@ else if (ActiveTab == "log")
             // Handle the result
             if (isReturned)
             {
-                Message = $"הציוד הוחזר בהצלחה! כמות: {quickReturnQuantity}";
+                Message = $"הציוד הוחזר בהצלחה! כמות: {quantityToReturn}";
                 IsError = false;
-                Logger.LogInformation($"Equipment (ID: {selectedQuickReturnItem.EquipmentID}, Quantity: {quickReturnQuantity}) returned successfully for team {SelectedTeamId}.");
-                AddLog($"הציוד {selectedQuickReturnItem.Name} הוחזר בהצלחה! כמות: {quickReturnQuantity}");
+                Logger.LogInformation($"Equipment (ID: {equipmentId}, Quantity: {quantityToReturn}) returned successfully for team {SelectedTeamId}.");
+                AddLog($"הציוד {equipmentName} הוחזר בהצלחה! כמות: {quantityToReturn}");
 
-                // Clear cache to force a refresh on next history tab visit
-                ClearHistoryCache();
+                // Force immediate history refresh
+                await LoadHistory();
 
-                // Close modal and refresh checked-out equipment
+                // Close modal and clear the reference
                 showReturnModal = false;
-                selectedQuickReturnItem = null;
-                
+
                 // If all were returned, update the local list
-                if (quickReturnQuantity >= selectedQuickReturnItem.Quantity)
+                if (fullReturn)
                 {
                     await TeamSelected(); // Full refresh of the equipment list
                 }
                 else
                 {
                     // Update the item quantity in the local list
-                    var item = CheckedOutEquipment.FirstOrDefault(e => e.EquipmentID == selectedQuickReturnItem.EquipmentID);
+                    var item = CheckedOutEquipment.FirstOrDefault(e => e.EquipmentID == equipmentId);
                     if (item != null)
                     {
-                        item.Quantity -= quickReturnQuantity;
+                        item.Quantity -= quantityToReturn;
                     }
+
+                    // Also update the filtered list
+                    var filteredItem = FilteredCheckedOutEquipment.FirstOrDefault(e => e.EquipmentID == equipmentId);
+                    if (filteredItem != null)
+                    {
+                        filteredItem.Quantity -= quantityToReturn;
+                    }
+
                     StateHasChanged();
                 }
+
+                // Update available equipment quantities through EquipmentService if needed
+                await UpdateEquipmentAvailability(equipmentId);
+
+                // Now we can safely clear the reference
+                selectedQuickReturnItem = null;
             }
             else
             {
                 Message = "שגיאה: לא ניתן להחזיר את הציוד.";
                 IsError = true;
-                Logger.LogError($"Failed to return equipment (ID: {selectedQuickReturnItem.EquipmentID}) for team {SelectedTeamId}.");
+                Logger.LogError($"Failed to return equipment (ID: {equipmentId}) for team {SelectedTeamId}.");
                 AddLog($"שגיאה בהחזרת ציוד: לא ניתן להחזיר את הציוד.");
             }
         }
@@ -1185,15 +1302,18 @@ else if (ActiveTab == "log")
         {
             Message = $"שגיאה: {ex.Message}";
             IsError = true;
-            Logger.LogError(ex, $"Error returning equipment (ID: {selectedQuickReturnItem?.EquipmentID}) for team {SelectedTeamId}.");
+            Logger.LogError(ex, $"Error returning equipment (ID: {equipmentId}) for team {SelectedTeamId}.");
             AddLog($"שגיאה בהחזרת ציוד: {ex.Message}");
         }
         finally
         {
             isSubmitting = false;
+            selectedQuickReturnItem = null; // Ensure reference is cleared
             StateHasChanged();
         }
     }
+
+
 
     private void UpdateReturnQuantity(EquipmentModel item, ChangeEventArgs e)
     {
@@ -1203,8 +1323,7 @@ else if (ActiveTab == "log")
         if (int.TryParse(e.Value.ToString(), out int quantity))
         {
             // Use the extension method to set return quantity
-            item.SetReturnQuantity(quantity);
-
+            SetReturnQuantity(item, quantity);
             Logger.LogInformation($"Updated return quantity for {item.Name} to {quantity}");
             StateHasChanged();
         }
@@ -1213,11 +1332,6 @@ else if (ActiveTab == "log")
             Logger.LogWarning($"Invalid quantity value: {e.Value}");
         }
     }
-
-
-
-
-
 
     private async Task ProcessReturnAll()
     {
@@ -1232,6 +1346,7 @@ else if (ActiveTab == "log")
             Logger.LogInformation($"Returning multiple equipment items for team {SelectedTeamId}...");
             int successCount = 0;
             int failCount = 0;
+            List<int> updatedEquipmentIds = new List<int>();
 
             // Create a copy of the list to avoid issues during iteration
             var equipmentToReturn = CheckedOutEquipment
@@ -1259,6 +1374,7 @@ else if (ActiveTab == "log")
                     if (isReturned)
                     {
                         successCount++;
+                        updatedEquipmentIds.Add(equipment.EquipmentID);
                         AddLog($"הוחזר בהצלחה: {equipment.Name}, כמות: {returnQuantity}");
                     }
                     else
@@ -1278,8 +1394,8 @@ else if (ActiveTab == "log")
             // Close modal
             showReturnAllModal = false;
 
-            // Clear cache to force a refresh on next history tab visit
-            ClearHistoryCache();
+            // Force immediate history refresh
+            await LoadHistory();
 
             // Show result message
             if (successCount > 0)
@@ -1291,6 +1407,12 @@ else if (ActiveTab == "log")
 
                 // Refresh equipment list
                 await TeamSelected();
+
+                // Update available equipment quantities
+                foreach (var id in updatedEquipmentIds)
+                {
+                    await UpdateEquipmentAvailability(id);
+                }
             }
             else
             {
@@ -1314,14 +1436,51 @@ else if (ActiveTab == "log")
         }
     }
 
+    private async Task<bool> ManualReturnEquipmentAsync(int equipmentId, int teamId, int userId, int quantity, string condition, string notes)
+    {
+        try
+        {
+            // Log the return attempt details
+            Logger.LogInformation($"Manual return attempt for equipment ID {equipmentId}, team ID {teamId}, quantity {quantity}");
 
+            // Use the UpdateReturnedEquipmentByTeamAsync method that we know exists in the interface
+            // This is the only method we have based on the error, so we'll use it directly
+            bool result = await EquipmentReturnService.UpdateReturnedEquipmentByTeamAsync(
+                equipmentId,
+                teamId,
+                userId,
+                quantity,
+                condition,
+                notes
+            );
 
-
+            Logger.LogInformation($"Manual return result: {result}");
+            return result;
+        }
+        catch (Exception ex)
+        {
+            Logger.LogError(ex, "Manual return attempt failed");
+            return false;
+        }
+    }
 
     private async Task ReturnEquipment()
     {
         if (!SelectedTeamId.HasValue || !SelectedEquipmentId.HasValue)
+        {
+            Message = "אנא בחר ציוד וצוות להחזרה";
+            IsError = true;
             return;
+        }
+
+        // Additional validation check - don't proceed if SelectedEquipmentId is null (a belt-and-suspenders approach)
+        if (SelectedEquipmentId == null)
+        {
+            Message = "לא נבחר ציוד. אנא בחר ציוד להחזרה";
+            IsError = true;
+            Logger.LogWarning("ReturnEquipment was called with null SelectedEquipmentId");
+            return;
+        }
 
         // Validate return quantity
         if (ReturnQuantity <= 0 || ReturnQuantity > GetCheckedOutQuantity(SelectedEquipmentId))
@@ -1338,11 +1497,12 @@ else if (ActiveTab == "log")
 
         try
         {
-            Logger.LogInformation($"Returning equipment (ID: {SelectedEquipmentId}, Quantity: {ReturnQuantity}) for team {SelectedTeamId}...");
+            var equipmentId = SelectedEquipmentId.Value; // Cache the value to ensure consistency throughout the method
 
-            // Use EquipmentReturnService's UpdateReturnedEquipmentByTeamAsync method with quantity
+            Logger.LogInformation($"Returning equipment - Details: EquipmentID={equipmentId}, TeamID={SelectedTeamId}, UserID={CurrentUserId}, Quantity={ReturnQuantity}");
+
             bool isReturned = await EquipmentReturnService.UpdateReturnedEquipmentByTeamAsync(
-                SelectedEquipmentId.Value,
+                equipmentId,
                 SelectedTeamId.Value,
                 CurrentUserId,
                 ReturnQuantity,
@@ -1350,21 +1510,24 @@ else if (ActiveTab == "log")
                 ReturnNotes
             );
 
-            // Handle the result
+            // Rest of your method remains the same
             if (isReturned)
             {
-                var equipmentName = CheckedOutEquipment.FirstOrDefault(e => e.EquipmentID == SelectedEquipmentId)?.Name ?? "ציוד";
+                var equipmentName = CheckedOutEquipment.FirstOrDefault(e => e.EquipmentID == equipmentId)?.Name ?? "ציוד";
                 Message = $"{equipmentName} הוחזר בהצלחה! כמות: {ReturnQuantity}";
                 IsError = false;
-                Logger.LogInformation($"Equipment (ID: {SelectedEquipmentId}, Quantity: {ReturnQuantity}) returned successfully for team {SelectedTeamId}.");
+                Logger.LogInformation($"Equipment (ID: {equipmentId}, Quantity: {ReturnQuantity}) returned successfully for team {SelectedTeamId}.");
                 AddLog($"הציוד {equipmentName} הוחזר בהצלחה! כמות: {ReturnQuantity}");
 
-                // Clear cache to force a refresh on next history tab visit
-                ClearHistoryCache();
+                // Force immediate history refresh
+                await LoadHistory();
 
                 // Update the equipment list
                 await TeamSelected();
-                
+
+                // Update available equipment quantities
+                await UpdateEquipmentAvailability(equipmentId);
+
                 // Reset form fields
                 SelectedEquipmentId = null;
                 ReturnNotes = string.Empty;
@@ -1375,16 +1538,24 @@ else if (ActiveTab == "log")
             {
                 Message = "שגיאה: לא ניתן להחזיר את הציוד.";
                 IsError = true;
-                Logger.LogError($"Failed to return equipment (ID: {SelectedEquipmentId}) for team {SelectedTeamId}.");
+                Logger.LogError($"Failed to return equipment (ID: {equipmentId}) for team {SelectedTeamId}.");
                 AddLog($"שגיאה בהחזרת ציוד: לא ניתן להחזיר את הציוד.");
             }
         }
         catch (Exception ex)
         {
+            // Enhanced error logging
             Message = $"שגיאה: {ex.Message}";
             IsError = true;
-            Logger.LogError(ex, $"Error returning equipment (ID: {SelectedEquipmentId}) for team {SelectedTeamId}.");
+            Logger.LogError(ex, $"Error returning equipment - Full details: EquipmentID={SelectedEquipmentId}, TeamID={SelectedTeamId}, UserID={CurrentUserId}, Quantity={ReturnQuantity}, Condition={EquipmentCondition}");
             AddLog($"שגיאה בהחזרת ציוד: {ex.Message}");
+
+            // Try to get more details about the error
+            if (ex.InnerException != null)
+            {
+                Logger.LogError($"Inner exception: {ex.InnerException.Message}");
+                Logger.LogError($"Inner exception stack trace: {ex.InnerException.StackTrace}");
+            }
         }
         finally
         {
@@ -1392,6 +1563,69 @@ else if (ActiveTab == "log")
             StateHasChanged();
         }
     }
+
+
+
+    
+    private async Task UpdateEquipmentAvailability(int equipmentId)
+    {
+        try
+        {
+            Logger.LogInformation($"Updating equipment availability for ID {equipmentId}");
+
+            // Get the equipment details
+            var equipment = await EquipmentService.GetEquipmentByIdAsync(equipmentId);
+            if (equipment != null)
+            {
+                // Get updated total and available quantity
+                int totalQuantity = equipment.Quantity;
+
+                try
+                {
+                    int inUseQuantity = await CheckoutService.GetInUseQuantityForEquipmentAsync(equipmentId);
+                    int availableQuantity = totalQuantity - inUseQuantity;
+
+                    Logger.LogInformation($"Updated equipment availability for ID {equipmentId}: " +
+                                       $"Total: {totalQuantity}, In Use: {inUseQuantity}, Available: {availableQuantity}");
+
+                    // If equipment was previously unavailable but now has available items, update status
+                    if (equipment.Status == "Unavailable" && availableQuantity > 0)
+                    {
+                        equipment.Status = "Available";
+                        bool updated = await EquipmentService.UpdateEquipmentAsync(equipment);
+                        Logger.LogInformation($"Equipment status update result: {updated}");
+
+                        if (updated)
+                        {
+                            Logger.LogInformation($"Updated equipment status from Unavailable to Available for ID {equipmentId}");
+                        }
+                        else
+                        {
+                            Logger.LogWarning($"Failed to update equipment status for ID {equipmentId}");
+                        }
+                    }
+
+                    AddLog($"עודכנה זמינות הציוד {equipment.Name}: זמין {availableQuantity} מתוך {totalQuantity}");
+                }
+                catch (Exception quantityEx)
+                {
+                    Logger.LogError(quantityEx, $"Error getting in-use quantity for equipment ID {equipmentId}");
+                    AddLog($"שגיאה בעדכון זמינות ציוד {equipment.Name}: {quantityEx.Message}");
+                }
+            }
+            else
+            {
+                Logger.LogWarning($"Equipment with ID {equipmentId} not found");
+                AddLog($"לא נמצא ציוד עם מזהה {equipmentId} לעדכון זמינות");
+            }
+        }
+        catch (Exception ex)
+        {
+            Logger.LogError(ex, $"Error updating equipment availability for ID {equipmentId}");
+            AddLog($"שגיאה בעדכון זמינות ציוד: {ex.Message}");
+        }
+    }
+
 
     private async Task LoadHistory()
     {
@@ -1451,16 +1685,16 @@ else if (ActiveTab == "log")
     {
         // Apply all filters (team, equipment, condition, return status)
         FilteredCheckoutHistory = CheckoutHistory
-            .Where(h =>
-                (string.IsNullOrEmpty(HistoryTeamFilter) ||
-                 h.TeamName.Contains(HistoryTeamFilter, StringComparison.OrdinalIgnoreCase)) &&
-                (string.IsNullOrEmpty(HistoryEquipmentFilter) ||
-                 h.EquipmentName.Contains(HistoryEquipmentFilter, StringComparison.OrdinalIgnoreCase)) &&
-                (string.IsNullOrEmpty(ConditionFilter) ||
-                 (h.ItemCondition != null && h.ItemCondition.Equals(ConditionFilter, StringComparison.OrdinalIgnoreCase))) &&
-                (showReturned == null || h.ReturnedAt.HasValue == showReturned)
-            )
-            .ToList();
+        .Where(h =>
+            (string.IsNullOrEmpty(HistoryTeamFilter) ||
+             (h.TeamName != null && h.TeamName.Contains(HistoryTeamFilter, StringComparison.OrdinalIgnoreCase))) &&
+            (string.IsNullOrEmpty(HistoryEquipmentFilter) ||
+             (h.EquipmentName != null && h.EquipmentName.Contains(HistoryEquipmentFilter, StringComparison.OrdinalIgnoreCase))) &&
+            (string.IsNullOrEmpty(ConditionFilter) ||
+             (h.ItemCondition != null && h.ItemCondition.Equals(ConditionFilter, StringComparison.OrdinalIgnoreCase))) &&
+            (showReturned == null || h.ReturnedAt.HasValue == showReturned)
+        )
+        .ToList();
 
         StateHasChanged();
     }
@@ -1571,4 +1805,40 @@ else if (ActiveTab == "log")
         public DateTime? Timestamp { get; set; }
         public string Message { get; set; } = string.Empty;
     }
+
+    
+    private static readonly Dictionary<int, int> _returnQuantities = new Dictionary<int, int>();
+
+    private static int GetReturnQuantity(EquipmentModel equipment)
+    {
+        if (equipment == null)
+            return 0;
+
+        return _returnQuantities.TryGetValue(equipment.EquipmentID, out var quantity) ? quantity : equipment.Quantity;
+    }
+
+    private static void SetReturnQuantity(EquipmentModel equipment, int quantity)
+    {
+        if (equipment == null)
+            return;
+
+        _returnQuantities[equipment.EquipmentID] = quantity;
+    }
+
+    private static void InitializeReturnQuantities(List<EquipmentModel> equipmentList)
+    {
+        if (equipmentList == null)
+            return;
+
+        foreach (var equipment in equipmentList)
+        {
+            // Only initialize if not already set
+            if (!_returnQuantities.ContainsKey(equipment.EquipmentID))
+            {
+                _returnQuantities[equipment.EquipmentID] = equipment.Quantity;
+            }
+        }
+    }
+
+
 }

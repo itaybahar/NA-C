@@ -1,14 +1,14 @@
-﻿using Blazor_WebAssembly.Models.Checkout;
-using Blazor_WebAssembly.Services.Interfaces;
+﻿using Blazor_WebAssembly.Services.Interfaces;
 using Domain_Project.DTOs;
 using Domain_Project.Models;
 using Microsoft.AspNetCore.Components.Authorization;
 using System;
 using System.Collections.Generic;
+using System.Linq;
 using System.Net.Http;
 using System.Net.Http.Json;
-using System.Text;
 using System.Text.Json;
+using System.Text.Json.Serialization;
 using System.Threading.Tasks;
 
 namespace Blazor_WebAssembly.Services.Implementations
@@ -17,14 +17,38 @@ namespace Blazor_WebAssembly.Services.Implementations
     {
         private readonly HttpClient _httpClient;
         private readonly AuthenticationStateProvider _authStateProvider;
+        private readonly JsonSerializerOptions _jsonOptions;
+        private readonly IHttpClientFactory _httpClientFactory;
 
         // Fix: Add correct API endpoint prefix to ensure requests go to the API
-        private const string BaseApiPath = "api/EquipmentCheckout"; // Added "api/" prefix
+        private const string BaseApiPath = "api/equipmentcheckout"; // Lowercase for consistency with API routes
 
-        public CheckoutService(HttpClient httpClient, AuthenticationStateProvider authStateProvider)
+        public CheckoutService(
+            HttpClient httpClient,
+            AuthenticationStateProvider authStateProvider,
+            IHttpClientFactory httpClientFactory = null)
         {
             _httpClient = httpClient ?? throw new ArgumentNullException(nameof(httpClient));
             _authStateProvider = authStateProvider ?? throw new ArgumentNullException(nameof(authStateProvider));
+            _httpClientFactory = httpClientFactory;
+
+            _jsonOptions = new JsonSerializerOptions
+            {
+                PropertyNameCaseInsensitive = true,
+                PropertyNamingPolicy = JsonNamingPolicy.CamelCase
+            };
+        }
+
+        private async Task<HttpClient> GetHttpClientAsync()
+        {
+            // If _httpClientFactory is available, get a fresh client
+            if (_httpClientFactory != null)
+            {
+                return _httpClientFactory.CreateClient("API");
+            }
+
+            // Otherwise, use the injected HttpClient
+            return _httpClient;
         }
 
         // Ensure the auth token is attached to each request
@@ -39,7 +63,6 @@ namespace Blazor_WebAssembly.Services.Implementations
                     .Select(c => c.Value)
                     .ToList();
 
-                // Log roles for debugging
                 Console.WriteLine($"Current user roles: {string.Join(", ", roles)}");
 
                 // The token should be automatically included if using the HttpClient from the DI container
@@ -56,12 +79,13 @@ namespace Blazor_WebAssembly.Services.Implementations
             try
             {
                 await EnsureAuthorizationHeaderAsync();
+                var httpClient = await GetHttpClientAsync();
 
-                var response = await _httpClient.GetAsync($"{BaseApiPath}/active");
+                var response = await httpClient.GetAsync($"{BaseApiPath}/active");
 
                 if (response.IsSuccessStatusCode)
                 {
-                    return await response.Content.ReadFromJsonAsync<List<EquipmentCheckout>>()
+                    return await response.Content.ReadFromJsonAsync<List<EquipmentCheckout>>(_jsonOptions)
                            ?? new List<EquipmentCheckout>();
                 }
 
@@ -75,17 +99,142 @@ namespace Blazor_WebAssembly.Services.Implementations
             }
         }
 
+        // In CheckoutService.cs, replace the existing AddAdminHistoryRecordAsync method with this:
+        public async Task<bool> AddAdminHistoryRecordAsync(CheckoutRecordDto record)
+        {
+            try
+            {
+                await EnsureAuthorizationHeaderAsync();
+                var httpClient = await GetHttpClientAsync();
+
+                Console.WriteLine($"Creating admin history record: {JsonSerializer.Serialize(record)}");
+
+                // First try the admin-history endpoint 
+                var response = await httpClient.PostAsJsonAsync($"{BaseApiPath}/admin-history", record);
+
+                if (response.IsSuccessStatusCode)
+                {
+                    Console.WriteLine("Admin history record created successfully");
+                    return true;
+                }
+
+                Console.WriteLine($"Admin history endpoint failed with status {response.StatusCode}. Trying standard checkout flow.");
+
+                // If that didn't work, try a standard checkout-then-return flow
+                var checkoutRequest = new
+                {
+                    EquipmentID = int.Parse(record.EquipmentId),
+                    TeamID = record.TeamId,
+                    UserId = record.UserId,
+                    Quantity = Math.Abs(record.Quantity), // Always positive for checkout
+                    CheckoutDate = record.CheckedOutAt ?? DateTime.UtcNow,
+                    ExpectedReturnDate = (record.ReturnedAt ?? DateTime.UtcNow).AddDays(1), // Just needs to be after checkout
+                    Notes = record.ItemNotes ?? "System operation"
+                };
+
+                Console.WriteLine($"Creating checkout with data: {JsonSerializer.Serialize(checkoutRequest)}");
+                response = await httpClient.PostAsJsonAsync($"{BaseApiPath}/checkout", checkoutRequest);
+
+                if (!response.IsSuccessStatusCode)
+                {
+                    var errorContent = await response.Content.ReadAsStringAsync();
+                    Console.WriteLine($"Failed to create checkout: {response.StatusCode} - {errorContent}");
+                    return false;
+                }
+
+                // Extract the checkout ID
+                var content = await response.Content.ReadAsStringAsync();
+                int checkoutId;
+
+                if (int.TryParse(content, out checkoutId))
+                {
+                    Console.WriteLine($"Checkout created with ID: {checkoutId}");
+
+                    // For inventory adjustments (not returns), immediately return the item to reflect adjustment
+                    if (record.ReturnedAt.HasValue)
+                    {
+                        var returnRequest = new
+                        {
+                            Condition = record.ItemCondition ?? "Good",
+                            Notes = record.ItemNotes ?? "System operation completed",
+                            ReturnDate = record.ReturnedAt.Value.ToString("yyyy-MM-ddTHH:mm:ss.fffZ")
+                        };
+
+                        Console.WriteLine($"Marking as returned with data: {JsonSerializer.Serialize(returnRequest)}");
+                        var returnResponse = await httpClient.PutAsJsonAsync($"{BaseApiPath}/return/{checkoutId}", returnRequest);
+
+                        if (!returnResponse.IsSuccessStatusCode)
+                        {
+                            var errorContent = await returnResponse.Content.ReadAsStringAsync();
+                            Console.WriteLine($"Failed to mark as returned: {returnResponse.StatusCode} - {errorContent}");
+                            return false;
+                        }
+
+                        Console.WriteLine("Return operation succeeded");
+                    }
+
+                    return true;
+                }
+                else
+                {
+                    Console.WriteLine($"Could not parse checkout ID from response: {content}");
+                    return false;
+                }
+            }
+            catch (Exception ex)
+            {
+                Console.WriteLine($"Error in AddAdminHistoryRecordAsync: {ex.Message}");
+                if (ex.InnerException != null)
+                {
+                    Console.WriteLine($"Inner exception: {ex.InnerException.Message}");
+                }
+                return false;
+            }
+        }
+
+        // Add this helper method to CheckoutService.cs
+        private void LogToConsole(string message)
+        {
+            Console.WriteLine($"[{DateTime.Now:HH:mm:ss}] {message}");
+        }
+
+
+        private async Task<bool> TryAlternateAdminHistoryEndpointAsync(HttpClient httpClient, CheckoutRecordDto record)
+        {
+            try
+            {
+                // Try an alternate endpoint if the primary one fails
+                var response = await httpClient.PostAsJsonAsync("api/checkout/admin-history", record);
+
+                if (response.IsSuccessStatusCode)
+                {
+                    Console.WriteLine($"Successfully added admin history record via alternate endpoint");
+                    return true;
+                }
+
+                var errorContent = await response.Content.ReadAsStringAsync();
+                Console.Error.WriteLine($"Failed to add admin history via alternate endpoint: {errorContent}");
+                return false;
+            }
+            catch (Exception ex)
+            {
+                Console.Error.WriteLine($"Error with alternate admin history endpoint: {ex.Message}");
+                return false;
+            }
+        }
+
         public async Task<List<EquipmentCheckout>> GetOverdueCheckoutsAsync()
         {
             try
             {
                 await EnsureAuthorizationHeaderAsync();
+                var httpClient = await GetHttpClientAsync();
 
-                var response = await _httpClient.GetAsync($"{BaseApiPath}/overdue");
+                var response = await httpClient.GetAsync($"{BaseApiPath}/overdue");
 
                 if (response.IsSuccessStatusCode)
                 {
-                    return await response.Content.ReadFromJsonAsync<List<EquipmentCheckout>>()
+                    return await response.Content.ReadFromJsonAsync<List<EquipmentCheckout>>(_jsonOptions)
                            ?? new List<EquipmentCheckout>();
                 }
 
@@ -104,21 +253,21 @@ namespace Blazor_WebAssembly.Services.Implementations
             try
             {
                 await EnsureAuthorizationHeaderAsync();
+                var httpClient = await GetHttpClientAsync();
 
-                // Create a return request with exact field names matching the database
+                // Create a return request with exact field names matching the backend model
                 var returnRequest = new
                 {
-                    ItemCondition = "Good",
-                    ItemNotes = "Returned by system",
+                    Condition = "Good",
+                    Notes = "Returned via system",
                     ReturnDate = DateTime.UtcNow.ToString("yyyy-MM-ddTHH:mm:ss.fffZ")
                 };
 
                 // Use PUT for updating equipment status with a body
-                var response = await _httpClient.PutAsJsonAsync($"{BaseApiPath}/return/{checkoutId}", returnRequest);
+                var response = await httpClient.PutAsJsonAsync($"{BaseApiPath}/return/{checkoutId}", returnRequest, _jsonOptions);
 
                 if (response.IsSuccessStatusCode)
                 {
-                    // Log the successful status change
                     Console.WriteLine($"Equipment status updated to 'Returned' for checkout ID {checkoutId}");
                     return true;
                 }
@@ -140,39 +289,19 @@ namespace Blazor_WebAssembly.Services.Implementations
         {
             try
             {
-                // Fetch the equipment details to check the available quantity
-                var equipmentResponse = await _httpClient.GetAsync($"api/equipment/{equipmentId}");
-                if (!equipmentResponse.IsSuccessStatusCode)
-                {
-                    Console.Error.WriteLine($"Error fetching equipment details for ID {equipmentId}: {equipmentResponse.StatusCode}");
-                    return false;
-                }
-
-                var equipment = await equipmentResponse.Content.ReadFromJsonAsync<Equipment>();
-                if (equipment == null)
-                {
-                    Console.Error.WriteLine($"Equipment with ID {equipmentId} not found.");
-                    return false;
-                }
-
-                // Check if the requested quantity is available
-                if (equipment.Quantity < quantity)
-                {
-                    Console.Error.WriteLine($"Requested quantity ({quantity}) exceeds available quantity ({equipment.Quantity}) for equipment ID {equipmentId}.");
-                    return false;
-                }
-
-                // Create the checkout request
+                // Create the checkout request with all required fields
                 var checkoutRequest = new
                 {
                     TeamID = teamId,
                     EquipmentID = equipmentId,
-                    UserID = userId,
+                    UserId = userId,
                     Quantity = quantity,
                     ExpectedReturnDate = DateTime.UtcNow.AddDays(7),
                     CheckoutDate = DateTime.UtcNow,
                     Notes = "Checked out via system"
                 };
+
+                Console.WriteLine($"Sending checkout request: {JsonSerializer.Serialize(checkoutRequest)}");
 
                 var response = await _httpClient.PostAsJsonAsync($"{BaseApiPath}/checkout", checkoutRequest);
 
@@ -183,21 +312,7 @@ namespace Blazor_WebAssembly.Services.Implementations
                     return false;
                 }
 
-                // Update the equipment quantity
-                equipment.Quantity -= quantity;
-                if (equipment.Quantity == 0)
-                {
-                    equipment.Status = "Unavailable";
-                }
-
-                var updateResponse = await _httpClient.PutAsJsonAsync($"api/equipment/{equipmentId}", equipment);
-                if (!updateResponse.IsSuccessStatusCode)
-                {
-                    Console.Error.WriteLine($"Error updating equipment quantity for ID {equipmentId}: {updateResponse.StatusCode}");
-                    return false;
-                }
-
-                Console.WriteLine($"Successfully checked out {quantity} unit(s) of equipment ID {equipmentId}.");
+                Console.WriteLine($"Successfully checked out {quantity} unit(s) of equipment ID {equipmentId}");
                 return true;
             }
             catch (Exception ex)
@@ -207,44 +322,63 @@ namespace Blazor_WebAssembly.Services.Implementations
             }
         }
 
+        // Helper methods to safely get properties from JsonElement
+        private string? GetStringProperty(JsonElement element, string propertyName)
+        {
+            if (element.TryGetProperty(propertyName, out var property) &&
+                property.ValueKind != JsonValueKind.Null)
+            {
+                return property.GetString();
+            }
+            return null;
+        }
+
+        private int GetIntProperty(JsonElement element, string propertyName)
+        {
+            if (element.TryGetProperty(propertyName, out var property) &&
+                property.ValueKind == JsonValueKind.Number)
+            {
+                return property.GetInt32();
+            }
+            return 0;
+        }
+
+        private decimal? GetDecimalProperty(JsonElement element, string propertyName)
+        {
+            if (element.TryGetProperty(propertyName, out var property) &&
+                property.ValueKind == JsonValueKind.Number)
+            {
+                return property.GetDecimal();
+            }
+            return null;
+        }
+
+
         public async Task<List<CheckoutRecordDto>> GetCheckoutHistoryAsync()
         {
             try
             {
-                // Add more detailed logging to diagnose the issue
+                var httpClient = await GetHttpClientAsync();
                 Console.WriteLine($"Requesting checkout history from: {BaseApiPath}/history/detailed");
 
-                // FIX: Use the correct BaseApiPath variable for a consistent URL pattern
-                var response = await _httpClient.GetAsync($"{BaseApiPath}/history/detailed");
-
-                // Log the response status
+                var response = await httpClient.GetAsync($"{BaseApiPath}/history/detailed");
                 Console.WriteLine($"History request status: {response.StatusCode}");
 
                 if (response.IsSuccessStatusCode)
                 {
-                    var options = new JsonSerializerOptions
-                    {
-                        PropertyNameCaseInsensitive = true,
-                        IgnoreReadOnlyProperties = true
-                    };
-
                     // Log the raw response content for debugging
                     var contentString = await response.Content.ReadAsStringAsync();
-                    Console.WriteLine($"Raw response: {contentString}");
+                    Console.WriteLine($"Raw response length: {contentString.Length}");
 
-                    var history = await response.Content.ReadFromJsonAsync<List<CheckoutRecordDto>>(options);
+                    var history = await response.Content.ReadFromJsonAsync<List<CheckoutRecordDto>>(_jsonOptions);
 
                     if (history != null)
                     {
                         // Ensure each record has a Quantity field populated
-                        foreach (var record in history)
+                        foreach (var record in history.Where(r => r.Quantity <= 0))
                         {
-                            // If quantity is not set or is 0, default to 1 for backward compatibility
-                            if (record.Quantity <= 0)
-                            {
-                                record.Quantity = 1;
-                                Console.WriteLine($"Defaulting quantity to 1 for record ID: {record.Id}");
-                            }
+                            record.Quantity = 1;
+                            Console.WriteLine($"Defaulting quantity to 1 for record ID: {record.Id}");
                         }
 
                         Console.WriteLine($"Loaded {history.Count} checkout history records with quantity information");
@@ -258,10 +392,11 @@ namespace Blazor_WebAssembly.Services.Implementations
                     string errorContent = await response.Content.ReadAsStringAsync();
                     Console.WriteLine($"Error content: {errorContent}");
 
-                    // Try to determine if it's a routing issue
+                    // Try alternate endpoint if the first one fails with 404
                     if (response.StatusCode == System.Net.HttpStatusCode.NotFound)
                     {
-                        Console.WriteLine("The endpoint may not exist. Check the controller route configuration.");
+                        Console.WriteLine("Trying alternate endpoint for checkout history");
+                        return await TryAlternateHistoryEndpointAsync(httpClient);
                     }
 
                     return new List<CheckoutRecordDto>();
@@ -278,13 +413,33 @@ namespace Blazor_WebAssembly.Services.Implementations
             }
         }
 
+        private async Task<List<CheckoutRecordDto>> TryAlternateHistoryEndpointAsync(HttpClient httpClient)
+        {
+            try
+            {
+                // Try an alternate endpoint if the primary one fails
+                var response = await httpClient.GetAsync("api/EquipmentCheckout/history");
 
-        // Add this method to the CheckoutService class
+                if (response.IsSuccessStatusCode)
+                {
+                    var history = await response.Content.ReadFromJsonAsync<List<CheckoutRecordDto>>(_jsonOptions);
+                    return history ?? new List<CheckoutRecordDto>();
+                }
+
+                return new List<CheckoutRecordDto>();
+            }
+            catch
+            {
+                return new List<CheckoutRecordDto>();
+            }
+        }
+
         public async Task<int> GetInUseQuantityForEquipmentAsync(int equipmentId)
         {
             try
             {
-                var response = await _httpClient.GetAsync($"{BaseApiPath}/equipment/{equipmentId}/in-use-quantity");
+                var httpClient = await GetHttpClientAsync();
+                var response = await httpClient.GetAsync($"{BaseApiPath}/equipment/{equipmentId}/in-use-quantity");
                 Console.WriteLine($"In-use quantity request status: {response.StatusCode} for equipment {equipmentId}");
 
                 if (response.IsSuccessStatusCode)
@@ -312,7 +467,6 @@ namespace Blazor_WebAssembly.Services.Implementations
             }
         }
 
-        // Add this method to calculate available quantity
         public async Task<int> GetAvailableQuantityForEquipmentAsync(int equipmentId, int totalQuantity)
         {
             int inUseQuantity = await GetInUseQuantityForEquipmentAsync(equipmentId);

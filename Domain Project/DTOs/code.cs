@@ -29,6 +29,8 @@ namespace Domain_Project.DTOs
         public int Quantity { get; set; } = 1; // Default to 1 if not specified
         public string ItemCondition { get; set; } = "Good";
         public string ItemNotes { get; set; } = string.Empty;
+        public int AvailableAfterOperation { get; set; }
+
     }
 
     public class UserLoginDto
@@ -73,7 +75,8 @@ namespace Domain_Project.DTOs
                 public DateTime? LastUpdatedDate { get; internal set; }
                 public int CategoryId { get; internal set; }
                 public string? ModelNumber { get; internal set; }
-            }
+        public int? CheckoutRecordsCount { get; set; }
+    }
 
             public class EquipmentCheckoutDto
             {

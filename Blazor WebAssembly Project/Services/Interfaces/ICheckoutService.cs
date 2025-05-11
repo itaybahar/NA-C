@@ -12,6 +12,8 @@ namespace Blazor_WebAssembly.Services.Interfaces
         Task<List<CheckoutRecordDto>> GetCheckoutHistoryAsync();
         Task<int> GetAvailableQuantityForEquipmentAsync(int equipmentId, int totalQuantity); // Updated to include totalQuantity
         Task<int> GetInUseQuantityForEquipmentAsync(int equipmentId);
+        Task<bool> AddAdminHistoryRecordAsync(CheckoutRecordDto record);
+
     }
 
 

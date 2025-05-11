@@ -222,20 +222,13 @@ try
 
     builder.Services.AddScoped<Blazor_WebAssembly.Services.Interfaces.IEquipmentService, EquipmentService>();
 
-    builder.Services.AddScoped<IEquipmentRequestService>(sp => {
-        var apiUrlHandler = sp.GetRequiredService<DynamicApiUrlHandler>();
-        var logger = sp.GetRequiredService<ILogger<EquipmentRequestService>>();
-
-        // Get the factory and create a client with the right name
-        var httpClientFactory = sp.GetRequiredService<IHttpClientFactory>();
-        var client = httpClientFactory.CreateClient("API");
-
-        // Create a service with async initialization
-        var service = new EquipmentRequestService(client);
-
-        // Return the initialized service
-        return service;
-    });
+    builder.Services.AddScoped<IEquipmentRequestService>(sp =>
+        new EquipmentRequestService(
+            sp.GetRequiredService<HttpClient>(),
+            sp.GetRequiredService<ICheckoutService>(),
+            sp.GetRequiredService<Blazor_WebAssembly.Services.Interfaces.IEquipmentService>()  // Use fully qualified name
+        )
+    );
 
     builder.Services.AddScoped<IEquipmentReturnService>(sp =>
     {

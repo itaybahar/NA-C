@@ -1,10 +1,12 @@
-﻿using Blazor_WebAssembly.Auth;
+﻿using Blazor_WebAssembly.Models.Equipment;
 using Blazor_WebAssembly.Services.Interfaces;
 using Domain_Project.DTOs;
+using Domain_Project.Models;
 using Microsoft.AspNetCore.Components.Authorization;
 using Microsoft.Extensions.Logging;
 using Microsoft.JSInterop;
 using System;
+using System.Collections.Generic;
 using System.Net;
 using System.Net.Http;
 using System.Net.Http.Json;
@@ -16,7 +18,7 @@ namespace Blazor_WebAssembly.Services.Implementations
 {
     public class EquipmentReturnService : IEquipmentReturnService
     {
-        private readonly HttpClient _httpClient;
+        private readonly IHttpClientFactory _httpClientFactory;
         private readonly AuthenticationStateProvider _authStateProvider;
         private readonly ILogger<EquipmentReturnService> _logger;
         private readonly DynamicApiUrlHandler _apiUrlHandler;
@@ -24,11 +26,9 @@ namespace Blazor_WebAssembly.Services.Implementations
         private readonly ILogger<EquipmentService> _equipmentServiceLogger;
         private readonly IJSRuntime _jsRuntime;
         private readonly ILocalStorageService _localStorageService;
-        private readonly IHttpClientFactory _httpClientFactory;
-
 
         public EquipmentReturnService(
-            IHttpClientFactory httpClientFactory,    // Change to factory 
+            IHttpClientFactory httpClientFactory,
             AuthenticationStateProvider authStateProvider,
             ILogger<EquipmentReturnService> logger = null,
             DynamicApiUrlHandler apiUrlHandler = null,
@@ -36,8 +36,8 @@ namespace Blazor_WebAssembly.Services.Implementations
             ILocalStorageService localStorageService = null,
             ILogger<EquipmentService> equipmentServiceLogger = null)
         {
-            _httpClientFactory = httpClientFactory;  // Store factory
-            _authStateProvider = authStateProvider;
+            _httpClientFactory = httpClientFactory ?? throw new ArgumentNullException(nameof(httpClientFactory));
+            _authStateProvider = authStateProvider ?? throw new ArgumentNullException(nameof(authStateProvider));
             _logger = logger;
             _apiUrlHandler = apiUrlHandler;
             _jsRuntime = jsRuntime;
@@ -53,42 +53,39 @@ namespace Blazor_WebAssembly.Services.Implementations
             };
         }
 
-        private void LogBaseAddress()
-        {
-            if (_logger != null)
-            {
-                if (_httpClient.BaseAddress != null)
-                {
-                    _logger.LogInformation($"Using HTTP client base address: {_httpClient.BaseAddress}");
-                }
-                else
-                {
-                    _logger.LogWarning("Warning: HTTP client has no base address configured");
-                }
-            }
-            else
-            {
-                if (_httpClient.BaseAddress != null)
-                {
-                    Console.WriteLine($"Using HTTP client base address: {_httpClient.BaseAddress}");
-                }
-                else
-                {
-                    Console.WriteLine("Warning: HTTP client has no base address configured");
-                }
-            }
-        }
-
         private async Task<HttpClient> GetHttpClientAsync()
         {
             // If dynamic API URL handler is available, use it to get a client with the discovered API URL
             if (_apiUrlHandler != null)
             {
-                return await _apiUrlHandler.GetClientWithDiscoveredApiAsync();
+                try
+                {
+                    var client = await _apiUrlHandler.GetClientWithDiscoveredApiAsync();
+                    if (client.BaseAddress != null)
+                    {
+                        LogMessage($"Retrieved HTTP client with base address: {client.BaseAddress}", LogLevel.Debug);
+                        return client;
+                    }
+                }
+                catch (Exception ex)
+                {
+                    LogMessage($"Failed to get client from API URL handler: {ex.Message}", LogLevel.Warning);
+                }
             }
 
-            // Otherwise, use the injected HttpClient
-            return _httpClient;
+            // Fall back to creating a new client from the factory
+            try
+            {
+                var client = _httpClientFactory.CreateClient("API");
+                LogMessage($"Created HTTP client with base address: {client.BaseAddress}", LogLevel.Debug);
+                return client;
+            }
+            catch (Exception ex)
+            {
+                LogMessage($"Failed to create API client: {ex.Message}", LogLevel.Error);
+                // Last resort: create a basic client
+                return new HttpClient { BaseAddress = new Uri("https://localhost:5191/") };
+            }
         }
 
         public async Task<bool> UpdateReturnedEquipmentAsync(int equipmentId, int checkoutId, int userId, int quantity, string condition = "Good", string notes = "")
@@ -115,8 +112,12 @@ namespace Blazor_WebAssembly.Services.Implementations
                     quantity = checkout.Quantity > 0 ? checkout.Quantity : 1;
                 }
 
-                // Create services with the same HTTP client to maintain consistency
-                var checkoutService = new CheckoutService(httpClient, _authStateProvider);
+                // Create services with the HTTP client
+                var checkoutService = new CheckoutService(
+                    httpClient,
+                    _authStateProvider,
+                    _httpClientFactory);
+
                 var isReturned = await checkoutService.ReturnEquipmentAsync(checkoutId);
 
                 if (!isReturned)
@@ -125,7 +126,7 @@ namespace Blazor_WebAssembly.Services.Implementations
                     return false;
                 }
 
-                // FIXED: Properly create EquipmentService with all required parameters
+                // Create EquipmentService with all required parameters
                 var equipmentService = CreateEquipmentService(httpClient);
                 var equipment = await equipmentService.GetEquipmentByIdAsync(equipmentId);
 
@@ -215,7 +216,7 @@ namespace Blazor_WebAssembly.Services.Implementations
                     quantity = checkout.Quantity > 0 ? checkout.Quantity : 1;
                 }
 
-                var checkoutService = new CheckoutService(httpClient, _authStateProvider);
+                var checkoutService = new CheckoutService(httpClient, _authStateProvider, _httpClientFactory);
                 var isReturned = await checkoutService.ReturnEquipmentAsync(checkoutId.Value);
 
                 if (!isReturned)
@@ -224,7 +225,7 @@ namespace Blazor_WebAssembly.Services.Implementations
                     return false;
                 }
 
-                // FIXED: Properly create EquipmentService with all required parameters
+                // Create EquipmentService with all required parameters
                 var equipmentService = CreateEquipmentService(httpClient);
                 var equipment = await equipmentService.GetEquipmentByIdAsync(equipmentId);
 
@@ -285,7 +286,7 @@ namespace Blazor_WebAssembly.Services.Implementations
             }
         }
 
-        // ADDED: Helper method to create properly initialized EquipmentService
+        // Helper method to create properly initialized EquipmentService
         private EquipmentService CreateEquipmentService(HttpClient httpClient)
         {
             return new EquipmentService(
@@ -353,11 +354,8 @@ namespace Blazor_WebAssembly.Services.Implementations
             }
         }
 
-        // Rest of the file remains unchanged
-
         public async Task<int?> GetCheckoutIdByTeamAndEquipmentAsync(int teamId, int equipmentId)
         {
-            // Method implementation unchanged
             try
             {
                 var httpClient = await GetHttpClientAsync();
@@ -390,7 +388,6 @@ namespace Blazor_WebAssembly.Services.Implementations
 
         public async Task<bool> UpdateTeamAmountAsync(int teamId, int equipmentId, int quantity)
         {
-            // Method implementation unchanged
             try
             {
                 var httpClient = await GetHttpClientAsync();
@@ -422,7 +419,6 @@ namespace Blazor_WebAssembly.Services.Implementations
 
         public async Task<int> GetInUseQuantityForEquipmentAsync(int equipmentId)
         {
-            // Method implementation unchanged
             try
             {
                 var httpClient = await GetHttpClientAsync();
@@ -453,7 +449,6 @@ namespace Blazor_WebAssembly.Services.Implementations
 
         public async Task<int> GetAvailableQuantityForEquipmentAsync(int equipmentId, int totalQuantity)
         {
-            // Method implementation unchanged
             try
             {
                 var inUseQuantity = await GetInUseQuantityForEquipmentAsync(equipmentId);
@@ -468,7 +463,6 @@ namespace Blazor_WebAssembly.Services.Implementations
 
         private async Task<bool> AddCheckoutHistoryAsync(CheckoutRecordDto record, string notes = "")
         {
-            // Method implementation unchanged
             try
             {
                 var httpClient = await GetHttpClientAsync();
@@ -505,7 +499,7 @@ namespace Blazor_WebAssembly.Services.Implementations
                     {
                         try
                         {
-                            var response = await httpClient.PutAsJsonAsync($"api/equipmentcheckout/return/{checkoutId}", returnRequest);
+                            var response = await httpClient.PutAsJsonAsync($"api/equipmentcheckout/return/{checkoutId}", returnRequest, _jsonOptions);
 
                             if (response.IsSuccessStatusCode)
                             {

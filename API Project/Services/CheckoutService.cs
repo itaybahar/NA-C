@@ -98,24 +98,41 @@ namespace API_Project.Services
             }
         }
 
-        public async Task<bool> CheckoutEquipmentAsync(int teamId, int equipmentId, int userId)
+        // In CheckoutService.cs
+public async Task<bool> CheckoutEquipmentAsync(int teamId, int equipmentId, int userId, int quantity)
+{
+    try
+    {
+        // Create the checkout request with all required fields
+        var checkoutRequest = new
         {
-            try
-            {
-                var response = await _httpClient.PostAsJsonAsync($"{_baseApiPath}/checkout", new
-                {
-                    TeamID = teamId,
-                    EquipmentID = equipmentId,
-                    UserName = userId
-                });
-                return response.IsSuccessStatusCode;
-            }
-            catch (Exception ex)
-            {
-                Console.Error.WriteLine($"Error checking out equipment (Team: {teamId}, Equipment: {equipmentId}): {ex.Message}");
-                return false;
-            }
+            TeamID = teamId,
+            EquipmentID = equipmentId,
+            UserId = userId,
+            Quantity = quantity,
+            ExpectedReturnDate = DateTime.UtcNow.AddDays(7),
+            CheckoutDate = DateTime.UtcNow,
+            Notes = "Checked out via system"
+        };
+
+        var response = await _httpClient.PostAsJsonAsync($"{BaseApiPath}/checkout", checkoutRequest);
+
+        if (!response.IsSuccessStatusCode)
+        {
+            var errorContent = await response.Content.ReadAsStringAsync();
+            Console.Error.WriteLine($"Error checking out equipment: Status: {response.StatusCode}, Content: {errorContent}");
+            return false;
         }
+
+        return true;
+    }
+    catch (Exception ex)
+    {
+        Console.Error.WriteLine($"Error in CheckoutEquipmentAsync: {ex.Message}");
+        return false;
+    }
+}
+
 
         public async Task<List<CheckoutRecord>> GetUnreturnedByTeamAsync(string teamId)
         {

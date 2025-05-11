@@ -53,7 +53,6 @@ namespace API_Project.Data
                 entity.HasKey(e => e.Id);
             });
 
-            // Equipment Checkout configurations
             modelBuilder.Entity<EquipmentCheckout>(entity =>
             {
                 // Define primary key
@@ -66,13 +65,15 @@ namespace API_Project.Data
                 entity.Property(ec => ec.Status)
                     .HasDefaultValue("CheckedOut");
 
-                // Fix Equipment relationship - this is critical
-                entity.HasOne<Equipment>()
-                    .WithMany()
-                    .HasForeignKey(ec => ec.EquipmentId)
-                    .HasPrincipalKey(e => e.Id)
+                // Fix Equipment relationship - explicitly define the foreign key
+                entity.HasOne(ec => ec.Equipment) // Navigation property
+                    .WithMany() // Assuming Equipment has no collection of EquipmentCheckouts
+                    .HasForeignKey(ec => ec.EquipmentId) // Explicitly map the foreign key
+                    .HasPrincipalKey(e => e.Id) // Map to the primary key of Equipment
+                    .OnDelete(DeleteBehavior.Cascade) // Define delete behavior
                     .IsRequired();
 
+                // Configure Team relationship
                 entity.HasOne<Team>()
                     .WithMany()
                     .HasForeignKey(ec => ec.TeamID);
@@ -82,12 +83,6 @@ namespace API_Project.Data
                 entity.Property(ec => ec.ExpectedReturnDate).IsRequired();
                 entity.Property(ec => ec.Status).HasMaxLength(20).IsRequired();
                 entity.Property(ec => ec.Quantity).IsRequired().HasDefaultValue(1);
-
-                // Delete orphaned records option
-                entity.HasOne<Equipment>()
-                    .WithMany()
-                    .HasForeignKey(ec => ec.EquipmentId)
-                    .OnDelete(DeleteBehavior.Cascade);
             });
 
             // Equipment Request configurations

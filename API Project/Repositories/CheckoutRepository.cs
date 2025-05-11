@@ -34,7 +34,7 @@ namespace API_Project.Repositories
             // Convert the Checkout model to EquipmentCheckout entity
             var equipmentCheckout = new EquipmentCheckout
             {
-                EquipmentId = checkout.EquipmentId, // Changed from EquipmentID to EquipmentId
+                EquipmentId = checkout.EquipmentId, 
                 TeamID = checkout.TeamId,
                 UserID = checkout.UserId,
                 CheckoutDate = checkout.CheckoutDate,

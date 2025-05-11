@@ -258,7 +258,88 @@ namespace API_Project.Services
                     throw new InvalidOperationException("Database context is not initialized");
                 }
 
-                return await _dbContext.Equipment.FindAsync(id);
+                // First retrieve the equipment without including checkout records
+                var equipment = await _dbContext.Equipment
+                    .FirstOrDefaultAsync(e => e.Id == id);
+
+                if (equipment == null)
+                {
+                    _logger.LogWarning($"Equipment with ID: {id} not found");
+                    return null;
+                }
+
+                var checkoutRecords = new List<CheckoutRecord>();
+
+                try
+                {
+                    // Use parameterized SQL query for security and retrieve as objects to handle nulls properly
+                    var connection = _dbContext.Database.GetDbConnection();
+                    if (connection.State != System.Data.ConnectionState.Open)
+                        await connection.OpenAsync();
+
+                    using (var command = connection.CreateCommand())
+                    {
+                        command.CommandText = "SELECT CheckoutID, EquipmentID, TeamID, UserID, " +
+                                              "CheckoutDate, ActualReturnDate, COALESCE(Quantity, 1) as Quantity, " +
+                                              "Status FROM EquipmentCheckouts WHERE EquipmentID = @equipmentId";
+
+                        var parameter = command.CreateParameter();
+                        parameter.ParameterName = "equipmentId";
+                        parameter.Value = id;
+                        command.Parameters.Add(parameter);
+
+                        using (var reader = await command.ExecuteReaderAsync())
+                        {
+                            while (await reader.ReadAsync())
+                            {
+                                try
+                                {
+                                    var checkoutId = reader.GetInt32(reader.GetOrdinal("CheckoutID"));
+                                    var teamId = reader.GetInt32(reader.GetOrdinal("TeamID"));
+                                    var userId = reader.GetInt32(reader.GetOrdinal("UserID"));
+                                    var checkedOutAt = reader.GetDateTime(reader.GetOrdinal("CheckoutDate"));
+
+                                    // Handle potentially NULL fields
+                                    DateTime? returnedAt = null;
+                                    if (!reader.IsDBNull(reader.GetOrdinal("ActualReturnDate")))
+                                        returnedAt = reader.GetDateTime(reader.GetOrdinal("ActualReturnDate"));
+
+                                    // Use COALESCE in SQL to default NULL Quantity to 1
+                                    var quantity = reader.GetInt32(reader.GetOrdinal("Quantity"));
+
+                                    checkoutRecords.Add(new CheckoutRecord
+                                    {
+                                        Id = checkoutId.ToString(),
+                                        EquipmentId = id,
+                                        TeamId = teamId,
+                                        UserId = userId,
+                                        CheckedOutAt = checkedOutAt,
+                                        ReturnedAt = returnedAt,
+                                        Quantity = quantity,
+                                        Equipment = equipment,
+                                        Team = new Team { TeamName = string.Empty, TeamID = teamId },
+                                        User = userId.ToString()
+                                    });
+                                }
+                                catch (Exception ex)
+                                {
+                                    _logger.LogWarning(ex, "Error processing checkout record for equipment {EquipmentId}", id);
+                                }
+                            }
+                        }
+                    }
+                }
+                catch (Exception ex)
+                {
+                    _logger.LogWarning(ex, "Error retrieving checkout records for equipment {EquipmentId}", id);
+                }
+
+                // Assign the checkout records to the equipment
+                equipment.CheckoutRecords = checkoutRecords;
+
+                _logger.LogInformation($"Successfully retrieved equipment with ID: {id} with {checkoutRecords.Count} checkout records");
+                return equipment;
+
             }
             catch (Exception ex)
             {
