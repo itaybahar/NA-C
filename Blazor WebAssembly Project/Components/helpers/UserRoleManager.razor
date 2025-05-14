@@ -97,7 +97,7 @@
                     <tbody>
                         @foreach (var user in FilteredUsers)
                         {
-                            <tr class="@(GetUserIsActive(user) ? "" : "inactive")">
+                            <tr class="@(GetIsActive(user) ? "" : "inactive")">
                                 <td>@user.UserID</td>
                                 <td>@user.Username</td>
                                 <td>@user.Email</td>
@@ -108,8 +108,8 @@
                                     </span>
                                 </td>
                                 <td>
-                                    <span class="status-badge @(GetUserIsActive(user) ? "returned-badge" : "checked-out-badge")">
-                                        @(GetUserIsActive(user) ? "פעיל" : "לא פעיל")
+                                    <span class="status-badge @(GetIsActive(user) ? "returned-badge" : "checked-out-badge")">
+                                        @(GetIsActive(user) ? "פעיל" : "לא פעיל")
                                     </span>
                                 </td>
                                 <td>
@@ -157,10 +157,10 @@
                                                 <button class="btn-action btn-sm" @onclick="() => StartEditingUser(user)" title="שנה תפקיד">
                                                     <i class="bi bi-pencil-square"></i>
                                                 </button>
-                                                <button class="btn-action btn-sm @(GetUserIsActive(user) ? "delete" : "success")"
+                                                <button class="btn-action btn-sm @(GetIsActive(user) ? "delete" : "success")"
                                                         @onclick="() => ToggleUserStatus(user)"
-                                                        title="@(GetUserIsActive(user) ? "השבת משתמש" : "הפעל משתמש")">
-                                                    <i class="bi @(GetUserIsActive(user) ? "bi-person-dash" : "bi-person-check")"></i>
+                                                        title="@(GetIsActive(user) ? "השבת משתמש" : "הפעל משתמש")">
+                                                    <i class="bi @(GetIsActive(user) ? "bi-person-dash" : "bi-person-check")"></i>
                                                 </button>
                                             </div>
                                         }
@@ -205,8 +205,8 @@
 
                             <div class="flex items-center justify-between mb-2">
                                 <span>סטטוס:</span>
-                                <span class="status-badge @(GetUserIsActive(user) ? "returned-badge" : "checked-out-badge")">
-                                    @(GetUserIsActive(user) ? "פעיל" : "לא פעיל")
+                                <span class="status-badge @(GetIsActive(user) ? "returned-badge" : "checked-out-badge")">
+                                    @(GetIsActive(user) ? "פעיל" : "לא פעיל")
                                 </span>
                             </div>
                         </div>
@@ -254,10 +254,10 @@
                                         <button class="btn-action btn-sm" @onclick="() => StartEditingUser(user)">
                                             <i class="bi bi-pencil-square"></i> שנה תפקיד
                                         </button>
-                                        <button class="btn-action btn-sm @(GetUserIsActive(user) ? "delete" : "success")"
+                                        <button class="btn-action btn-sm @(GetIsActive(user) ? "delete" : "success")"
                                                 @onclick="() => ToggleUserStatus(user)">
-                                            <i class="bi @(GetUserIsActive(user) ? "bi-person-dash" : "bi-person-check")"></i>
-                                            @(GetUserIsActive(user) ? "השבת" : "הפעל")
+                                            <i class="bi @(GetIsActive(user) ? "bi-person-dash" : "bi-person-check")"></i>
+                                            @(GetIsActive(user) ? "השבת" : "הפעל")
                                         </button>
                                     </div>
                                 }
@@ -301,18 +301,17 @@
     private string statusFilter = string.Empty;
     private ViewMode viewMode = ViewMode.List;
 
-    // Dictionary to store user states since UserDto doesn't have IsActive property
+    // Dictionary to store user active states
     private Dictionary<int, bool> userActiveStates = new Dictionary<int, bool>();
 
-    // Helper to get active state for a user
-    private bool GetUserIsActive(UserDto user)
+    // Helper method to get active state
+    private bool GetIsActive(UserDto user)
     {
         if (userActiveStates.TryGetValue(user.UserID, out bool isActive))
         {
             return isActive;
         }
-        // Default to active if not set
-        return true;
+        return true; // Default to active if not set
     }
 
     // Filtered users based on search term
@@ -327,8 +326,8 @@
              u.Role.Equals(roleFilter, StringComparison.OrdinalIgnoreCase))
             &&
             (string.IsNullOrWhiteSpace(statusFilter) ||
-             (statusFilter == "true" && GetUserIsActive(u)) ||
-             (statusFilter == "false" && !GetUserIsActive(u)))
+             (statusFilter == "true" && GetIsActive(u)) ||
+             (statusFilter == "false" && !GetIsActive(u)))
         )
         .ToList();
 
@@ -373,39 +372,19 @@
 
             Logger.LogInformation("Loading users list...");
 
-            // Since GetAllUsersAsync doesn't exist, we'll simulate it using GetUserByUsernameAsync
-            // This is just a placeholder. You should implement GetAllUsersAsync in IUserService
-            var usersList = new List<UserDto>();
+            // Call API to get all users
+            var fetchedUsers = await UserService.GetAllUsersAsync();
 
-            // Simulated data for demonstration
-            usersList.Add(new UserDto
-            {
-                UserID = 1,
-                Username = "admin",
-                Email = "admin@example.com",
-                FirstName = "Admin",
-                LastName = "User",
-                Role = "Admin"
-            });
+            // Use the helper to ensure all DTOs have valid required properties
+            users = Blazor_WebAssembly.Helpers.DtoHelpers.EnsureValidUserDtos(fetchedUsers ?? new List<UserDto>());
 
-            usersList.Add(new UserDto
-            {
-                UserID = 2,
-                Username = "warehousemgr",
-                Email = "warehouse@example.com",
-                FirstName = "Warehouse",
-                LastName = "Manager",
-                Role = "WarehouseManager"
-            });
-
-            users = usersList;
-
-            // Initialize active states
+            // Initialize active states for all users
             foreach (var user in users)
             {
                 if (!userActiveStates.ContainsKey(user.UserID))
                 {
-                    userActiveStates[user.UserID] = true; // Default to active
+                    // Initialize as active if not already set
+                    userActiveStates[user.UserID] = true;
                 }
             }
 
@@ -416,6 +395,38 @@
             message = $"שגיאה בטעינת רשימת משתמשים: {ex.Message}";
             isError = true;
             Logger.LogError(ex, "Error loading users list");
+
+            // Fall back to sample data if API call fails
+            if (users.Count == 0)
+            {
+                // Create sample users
+                var admin = new UserDto
+                    {
+                        UserID = 1,
+                        Username = "admin",
+                        Email = "admin@example.com",
+                        FirstName = "Admin",
+                        LastName = "User",
+                        Role = "Admin"
+                    };
+
+                var warehouseMgr = new UserDto
+                    {
+                        UserID = 2,
+                        Username = "warehousemgr",
+                        Email = "warehouse@example.com",
+                        FirstName = "Warehouse",
+                        LastName = "Manager",
+                        Role = "WarehouseManager"
+                    };
+
+                users.Add(admin);
+                users.Add(warehouseMgr);
+
+                // Set active states for sample users
+                userActiveStates[admin.UserID] = true;
+                userActiveStates[warehouseMgr.UserID] = true;
+            }
         }
         finally
         {
@@ -423,6 +434,7 @@
             StateHasChanged();
         }
     }
+
 
     private async Task RefreshUsers()
     {
@@ -434,7 +446,7 @@
 
     private bool CanManageUser(UserDto user)
     {
-        // Admin can manage all users except other admins (unless they are the same admin)
+        // Admin can manage all users
         if (currentUserIsAdmin)
             return true;
 
@@ -489,33 +501,21 @@
                 return;
             }
 
-            // Update user role - this needs to be modified since UpdateUserRoleAsync doesn't return a bool
+            // Call API to update user role
             await UserService.UpdateUserRoleAsync(user.UserID, selectedRole);
 
-            // Since we can't tell if it succeeded, we'll assume it did
-            bool success = true;
+            Logger.LogInformation($"Role for user {user.Username} (ID: {user.UserID}) updated to {selectedRole} successfully.");
 
-            if (success)
-            {
-                Logger.LogInformation($"Role for user {user.Username} (ID: {user.UserID}) updated to {selectedRole} successfully.");
+            // Update the local list
+            user.Role = selectedRole;
+            Logger.LogInformation($"Local user list updated for user ID {user.UserID}.");
 
-                // Update the local list
-                user.Role = selectedRole;
-                Logger.LogInformation($"Local user list updated for user ID {user.UserID}.");
+            message = $"הרשאות המשתמש {user.Username} עודכנו בהצלחה ל: {GetHebrewRoleName(selectedRole)}";
+            isError = false;
 
-                message = $"הרשאות המשתמש {user.Username} עודכנו בהצלחה ל: {GetHebrewRoleName(selectedRole)}";
-                isError = false;
-
-                // Reset selection
-                editingUserId = null;
-                selectedRole = "";
-            }
-            else
-            {
-                message = "שגיאה בעדכון ההרשאות. נסה שנית.";
-                isError = true;
-                Logger.LogWarning($"Failed to update role for user ID {user.UserID}.");
-            }
+            // Reset selection
+            editingUserId = null;
+            selectedRole = "";
         }
         catch (Exception ex)
         {
@@ -545,34 +545,21 @@
 
         try
         {
-            bool currentIsActive = GetUserIsActive(user);
-            Logger.LogInformation($"Toggling status for user {user.Username} (ID: {user.UserID}) from {(currentIsActive ? "active" : "inactive")} to {(!currentIsActive ? "active" : "inactive")}...");
+            bool currentStatus = GetIsActive(user);
+            bool newStatus = !currentStatus;
+            Logger.LogInformation($"Toggling status for user {user.Username} (ID: {user.UserID}) from {(currentStatus ? "active" : "inactive")} to {(newStatus ? "active" : "inactive")}...");
 
-            // Update user status (toggle it)
-            bool newStatus = !currentIsActive;
+            // Call API to update user status
+            await UserService.UpdateUserStatusAsync(user.UserID, newStatus);
 
-            // Since UpdateUserStatusAsync doesn't exist, we'll just update our local state
-            // In a real app, you would call the API
-            // bool success = await UserService.UpdateUserStatusAsync(user.UserID, newStatus);
-            bool success = true;
+            Logger.LogInformation($"Status for user {user.Username} (ID: {user.UserID}) updated to {(newStatus ? "active" : "inactive")} successfully.");
 
-            if (success)
-            {
-                Logger.LogInformation($"Status for user {user.Username} (ID: {user.UserID}) updated to {(newStatus ? "active" : "inactive")} successfully.");
+            // Update the local state
+            userActiveStates[user.UserID] = newStatus;
+            Logger.LogInformation($"Local user status updated for user ID {user.UserID}.");
 
-                // Update the local state
-                userActiveStates[user.UserID] = newStatus;
-                Logger.LogInformation($"Local user status updated for user ID {user.UserID}.");
-
-                message = $"סטטוס המשתמש {user.Username} עודכן בהצלחה ל: {(newStatus ? "פעיל" : "לא פעיל")}";
-                isError = false;
-            }
-            else
-            {
-                message = "שגיאה בעדכון סטטוס המשתמש. נסה שנית.";
-                isError = true;
-                Logger.LogWarning($"Failed to update status for user ID {user.UserID}.");
-            }
+            message = $"סטטוס המשתמש {user.Username} עודכן בהצלחה ל: {(newStatus ? "פעיל" : "לא פעיל")}";
+            isError = false;
         }
         catch (Exception ex)
         {
@@ -601,7 +588,7 @@
 
     private string GetRoleBadgeClass(string role)
     {
-        return role.ToLower() switch
+        return role?.ToLower() switch
         {
             "admin" => "checked-out-badge",        // Red for admin
             "warehousemanager" => "warning-badge", // Orange/yellow for warehouse manager
@@ -613,10 +600,10 @@
 
     private string GetCardClass(UserDto user)
     {
-        if (!GetUserIsActive(user))
+        if (!GetIsActive(user))
             return "";
 
-        return user.Role.ToLower() switch
+        return user.Role?.ToLower() switch
         {
             "admin" => "danger",
             "warehousemanager" => "warning",

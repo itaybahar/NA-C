@@ -6,14 +6,14 @@ using Microsoft.AspNetCore.Mvc;
 namespace API_Project.Controllers
 {
     [Route("api/[controller]")]
-    [Authorize(Roles = "WarehouseManager,CentralManager")]
+    [Authorize(Roles = "WarehouseManager,admin")]
     public class BlacklistController : BaseController<Blacklist, IGenericRepository<Blacklist>>
     {
         private readonly IUnitOfWork _unitOfWork;
 
         public BlacklistController(IGenericRepository<Blacklist> repository, IUnitOfWork unitOfWork) : base(repository, unitOfWork)
         {
-            _unitOfWork = unitOfWork; // Assign the injected unitOfWork to a private field
+            _unitOfWork = unitOfWork;
         }
 
         protected override int GetEntityId(Blacklist entity) => entity.BlacklistID;
@@ -48,25 +48,23 @@ namespace API_Project.Controllers
             };
 
             await _repository.AddAsync(blacklist);
-            await _unitOfWork.CompleteAsync(); // Ensure changes are saved to the database
+            await _unitOfWork.CompleteAsync();
 
             return CreatedAtAction(nameof(GetById), new { id = blacklist.BlacklistID }, blacklist);
         }
 
         [HttpPatch("{blacklistId}/remove")]
-        public async Task<IActionResult> RemoveFromBlacklist(int blacklistId)
+        public async Task RemoveFromBlacklist(int blacklistId)
         {
             var blacklist = await _repository.GetByIdAsync(blacklistId);
             if (blacklist == null)
             {
-                return NotFound();
+                return;
             }
 
             blacklist.RemovalDate = DateTime.UtcNow;
             await _repository.UpdateAsync(blacklist);
-            await _unitOfWork.CompleteAsync(); // Ensure changes are saved to the database
-
-            return Ok(blacklist);
+            await _unitOfWork.CompleteAsync();
         }
     }
 }

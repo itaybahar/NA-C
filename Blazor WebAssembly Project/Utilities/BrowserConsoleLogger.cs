@@ -3,7 +3,7 @@ using System.Text;
 
 namespace Blazor_WebAssembly.Utilities.BrowserConsoleLogger
 {
-    public static class BrowserConsoleLogger
+    public static class DtoHelpers
     {
         private static IJSRuntime? _jsRuntime;
 

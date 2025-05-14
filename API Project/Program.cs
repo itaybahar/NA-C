@@ -9,7 +9,9 @@ using Microsoft.AspNetCore.Authentication.JwtBearer;
 using Microsoft.AspNetCore.CookiePolicy;
 using Microsoft.AspNetCore.Diagnostics;
 using Microsoft.AspNetCore.Diagnostics.HealthChecks;
+using Microsoft.AspNetCore.Mvc.ApplicationModels;
 using Microsoft.AspNetCore.RateLimiting;
+using Microsoft.AspNetCore.Routing;
 using Microsoft.EntityFrameworkCore;
 using Microsoft.Extensions.Diagnostics.HealthChecks;
 using Microsoft.IdentityModel.Tokens;
@@ -21,7 +23,7 @@ using System.Text;
 using System.Text.Json;
 using System.Text.Json.Serialization;
 using System.Threading.RateLimiting;
-
+using Blazor_WebAssembly.Services;
 namespace API_Project
 {
     public class Program
@@ -197,18 +199,23 @@ namespace API_Project
             }
             builder.Services.AddSingleton(authSettings);
 
-            builder.Services.AddControllers()
-                .AddJsonOptions(options =>
-                {
-                    options.JsonSerializerOptions.ReferenceHandler = ReferenceHandler.IgnoreCycles;
-                    options.JsonSerializerOptions.DefaultIgnoreCondition = JsonIgnoreCondition.WhenWritingNull;
-                    // Add property name policy to ensure consistency between client and server
-                    options.JsonSerializerOptions.PropertyNamingPolicy = JsonNamingPolicy.CamelCase;
-                    // Add converter for enums
-                    options.JsonSerializerOptions.Converters.Add(new JsonStringEnumConverter());
-                    // Ensure proper number handling
-                    options.JsonSerializerOptions.NumberHandling = JsonNumberHandling.AllowReadingFromString;
-                });
+            // Configure controllers with conventions to fix route ambiguity
+            builder.Services.AddControllers(options =>
+            {
+                // Add a convention to differentiate between controllers with similar routes
+                //options.Conventions.Add(new ControllerNamePrefixConvention());
+            })
+            .AddJsonOptions(options =>
+            {
+                options.JsonSerializerOptions.ReferenceHandler = ReferenceHandler.IgnoreCycles;
+                options.JsonSerializerOptions.DefaultIgnoreCondition = JsonIgnoreCondition.WhenWritingNull;
+                // Add property name policy to ensure consistency between client and server
+                options.JsonSerializerOptions.PropertyNamingPolicy = JsonNamingPolicy.CamelCase;
+                // Add converter for enums
+                options.JsonSerializerOptions.Converters.Add(new JsonStringEnumConverter());
+                // Ensure proper number handling
+                options.JsonSerializerOptions.NumberHandling = JsonNumberHandling.AllowReadingFromString;
+            });
 
             ConfigureDatabase(builder);
             RegisterNamedHttpClients(builder);
@@ -234,15 +241,15 @@ namespace API_Project
                     throw new InvalidOperationException("SecretKey is missing in AuthenticationSettings.");
                 }
 
-                 options.TokenValidationParameters = new TokenValidationParameters
-                 {
-                     ValidateIssuer = true,
-                     ValidateAudience = true,
-                     ValidateLifetime = true,
-                     ValidateIssuerSigningKey = true,
-                     IssuerSigningKey = new SymmetricSecurityKey(
-                                     Encoding.UTF8.GetBytes(authSettings.SecretKey))
-                 };
+                options.TokenValidationParameters = new TokenValidationParameters
+                {
+                    ValidateIssuer = true,
+                    ValidateAudience = true,
+                    ValidateLifetime = true,
+                    ValidateIssuerSigningKey = true,
+                    IssuerSigningKey = new SymmetricSecurityKey(
+                                    Encoding.UTF8.GetBytes(authSettings.SecretKey))
+                };
 
                 // Add debugging
                 options.Events = new JwtBearerEvents
@@ -696,14 +703,14 @@ namespace API_Project
             app.MapGet("/api/server-info/ports", (IServerPortProvider portProvider) =>
                 new { HttpPort = portProvider.HttpPort, HttpsPort = portProvider.HttpsPort });
 
-            // Add CORS preflight handling middleware for all OPTIONS requests
+            // Add CORS preflight handling middleware for all OPTIONS requests - FIX: Use Append for headers
             app.Use(async (context, next) =>
             {
                 if (context.Request.Method == "OPTIONS")
                 {
-                    context.Response.Headers.Add("Access-Control-Allow-Origin", "*");
-                    context.Response.Headers.Add("Access-Control-Allow-Headers", "Origin, X-Requested-With, Content-Type, Accept, Authorization");
-                    context.Response.Headers.Add("Access-Control-Allow-Methods", "GET, POST, PUT, DELETE, OPTIONS");
+                    context.Response.Headers.Append("Access-Control-Allow-Origin", "*");
+                    context.Response.Headers.Append("Access-Control-Allow-Headers", "Origin, X-Requested-With, Content-Type, Accept, Authorization");
+                    context.Response.Headers.Append("Access-Control-Allow-Methods", "GET, POST, PUT, DELETE, OPTIONS");
                     context.Response.StatusCode = 200;
                     return;
                 }
@@ -711,7 +718,7 @@ namespace API_Project
                 await next();
             });
 
-            // Add email test endpoint
+            // Add email test endpoint - FIX: Using nullable dictionary
             app.MapGet("/api/email/test", async (IEmailService emailService, IConfiguration config) =>
             {
                 try
@@ -725,11 +732,14 @@ namespace API_Project
                 }
                 catch (Exception ex)
                 {
+                    // Create dictionary with nullable values to match expected type
+                    var extensions = new Dictionary<string, object?> { { "TraceId", Guid.NewGuid().ToString() } };
+
                     return Results.Problem(
                         title: "Email Test Failed",
                         detail: $"Failed to send test email: {ex.Message}",
                         statusCode: 500,
-                        extensions: new Dictionary<string, object> { { "TraceId", Guid.NewGuid().ToString() } }
+                        extensions: extensions
                     );
                 }
             })
@@ -885,6 +895,60 @@ namespace API_Project
             {
                 logger.LogCritical(ex, "Database connection error: {Message}", ex.Message);
                 throw;
+            }
+        }
+    }
+
+    // Convention to prefix controller routes to avoid ambiguity between similarly named controllers
+    public class ControllerNamePrefixConvention : IControllerModelConvention
+    {
+        public void Apply(ControllerModel controller)
+        {
+            // Check if controller name contains "User" as these are the conflicting controllers
+            if (controller.ControllerName.Equals("User", StringComparison.OrdinalIgnoreCase))
+            {
+                // Add a prefix to all routes in the controller
+                foreach (var selector in controller.Selectors)
+                {
+                    if (selector.AttributeRouteModel == null)
+                    {
+                        selector.AttributeRouteModel = new AttributeRouteModel
+                        {
+                            Template = $"api/single-users/[controller]"
+                        };
+                    }
+                    else
+                    {
+                        // If the route is already explicitly set, we'll prepend our prefix
+                        var template = selector.AttributeRouteModel.Template;
+                        if (!string.IsNullOrEmpty(template))
+                        {
+                            selector.AttributeRouteModel.Template = $"api/single-users/{template}";
+                        }
+                    }
+                }
+            }
+            else if (controller.ControllerName.Equals("Users", StringComparison.OrdinalIgnoreCase))
+            {
+                // Add a different prefix to distinguish from UserController
+                foreach (var selector in controller.Selectors)
+                {
+                    if (selector.AttributeRouteModel == null)
+                    {
+                        selector.AttributeRouteModel = new AttributeRouteModel
+                        {
+                            Template = $"api/multiple-users/[controller]"
+                        };
+                    }
+                    else
+                    {
+                        var template = selector.AttributeRouteModel.Template;
+                        if (!string.IsNullOrEmpty(template))
+                        {
+                            selector.AttributeRouteModel.Template = $"api/multiple-users/{template}";
+                        }
+                    }
+                }
             }
         }
     }

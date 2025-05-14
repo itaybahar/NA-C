@@ -129,10 +129,17 @@ namespace Blazor_WebAssembly.Services.Implementations
             throw new NotImplementedException();
         }
 
-        public Task<bool> IsUserInRoleAsync(string role)
+        public async Task<bool> IsUserInRoleAsync(string role)
         {
-            throw new NotImplementedException();
+            // Retrieve the user object from local storage
+            var user = await _localStorage.GetItemAsync<UserDto>("user");
+            if (user == null || string.IsNullOrEmpty(user.Role))
+                return false;
+
+            // Compare the user's role (case-insensitive) to the requested role
+            return string.Equals(user.Role, role, StringComparison.OrdinalIgnoreCase);
         }
+
         // ✅ חדש: מימוש של GetTokenAsync
         public async Task<string> GetTokenAsync()
         {

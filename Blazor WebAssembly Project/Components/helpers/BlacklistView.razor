@@ -1,7 +1,10 @@
 ﻿@using Blazor_WebAssembly.Models
 @using Domain_Project.DTOs
 @using Blazor_WebAssembly.Services.Interfaces
+@using System.Security.Claims
 @inject ITeamService TeamService
+@inject IBlacklistService BlacklistService
+@inject Microsoft.AspNetCore.Components.Authorization.AuthenticationStateProvider AuthStateProvider
 @inject ILogger<BlacklistView> Logger
 
 <link href="css/helpers.css" rel="stylesheet" />
@@ -71,7 +74,7 @@
 
         @if (!string.IsNullOrEmpty(Message))
         {
-            <div class="@(IsError ? "alert-danger" : "alert-success") mt-4">
+            <div class="@(IsError ? "alert-danger" : "alert-success") mt-4 p-3 rounded">
                 @Message
             </div>
         }
@@ -97,7 +100,7 @@
             <button class="btn-action secondary" @onclick="CancelRemoval">
                 ביטול
             </button>
-            <button class="btn-action delete" @onclick="ConfirmRemoval">
+            <button class="btn-action delete" @onclick="ConfirmRemoval" disabled="@IsRemoving">
                 הסר מהרשימה
             </button>
         </div>
@@ -112,11 +115,24 @@
     private bool IsError = false;
     private TeamDto? teamToRemove;
     private bool showConfirmDialog;
+    private int currentUserId = 0;
 
     protected override async Task OnInitializedAsync()
     {
         try
         {
+            // Try to get the current user's ID
+            var authState = await AuthStateProvider.GetAuthenticationStateAsync();
+            var user = authState.User;
+            if (user.Identity?.IsAuthenticated == true)
+            {
+                var userIdClaim = user.FindFirst(ClaimTypes.NameIdentifier);
+                if (userIdClaim != null && int.TryParse(userIdClaim.Value, out int userId))
+                {
+                    currentUserId = userId;
+                }
+            }
+
             await LoadBlacklistedTeams();
         }
         catch (Exception ex)
@@ -160,7 +176,6 @@
         }
     }
 
-    // Show confirmation dialog before removing a team from the blacklist
     private void RemoveFromBlacklist(TeamDto team)
     {
         teamToRemove = team;
@@ -168,7 +183,6 @@
         StateHasChanged();
     }
 
-    // Cancel removal and close dialog
     private void CancelRemoval()
     {
         teamToRemove = null;
@@ -176,7 +190,6 @@
         StateHasChanged();
     }
 
-    // Confirm removal and process
     private async Task ConfirmRemoval()
     {
         showConfirmDialog = false;
@@ -186,7 +199,6 @@
         }
     }
 
-    // Method to remove a team from the blacklist
     private async Task ProcessRemoval(TeamDto team)
     {
         IsRemoving = true;
@@ -196,19 +208,37 @@
         {
             Logger.LogInformation($"Attempting to remove team {team.TeamID} from blacklist");
 
-            // Simulating an async operation to avoid CS1998 warning
-            await Task.Delay(1); // Minimal delay just to make the method truly async
+            bool result = false;
 
-            // This would call your service to remove the team from the blacklist
-            // For now, let's just display a message as this functionality may not be implemented yet
-            Message = $"הסרת צוות {team.TeamName} מהרשימה השחורה - פונקציונליות בפיתוח";
-            IsError = false;
+            // First try TeamService (which seems to use string IDs)
+            try
+            {
+                result = await TeamService.RemoveFromBlacklistAsync(team.TeamID.ToString());
+                Logger.LogInformation($"TeamService.RemoveFromBlacklistAsync result: {result}");
+            }
+            catch (Exception ex)
+            {
+                Logger.LogWarning(ex, "Attempt to use TeamService.RemoveFromBlacklistAsync failed, trying BlacklistService instead");
+            }
 
-            // When the actual implementation is ready, you would do something like:
-            // var result = await TeamService.RemoveFromBlacklistAsync(team.TeamID);
-            // if (result) {
-            //     await LoadBlacklistedTeams(); // Refresh the list
-            // }
+            // If that didn't work, try BlacklistService (which uses int IDs)
+            if (!result)
+            {
+                result = await BlacklistService.RemoveFromBlacklistAsync(team.TeamID);
+                Logger.LogInformation($"BlacklistService.RemoveFromBlacklistAsync result: {result}");
+            }
+
+            if (result)
+            {
+                Message = $"הצוות {team.TeamName} הוסר מהרשימה השחורה בהצלחה.";
+                IsError = false;
+                await LoadBlacklistedTeams(); // Refresh the list
+            }
+            else
+            {
+                Message = $"שגיאה: לא ניתן היה להסיר את הצוות {team.TeamName} מהרשימה השחורה.";
+                IsError = true;
+            }
         }
         catch (Exception ex)
         {

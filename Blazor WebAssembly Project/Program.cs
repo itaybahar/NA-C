@@ -60,6 +60,8 @@ try
     // ========= FIX: Register a memory configuration provider =========
     // Add an empty memory configuration provider first
     builder.Configuration.AddInMemoryCollection();
+    builder.Services.AddScoped<Blazor_WebAssembly.Services.Interfaces.IBlacklistService, BlacklistService>();
+
 
     // Use resilient API detection with retries
     string apiBaseUrl = await DetectApiServerWithRetryAsync(possibleApiUrls, maxRetries: 3);
@@ -168,6 +170,17 @@ try
     // ===========================================
     // Register AuthService with factory to break circular dependency
     // ===========================================
+    // Ensure your HttpClient is configured with the correct base address
+    builder.Services.AddScoped(sp => new HttpClient
+    {
+        BaseAddress = new Uri(builder.HostEnvironment.BaseAddress)
+    });
+
+    // Or for a separate API server:
+    builder.Services.AddScoped(sp => new HttpClient
+    {
+        BaseAddress = new Uri("https://localhost:5001/")
+    });
 
     // 11. Register AuthService without direct reference to AuthenticationStateProvider
     builder.Services.AddScoped<IAuthService>(sp =>

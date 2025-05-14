@@ -138,7 +138,6 @@ namespace API_Project.Controllers
 
 
         [HttpGet("blacklisted")]
-        [Authorize(Roles = "WarehouseManager")]
         public async Task<IActionResult> GetBlacklistedTeams()
         {
             try

@@ -5,7 +5,6 @@
 @inject IAuthService AuthService
 @inject NavigationManager Navigation
 @inject IJSRuntime JSRuntime
-@inject IApiDiscoveryService ApiDiscoveryService
 @implements IAsyncDisposable
 
 <link href="css/Login.css" rel="stylesheet">
@@ -175,14 +174,13 @@
         Email = "",
         Password = "",
         ConfirmPassword = "",
-        Role = "User"
+        Role = "User"  // Always ensure Role is set to a default value
     };
 
     private string errorMessage = string.Empty;
     private string successMessage = string.Empty;
     private bool isSubmitting = false;
     private bool showPasswordRequirements = false;
-    private string apiBaseUrl = string.Empty;
 
     // Validation flags
     private bool IsUsernameValid { get; set; } = false;
@@ -198,6 +196,9 @@
 
     private bool IsFormValid => IsUsernameValid && IsEmailValid && IsPasswordValid && IsConfirmPasswordValid;
 
+    // Object reference for JS interop
+    private DotNetObjectReference<Register>? objRef;
+
     // Methods to show and hide password requirements
     private void ShowPasswordRequirements() => showPasswordRequirements = true;
     private void HidePasswordRequirements() => showPasswordRequirements = false;
@@ -205,16 +206,6 @@
 
     protected override async Task OnInitializedAsync()
     {
-        try
-        {
-            // Discover API URL for later use
-            apiBaseUrl = await ApiDiscoveryService.DiscoverApiUrl();
-        }
-        catch (Exception ex)
-        {
-            Console.WriteLine($"API discovery failed: {ex.Message}");
-        }
-
         await base.OnInitializedAsync();
     }
 
@@ -224,13 +215,93 @@
         {
             try
             {
+                // Initialize JS functions
+                await InitializeJavaScriptFunctions();
+
+                // Create and store object reference
+                objRef = DotNetObjectReference.Create(this);
+
                 // Add event listener for ESC key to close the requirements modal
-                await JSRuntime.InvokeVoidAsync("addEscKeyListener", DotNetObjectReference.Create(this));
+                await JSRuntime.InvokeVoidAsync("registerPageFunctions.addEscKeyListener", objRef);
             }
             catch (Exception ex)
             {
-                Console.WriteLine($"Error setting up ESC listener: {ex.Message}");
+                Console.WriteLine($"Error setting up JavaScript functions: {ex.Message}");
             }
+        }
+    }
+
+    private async Task InitializeJavaScriptFunctions()
+    {
+        try
+        {
+            // Define all the necessary JavaScript functions
+            await JSRuntime.InvokeVoidAsync("eval", @"
+                window.registerPageFunctions = {
+                    // Email validation function
+                    validateEmail: function(email) {
+                        if (!email) return false;
+                        const regex = /^[a-zA-Z0-9._%+-]+@[a-zA-Z0-9.-]+\.[a-zA-Z]{2,}$/;
+                        return regex.test(email);
+                    },
+
+                    // Password validation function
+                    validatePassword: function(password) {
+                        if (!password) {
+                            return {
+                                hasMinLength: false,
+                                hasUpperCase: false,
+                                hasNumber: false,
+                                hasSpecialChar: false
+                            };
+                        }
+
+                        return {
+                            hasMinLength: password.length >= 6,
+                            hasUpperCase: /[A-Z]/.test(password),
+                            hasNumber: /[0-9]/.test(password),
+                            hasSpecialChar: /[^A-Za-z0-9]/.test(password)
+                        };
+                    },
+
+                    // ESC key listener
+                    addEscKeyListener: function(dotnetRef) {
+                        window._registerEscHandler = function(e) {
+                            if (e.key === 'Escape') {
+                                dotnetRef.invokeMethodAsync('ClosePasswordRequirements');
+                            }
+                        };
+                        document.addEventListener('keydown', window._registerEscHandler);
+                    },
+
+                    // Remove ESC key listener
+                    removeEscKeyListener: function() {
+                        if (window._registerEscHandler) {
+                            document.removeEventListener('keydown', window._registerEscHandler);
+                            window._registerEscHandler = null;
+                        }
+                    }
+                };
+
+                // Backward compatibility for existing code
+                window.formValidation = window.formValidation || {};
+                window.formValidation.validateEmail = window.registerPageFunctions.validateEmail;
+                window.formValidation.validatePassword = window.registerPageFunctions.validatePassword;
+
+                window.addEscKeyListener = window.registerPageFunctions.addEscKeyListener;
+                window.removeEscKeyListener = window.registerPageFunctions.removeEscKeyListener;
+
+                // Google auth redirect
+                window.handleGoogleAuthRedirect = function() {
+                    console.log('Google auth redirect requested');
+                    // This would be implemented to handle Google authentication
+                    alert('Google authentication is not configured. This is a placeholder.');
+                };
+            ");
+        }
+        catch (Exception ex)
+        {
+            Console.WriteLine($"Failed to initialize JavaScript functions: {ex.Message}");
         }
     }
 
@@ -246,18 +317,6 @@
         var username = e.Value?.ToString();
         // Basic username validation
         IsUsernameValid = !string.IsNullOrWhiteSpace(username) && username.Length >= 3;
-
-        // If using the JavaScript username availability check:
-        /*
-        try {
-            if (IsUsernameValid) {
-                IsUsernameValid = await JSRuntime.InvokeAsync<bool>("formValidation.isUsernameAvailable", username, apiBaseUrl);
-            }
-        } catch (Exception ex) {
-            Console.WriteLine($"Error checking username availability: {ex.Message}");
-        }
-        */
-
         StateHasChanged();
     }
 
@@ -268,7 +327,7 @@
         try
         {
             // Try to use JS validation if available
-            IsEmailValid = await JSRuntime.InvokeAsync<bool>("formValidation.validateEmail", email);
+            IsEmailValid = await JSRuntime.InvokeAsync<bool>("registerPageFunctions.validateEmail", email);
         }
         catch
         {
@@ -292,7 +351,7 @@
         try
         {
             // Try to use JS validation
-            var result = await JSRuntime.InvokeAsync<Dictionary<string, bool>>("formValidation.validatePassword", password);
+            var result = await JSRuntime.InvokeAsync<Dictionary<string, bool>>("registerPageFunctions.validatePassword", password);
 
             HasMinLength = result["hasMinLength"];
             HasUpperCase = result["hasUpperCase"];
@@ -351,6 +410,12 @@
 
         try
         {
+            // Ensure Role is set before submitting
+            if (string.IsNullOrEmpty(registerModel.Role))
+            {
+                registerModel.Role = "User";
+            }
+
             var result = await AuthService.RegisterAsync(registerModel);
             if (result)
             {
@@ -376,6 +441,7 @@
             else
             {
                 errorMessage = $"שגיאה: {ex.Message}";
+                Console.WriteLine($"Registration error details: {ex}");
             }
         }
         finally
@@ -404,7 +470,11 @@
     {
         try
         {
-            await JSRuntime.InvokeVoidAsync("removeEscKeyListener");
+            // Remove the ESC key listener
+            await JSRuntime.InvokeVoidAsync("registerPageFunctions.removeEscKeyListener");
+
+            // Dispose the object reference
+            objRef?.Dispose();
         }
         catch (Exception ex)
         {
