@@ -21,6 +21,8 @@ namespace API_Project.Data
         public DbSet<EquipmentRequest> EquipmentRequests { get; set; }
 
         public DbSet<CheckoutRecord> CheckoutRecords { get; set; }
+        public DbSet<Blacklist> Blacklist { get; set; }
+
 
         protected override void OnModelCreating(ModelBuilder modelBuilder)
         {

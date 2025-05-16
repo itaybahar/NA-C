@@ -87,7 +87,6 @@ namespace Blazor_WebAssembly.Services.Implementations
                 return new HttpClient { BaseAddress = new Uri("https://localhost:5191/") };
             }
         }
-
         public async Task<bool> UpdateReturnedEquipmentAsync(int equipmentId, int checkoutId, int userId, int quantity, string condition = "Good", string notes = "")
         {
             try
@@ -101,56 +100,72 @@ namespace Blazor_WebAssembly.Services.Implementations
                     return false;
                 }
 
+                // Always get the checkout record to ensure we have the correct quantity and status
+                var checkout = await GetCheckoutAsync(checkoutId);
+                if (checkout == null)
+                {
+                    LogMessage($"Failed to retrieve checkout record for ID {checkoutId}.", LogLevel.Warning);
+                    return false;
+                }
+
+                // If quantity is not specified or <= 0, use the checkout's quantity (or 1 as fallback)
                 if (quantity <= 0)
                 {
-                    var checkout = await GetCheckoutAsync(checkoutId);
-                    if (checkout == null)
-                    {
-                        LogMessage($"Failed to retrieve checkout record for ID {checkoutId}.", LogLevel.Warning);
-                        return false;
-                    }
                     quantity = checkout.Quantity > 0 ? checkout.Quantity : 1;
                 }
 
-                // Create services with the HTTP client
-                var checkoutService = new CheckoutService(
-                    httpClient,
-                    _authStateProvider,
-                    _httpClientFactory);
-
-                var isReturned = await checkoutService.ReturnEquipmentAsync(checkoutId);
-
-                if (!isReturned)
+                // Prepare the return request payload
+                var returnRequest = new
                 {
-                    LogMessage($"Failed to mark equipment ID {equipmentId} as returned in checkout history.", LogLevel.Warning);
+                    Condition = condition,
+                    Notes = notes,
+                    ReturnDate = DateTime.UtcNow.ToString("yyyy-MM-ddTHH:mm:ss.fffZ"),
+                    Quantity = quantity
+                };
+
+                // Mark the checkout as returned via API
+                var response = await httpClient.PutAsJsonAsync($"api/equipmentcheckout/return/{checkoutId}", returnRequest, _jsonOptions);
+
+                if (!response.IsSuccessStatusCode)
+                {
+                    var errorContent = await response.Content.ReadAsStringAsync();
+                    LogMessage($"Failed to mark checkout as returned. Status: {response.StatusCode}. Content: {errorContent}", LogLevel.Warning);
                     return false;
                 }
 
-                // Create EquipmentService with all required parameters
-                var equipmentService = CreateEquipmentService(httpClient);
-                var equipment = await equipmentService.GetEquipmentByIdAsync(equipmentId);
-
-                if (equipment == null)
+                // Only update equipment quantity if quantity > 0
+                if (quantity > 0)
                 {
-                    LogMessage($"Equipment ID {equipmentId} not found.", LogLevel.Warning);
-                    return false;
+                    var equipmentService = CreateEquipmentService(httpClient);
+                    var equipment = await equipmentService.GetEquipmentByIdAsync(equipmentId);
+
+                    if (equipment == null)
+                    {
+                        LogMessage($"Equipment ID {equipmentId} not found.", LogLevel.Warning);
+                        return false;
+                    }
+
+                    equipment.Quantity += quantity;
+
+                    if (equipment.Quantity > 0)
+                    {
+                        equipment.Status = "Available";
+                    }
+
+                    var isUpdated = await equipmentService.UpdateEquipmentAsync(equipment);
+
+                    if (!isUpdated)
+                    {
+                        LogMessage($"Failed to update equipment ID {equipmentId} status and quantity.", LogLevel.Warning);
+                        return false;
+                    }
+                }
+                else
+                {
+                    LogMessage($"Return quantity is 0 for equipment ID {equipmentId}, skipping inventory update.", LogLevel.Information);
                 }
 
-                equipment.Quantity += quantity;
-
-                if (equipment.Quantity > 0)
-                {
-                    equipment.Status = "Available";
-                }
-
-                var isUpdated = await equipmentService.UpdateEquipmentAsync(equipment);
-
-                if (!isUpdated)
-                {
-                    LogMessage($"Failed to update equipment ID {equipmentId} status and quantity.", LogLevel.Warning);
-                    return false;
-                }
-
+                // Add to checkout history (optional, depending on your business logic)
                 var checkoutRecord = new CheckoutRecordDto
                 {
                     Id = checkoutId.ToString(),
@@ -167,7 +182,7 @@ namespace Blazor_WebAssembly.Services.Implementations
                 if (!historyAdded)
                 {
                     LogMessage($"Failed to add return entry to checkout history for equipment ID {equipmentId}.", LogLevel.Warning);
-                    return false;
+                    // Not a hard failure, so continue
                 }
 
                 LogMessage($"Successfully updated returned equipment ID {equipmentId} with {quantity} units.", LogLevel.Information);
@@ -180,10 +195,6 @@ namespace Blazor_WebAssembly.Services.Implementations
             }
         }
 
-        public async Task<bool> UpdateReturnedEquipmentAsync(int equipmentId, int checkoutId, int userId, string condition = "Good", string notes = "")
-        {
-            return await UpdateReturnedEquipmentAsync(equipmentId, checkoutId, userId, 0, condition, notes);
-        }
 
         public async Task<bool> UpdateReturnedEquipmentByTeamAsync(int equipmentId, int teamId, int userId, int quantity, string condition = "Good", string notes = "")
         {

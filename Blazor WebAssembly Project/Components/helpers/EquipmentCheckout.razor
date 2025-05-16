@@ -6,6 +6,7 @@
 @using System.Security.Claims
 @using Blazored.LocalStorage
 @using Blazor_WebAssembly.Services
+@using static Blazor_WebAssembly.Services.Implementations.CheckoutService
 
 @inject ITeamService TeamService
 @inject IEquipmentService EquipmentService
@@ -140,9 +141,95 @@
 
                     @if (!string.IsNullOrEmpty(Message))
                     {
-                        <div class="@(isError ? "alert-danger" : "alert-success") mt-4">@Message</div>
+                        <div class="@(isError ? "alert-danger" : "alert-success") mt-4">
+                            <p>@Message</p>
+
+                            @if (isTeamBlacklisted)
+                            {
+                                <div class="overdue-equipment-details mt-2">
+                                    @if (!string.IsNullOrEmpty(overdueEquipmentName))
+                                    {
+                                        <div>
+                                            <div class="overdue-label">פריט שלא הוחזר בזמן:</div>
+                                            <div class="overdue-value badge warning-badge">@overdueEquipmentName</div>
+                                        </div>
+                                    }
+
+                                    @if (overdueItems != null && overdueItems.Any())
+                                    {
+                                        <div class="overdue-items-table mt-3">
+                                            <table class="table table-sm table-striped">
+                                                <thead>
+                                                    <tr>
+                                                        <th>פריט</th>
+                                                        <th>תאריך הוצאה</th>
+                                                        <th>תאריך החזרה מתוכנן</th>
+                                                        <th>ימים באיחור</th>
+                                                    </tr>
+                                                </thead>
+                                                <tbody>
+                                                    @foreach (var item in overdueItems)
+                                                    {
+                                                        <tr>
+                                                            <td>@item.EquipmentName</td>
+                                                            <td>@item.CheckoutDate.ToString("dd/MM/yyyy")</td>
+                                                            <td>@item.ExpectedReturnDate.ToString("dd/MM/yyyy")</td>
+                                                            <td>@Math.Round(item.DaysOverdue, 1)</td>
+                                                        </tr>
+                                                    }
+                                                </tbody>
+                                            </table>
+                                        </div>
+                                    }
+
+                                    <p class="mt-2 text-sm">הצוות לא יוכל להוציא ציוד חדש עד להחזרת הפריט.</p>
+                                </div>
+                            }
+                        </div>
                     }
                 </div>
+                <style>
+                    .overdue-equipment-details {
+                        background-color: rgba(255, 255, 255, 0.1);
+                        padding: 10px;
+                        border-radius: 6px;
+                        margin-top: 10px;
+                    }
+
+                    .overdue-label {
+                        font-weight: bold;
+                        margin-bottom: 4px;
+                    }
+
+                    .overdue-value {
+                        font-size: 1.1em;
+                        padding: 2px 8px;
+                        border-radius: 4px;
+                        display: inline-block;
+                    }
+
+                    .warning-badge {
+                        background-color: #ff9800;
+                        color: white;
+                    }
+
+                    .overdue-items-table {
+                        max-height: 200px;
+                        overflow-y: auto;
+                        background-color: rgba(0, 0, 0, 0.05);
+                        border-radius: 4px;
+                    }
+
+                        .overdue-items-table table {
+                            margin-bottom: 0;
+                        }
+
+                        .overdue-items-table th, .overdue-items-table td {
+                            padding: 6px 10px;
+                            text-align: right;
+                        }
+                </style>
+
 
                 @if (SelectedEquipmentId.HasValue)
                 {
@@ -271,6 +358,9 @@ else if (ActiveTab == "log")
     private int? CurrentUserId; // To store the current user ID
     public RenderFragment? ChildContent { get; set; }
     private bool isAuthenticated = false;
+    private string? overdueEquipmentName;
+    private bool isTeamBlacklisted = false;
+    private List<OverdueEquipmentInfo>? overdueItems;
 
     protected override async Task OnInitializedAsync()
     {
@@ -328,7 +418,170 @@ else if (ActiveTab == "log")
             Logger.LogError(ex, "Error in OnInitializedAsync");
         }
     }
+  
+    private async Task CheckoutItem()
+    {
+        if (!SelectedTeamId.HasValue || !SelectedEquipmentId.HasValue)
+            return;
 
+        // Clear previous blacklist/overdue information
+        overdueEquipmentName = null;
+        isTeamBlacklisted = false;
+        overdueItems = null;  // New property to store overdue items list
+        StateHasChanged();
+
+        // Check authentication first
+        var authState = await AuthenticationStateProvider.GetAuthenticationStateAsync();
+        if (!authState.User.Identity?.IsAuthenticated == true)
+        {
+            // Redirect to login before allowing checkout
+            await EnsureAuthenticated();
+            return;
+        }
+
+        // Get user ID with better fallback mechanism
+        if (!CurrentUserId.HasValue)
+        {
+            var nameIdentifierClaim = authState.User.FindFirst(ClaimTypes.NameIdentifier);
+            var userIdClaim = authState.User.FindFirst("UserID") ??
+                              authState.User.FindFirst("userId") ??
+                              authState.User.FindFirst("sub");
+
+            if (nameIdentifierClaim != null && int.TryParse(nameIdentifierClaim.Value, out int parsedId))
+            {
+                CurrentUserId = parsedId;
+                Logger.LogInformation($"Using NameIdentifier claim for user ID: {parsedId}");
+            }
+            else if (userIdClaim != null && int.TryParse(userIdClaim.Value, out parsedId))
+            {
+                CurrentUserId = parsedId;
+                Logger.LogInformation($"Using custom UserID claim for user ID: {parsedId}");
+            }
+            else
+            {
+                // Last resort fallback for testing
+                CurrentUserId = 1;
+                Logger.LogWarning("No user ID found in claims. Using default ID 1 for testing");
+            }
+        }
+
+        isSubmitting = true;
+        Message = null;
+        isError = false;
+        StateHasChanged();
+
+        try
+        {
+            // Get selected equipment to check if it's available
+            var selectedEquipment = GetSelectedEquipment();
+            if (selectedEquipment == null || !IsEquipmentAvailable(selectedEquipment))
+            {
+                Message = "הפריט אינו זמין להשאלה";
+                isError = true;
+                isSubmitting = false;
+                StateHasChanged();
+                return;
+            }
+
+            // Validate quantity
+            if (SelectedQuantity <= 0)
+            {
+                Message = "כמות להוצאה חייבת להיות גדולה מאפס";
+                isError = true;
+                isSubmitting = false;
+                StateHasChanged();
+                return;
+            }
+
+            // Calculate actual available quantity (not just the total quantity)
+            int availableQuantity = GetAvailableQuantity(selectedEquipment.EquipmentID, selectedEquipment.Quantity);
+
+            if (SelectedQuantity > availableQuantity)
+            {
+                Message = $"הכמות המבוקשת ({SelectedQuantity}) גדולה מהכמות הזמינה ({availableQuantity})";
+                isError = true;
+                isSubmitting = false;
+                StateHasChanged();
+                return;
+            }
+
+            Logger.LogInformation($"Checking out equipment (TeamID: {SelectedTeamId}, EquipmentID: {SelectedEquipmentId}, UserID: {CurrentUserId}, Quantity: {SelectedQuantity})");
+
+            var result = await CheckoutService.CheckoutEquipmentAsync(
+                SelectedTeamId.Value,
+                SelectedEquipmentId.Value,
+                CurrentUserId.Value,
+                SelectedQuantity
+            );
+
+            bool success = result.Success;
+            string? errorMessage = result.ErrorMessage;
+            string? overdueEquipName = result.OverdueEquipmentName;
+            overdueItems = result.OverdueItems; // Store overdue items
+
+            if (!success)
+            {
+                // Store the overdue equipment name for display
+                overdueEquipmentName = overdueEquipName;
+
+                // Check if this is a blacklist error - typically contains "blacklisted" in the message
+                isTeamBlacklisted = errorMessage?.Contains("blacklisted", StringComparison.OrdinalIgnoreCase) == true;
+
+                // Create a user-friendly message
+                if (isTeamBlacklisted)
+                {
+                    var teamName = EligibleTeams.FirstOrDefault(t => t.TeamID == SelectedTeamId)?.TeamName ?? "הנבחר";
+                    Message = $"לא ניתן להוציא ציוד: הצוות {teamName} חסום בגלל החזרה באיחור של פריט";
+
+                    // If we have overdue equipment name, add it to the message
+                    if (!string.IsNullOrEmpty(overdueEquipmentName))
+                    {
+                        Message += $" '{overdueEquipmentName}'";
+                    }
+
+                    // Log this as info, not error, since it's an expected business logic outcome
+                    Logger.LogInformation($"Checkout blocked: Team '{teamName}' is blacklisted due to overdue equipment: {overdueEquipmentName}");
+                }
+                else
+                {
+                    Message = errorMessage ?? "שגיאה ברישום הוצאת הציוד. נסה שנית.";
+                    Logger.LogWarning($"Checkout failed with message: {errorMessage}");
+                }
+
+                isError = true;
+                isSubmitting = false;
+                StateHasChanged();
+                return;
+            }
+
+            // Reset these values on successful checkout
+            overdueEquipmentName = null;
+            isTeamBlacklisted = false;
+            overdueItems = null;
+
+            Message = $"הציוד נרשם כהוצאה בהצלחה! כמות: {SelectedQuantity}";
+            isError = false;
+            Logger.LogInformation($"Equipment checked out successfully. Quantity: {SelectedQuantity}");
+            AddLog($"הציוד {selectedEquipment?.Name} נרשם בהצלחה לצוות {EligibleTeams.FirstOrDefault(t => t.TeamID == SelectedTeamId)?.TeamName} (כמות: {SelectedQuantity})");
+
+            // Refresh both equipment list and checkout history to show updated available quantities
+            await RefreshAfterCheckout();
+        }
+        catch (Exception ex)
+        {
+            Message = $"שגיאה: {ex.Message}";
+            isError = true;
+            Logger.LogError(ex, "Error checking out equipment.");
+            AddLog($"שגיאה בהוצאת ציוד: {ex.Message}");
+        }
+        finally
+        {
+            isSubmitting = false;
+            StateHasChanged();
+        }
+    }
+
+    
     private async Task HandleLogin()
     {
         // Save the current URL so we can return after login
@@ -662,127 +915,6 @@ else if (ActiveTab == "log")
             "lost" => "danger-badge",
             _ => "default-badge"
         };
-    }
-
-    private async Task CheckoutItem()
-    {
-        if (!SelectedTeamId.HasValue || !SelectedEquipmentId.HasValue)
-            return;
-
-        // Check authentication first
-        var authState = await AuthenticationStateProvider.GetAuthenticationStateAsync();
-        if (!authState.User.Identity?.IsAuthenticated == true)
-        {
-            // Redirect to login before allowing checkout
-            await EnsureAuthenticated();
-            return;
-        }
-
-        // Get user ID with better fallback mechanism
-        if (!CurrentUserId.HasValue)
-        {
-            var nameIdentifierClaim = authState.User.FindFirst(ClaimTypes.NameIdentifier);
-            var userIdClaim = authState.User.FindFirst("UserID") ??
-                              authState.User.FindFirst("userId") ??
-                              authState.User.FindFirst("sub");
-
-            if (nameIdentifierClaim != null && int.TryParse(nameIdentifierClaim.Value, out int parsedId))
-            {
-                CurrentUserId = parsedId;
-                Logger.LogInformation($"Using NameIdentifier claim for user ID: {parsedId}");
-            }
-            else if (userIdClaim != null && int.TryParse(userIdClaim.Value, out parsedId))
-            {
-                CurrentUserId = parsedId;
-                Logger.LogInformation($"Using custom UserID claim for user ID: {parsedId}");
-            }
-            else
-            {
-                // Last resort fallback for testing
-                CurrentUserId = 1;
-                Logger.LogWarning("No user ID found in claims. Using default ID 1 for testing");
-            }
-        }
-
-        isSubmitting = true;
-        Message = null;
-        isError = false;
-        StateHasChanged();
-
-        try
-        {
-            // Get selected equipment to check if it's available
-            var selectedEquipment = GetSelectedEquipment();
-            if (selectedEquipment == null || !IsEquipmentAvailable(selectedEquipment))
-            {
-                Message = "הפריט אינו זמין להשאלה";
-                isError = true;
-                isSubmitting = false;
-                StateHasChanged();
-                return;
-            }
-
-            // Validate quantity
-            if (SelectedQuantity <= 0)
-            {
-                Message = "כמות להוצאה חייבת להיות גדולה מאפס";
-                isError = true;
-                isSubmitting = false;
-                StateHasChanged();
-                return;
-            }
-
-            // Calculate actual available quantity (not just the total quantity)
-            int availableQuantity = GetAvailableQuantity(selectedEquipment.EquipmentID, selectedEquipment.Quantity);
-
-            if (SelectedQuantity > availableQuantity)
-            {
-                Message = $"הכמות המבוקשת ({SelectedQuantity}) גדולה מהכמות הזמינה ({availableQuantity})";
-                isError = true;
-                isSubmitting = false;
-                StateHasChanged();
-                return;
-            }
-
-            Logger.LogInformation($"Checking out equipment (TeamID: {SelectedTeamId}, EquipmentID: {SelectedEquipmentId}, UserID: {CurrentUserId}, Quantity: {SelectedQuantity})");
-
-            // Create checkout record via the service - this should NOT update the equipment's total quantity
-            bool success = await CheckoutService.CheckoutEquipmentAsync(
-                    SelectedTeamId.Value,
-                    SelectedEquipmentId.Value,
-                    CurrentUserId.Value,
-                    SelectedQuantity
-            );
-
-            if (!success)
-            {
-                Message = "שגיאה ברישום הוצאת הציוד. נסה שנית.";
-                isError = true;
-                isSubmitting = false;
-                StateHasChanged();
-                return;
-            }
-
-            Message = $"הציוד נרשם כהוצאה בהצלחה! כמות: {SelectedQuantity}";
-            isError = false;
-            Logger.LogInformation($"Equipment checked out successfully. Quantity: {SelectedQuantity}");
-            AddLog($"הציוד {selectedEquipment?.Name} נרשם בהצלחה לצוות {EligibleTeams.FirstOrDefault(t => t.TeamID == SelectedTeamId)?.TeamName} (כמות: {SelectedQuantity})");
-
-            // Refresh both equipment list and checkout history to show updated available quantities
-            await RefreshAfterCheckout();
-        }
-        catch (Exception ex)
-        {
-            Message = $"שגיאה: {ex.Message}";
-            isError = true;
-            Logger.LogError(ex, "Error checking out equipment.");
-            AddLog($"שגיאה בהוצאת ציוד: {ex.Message}");
-        }
-        finally
-        {
-            isSubmitting = false;
-            StateHasChanged();
-        }
     }
 
     private async Task RefreshAfterCheckout()

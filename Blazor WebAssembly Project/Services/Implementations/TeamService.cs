@@ -1,5 +1,6 @@
 ﻿using Blazor_WebAssembly.Models.Team;
 using Blazor_WebAssembly.Services.Interfaces;
+using Domain_Project.DTOs;
 using Microsoft.Extensions.Logging;
 using Microsoft.JSInterop;
 using System.Collections.Generic;
@@ -111,11 +112,59 @@ namespace Blazor_WebAssembly.Services.Implementations
             return response.IsSuccessStatusCode;
         }
 
+        // Update the method signature to match the interface
         public async Task<List<TeamModel>> GetBlacklistedTeamsAsync()
         {
-            await AddAuthorizationHeaderAsync();
-            return await _httpClient.GetFromJsonAsync<List<TeamModel>>("api/teams/blacklisted") ?? new List<TeamModel>();
+            try
+            {
+                // Add logging for debugging
+                Console.WriteLine($"Calling API endpoint: {_httpClient.BaseAddress}api/teams/blacklisted");
+
+                // Get the data from the API
+                var response = await _httpClient.GetAsync("api/teams/blacklisted");
+
+                // Check if the request was successful
+                if (response.IsSuccessStatusCode)
+                {
+                    var options = new JsonSerializerOptions { PropertyNameCaseInsensitive = true };
+                    var content = await response.Content.ReadAsStringAsync();
+
+                    // For debugging - log the actual response content
+                    Console.WriteLine($"API Response: {content}");
+
+                    // Parse the JSON - change this to deserialize to List<TeamModel>
+                    var teams = JsonSerializer.Deserialize<List<TeamModel>>(content, options);
+                    return teams ?? new List<TeamModel>();
+                }
+                else
+                {
+                    // Log specific error details
+                    Console.WriteLine($"API error: {response.StatusCode} - {response.ReasonPhrase}");
+                    var errorContent = await response.Content.ReadAsStringAsync();
+                    Console.WriteLine($"Error content: {errorContent}");
+
+                    // Handle specific status codes
+                    if (response.StatusCode == System.Net.HttpStatusCode.Unauthorized)
+                    {
+                        throw new HttpRequestException("Unauthorized access to blacklisted teams API", null, System.Net.HttpStatusCode.Unauthorized);
+                    }
+
+                    throw new HttpRequestException($"Error retrieving blacklisted teams: {response.StatusCode}");
+                }
+            }
+            catch (JsonException ex)
+            {
+                Console.WriteLine($"JSON parsing error: {ex.Message}");
+                throw new HttpRequestException($"Invalid response format from API: {ex.Message}", ex);
+            }
+            catch (Exception ex) when (!(ex is HttpRequestException))
+            {
+                Console.WriteLine($"Unexpected error in GetBlacklistedTeamsAsync: {ex.Message}");
+                throw;
+            }
         }
+
+
 
         public async Task<bool> IsBlacklistedAsync(string teamId)
         {

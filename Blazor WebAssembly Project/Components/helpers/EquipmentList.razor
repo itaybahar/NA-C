@@ -482,33 +482,43 @@
         </div>
 
         <td>
-        @if (isLoadingHistory)
-        {
-            <div class="loading-container">
-                <div class="spinner"></div>
-                <p>טוען היסטורית הוצעות והחזרות...</p>
-            </div>
-        }
-        else
-        {
-            <div class="table-responsive">
-                <!-- In the history tab section -->
-                <table class="history-table">
-                    <thead>
-                        <tr>
-                            <th>צוות</th>
-                            <th>ציוד</th>
-                            <th>כמות</th>
-                            <th>תאריך הוצאה</th>
-                            <th>תאריך החזרה</th>
-                            <th>סטטוס</th>
-                            <th>מצב ציוד</th>
-                            <th>כמות זמינה אחרי</th>  <!-- Added column header -->
-                            <th>משתמש</th>
-                            <th>תפקיד</th>
-                        </tr>
-                    </thead>
-                    <tbody>
+            @if (isLoadingHistory)
+            {
+                <div class="loading-container">
+                    <div class="spinner"></div>
+                    <p>טוען היסטורית הוצעות והחזרות...</p>
+                </div>
+            }
+            else if (checkoutHistory.Count == 0)
+            {
+                <div class="empty-state">
+                    <i class="bi bi-clock-history empty-icon"></i>
+                    <p class="no-history">אין היסטורית הוצעות והחזרות</p>
+                    <div class="empty-buttons">
+                        <button class="btn-action" @onclick="LoadHistory">נסה שנית</button>
+                    </div>
+                </div>
+            }
+            else
+            {
+                <div class="table-responsive">
+                    <!-- In the history tab section -->
+                    <table class="history-table">
+                        <thead>
+                            <tr>
+                                <th>צוות</th>
+                                <th>ציוד</th>
+                                <th>כמות</th>
+                                <th>תאריך הוצאה</th>
+                                <th>תאריך החזרה</th>
+                                <th>סטטוס</th>
+                                <th>מצב ציוד</th>
+                                <th>כמות זמינה אחרי</th>  <!-- Added column header -->
+                                <th>משתמש</th>
+                                <th>תפקיד</th>
+                            </tr>
+                        </thead>
+                        <tbody>
                         @foreach (var record in filteredCheckoutHistory)
                         {
                             <tr class="@(record.ReturnedAt.HasValue ? "returned" : "checked-out")"
@@ -830,41 +840,32 @@
         await LoadEquipment();
     }
     // Tab change handler
+    // Tab change handler
     private async Task OnTabChanged(string tab)
     {
         Logger.LogInformation($"Tab changed to: {tab}");
 
         if (tab == "history")
         {
-            // First check if we need to load history data
-            if (checkoutHistory.Count == 0 || DateTime.Now - lastHistoryRefresh > historyRefreshThreshold)
-            {
-                isLoadingHistory = true;
-                StateHasChanged();
-                await LoadHistory();
-            }
+            // Always load history data when the history tab is selected
+            isLoadingHistory = true;
+            StateHasChanged();
+            await LoadHistory();
 
-            // Only show history tab if there's actually history data
-            if (checkoutHistory.Count > 0)
-            {
-                ActiveTab = tab;
-            }
-            else
-            {
-                // If no history data, show a message and stay on the current tab
-                errorMessage = "אין נתוני היסטוריה להצגה";
-                StateHasChanged();
-                return;
-            }
+            // Set the active tab regardless of whether there's history data
+            ActiveTab = tab;
         }
         else
         {
+            // Always switch to equipment list tab when requested
             ActiveTab = tab;
         }
 
         // Add a slight delay for animation
         await Task.Delay(50);
+        StateHasChanged();
     }
+
 
     // Modify LoadHistory to calculate available quantities after each checkout/return
     private async Task LoadHistory()
@@ -946,17 +947,13 @@
             }
             else
             {
+                // Just initialize empty lists, don't show error
                 checkoutHistory = new List<CheckoutRecordDto>();
                 filteredCheckoutHistory = new List<CheckoutRecordDto>();
-                Logger.LogWarning("No history records returned from service");
-
-                // If we're on the history tab and there's no data, switch back to list tab
-                if (ActiveTab == "history")
-                {
-                    ActiveTab = "list";
-                    errorMessage = "אין נתוני היסטוריה להצגה";
-                }
+                Logger.LogInformation("No history records found - showing empty state");
             }
+
+            lastHistoryRefresh = DateTime.Now;
         }
         catch (Exception ex)
         {
@@ -1177,12 +1174,14 @@
             // Use positive quantity for checkout
             int checkoutQuantity = Math.Abs(quantityChanged);
 
-            // Create a checkout through the checkout service - using systemTeamId
-            bool checkoutSuccess = await CheckoutService.CheckoutEquipmentAsync(
-                systemTeamId,  // Always use system team with ID 0
-                equipmentId,
-                userId,
-                checkoutQuantity);
+            var checkoutResult = await CheckoutService.CheckoutEquipmentAsync(
+                 systemTeamId,  // Always use system team with ID 0
+                 equipmentId,
+                 userId,
+                 checkoutQuantity);
+
+            bool checkoutSuccess = checkoutResult.Success;
+
 
             if (!checkoutSuccess)
             {

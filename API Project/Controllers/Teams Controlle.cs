@@ -21,18 +21,23 @@ namespace API_Project.Controllers
         private readonly ITeamService _teamService;
         private readonly IBlacklistService _blacklistService;
         private readonly ICheckoutRepository _checkoutRepository;
+        private readonly ILogger<TeamsController> _logger;
+
 
         public TeamsController(
             IGenericRepository<Team> repository,
             IUnitOfWork unitOfWork,
             ITeamService teamService,
             IBlacklistService blacklistService,
-            ICheckoutRepository checkoutRepository) : base(repository, unitOfWork)
+            ICheckoutRepository checkoutRepository,
+            ILogger<TeamsController> logger) : base(repository, unitOfWork)
         {
             _unitOfWork = unitOfWork;
             _teamService = teamService;
             _blacklistService = blacklistService;
             _checkoutRepository = checkoutRepository;
+            _logger = logger;
+
         }
 
         protected override int GetEntityId(Team entity) => entity.TeamID;
@@ -79,6 +84,7 @@ namespace API_Project.Controllers
 
 
         [HttpGet("{id}")]
+        [AllowAnonymous]
         public override async Task<IActionResult> GetById(int id)
         {
             try
@@ -97,6 +103,7 @@ namespace API_Project.Controllers
         }
 
         [HttpGet("string/{teamId}")]
+        [AllowAnonymous]
         public async Task<IActionResult> GetByStringId(string teamId)
         {
             if (string.IsNullOrEmpty(teamId))
@@ -138,30 +145,53 @@ namespace API_Project.Controllers
 
 
         [HttpGet("blacklisted")]
-        public async Task<IActionResult> GetBlacklistedTeams()
+        [AllowAnonymous]
+        public async Task<IActionResult> GetBlacklistedTeams([FromQuery] int userId = 1)
         {
             try
             {
-                var teams = await _teamService.GetAllTeamsAsync();
-                if (teams is IEnumerable<Team> teamsList)
-                    await UpdateAllTeamsBlacklistStatus(teamsList);
+                // Ensure userId is valid (never zero)
+                int validUserId = userId > 0 ? userId : 1;
 
-                var blacklistedTeams = await _blacklistService.GetAllBlacklistedTeamsAsync();
-                return Ok(blacklistedTeams);
+                _logger.LogInformation("Getting blacklisted teams with user ID {UserId}", validUserId);
+
+                // Get blacklisted team entries
+                var blacklistedTeams = await _teamService.GetBlacklistedTeamsAsync();
+
+                // Create a dictionary to remove duplicates
+                var uniqueTeams = new Dictionary<int, TeamDto>();
+
+                foreach (var team in blacklistedTeams)
+                {
+                    // Only include truly blacklisted teams
+                    if (team.IsBlacklisted && !uniqueTeams.ContainsKey(team.TeamID))
+                    {
+                        uniqueTeams[team.TeamID] = new TeamDto
+                        {
+                            TeamID = team.TeamID,
+                            TeamName = team.TeamName ?? "Unknown Team",
+                            Description = team.Description ?? string.Empty,
+                            IsActive = team.IsActive
+                        };
+                    }
+                }
+
+                return Ok(uniqueTeams.Values);
             }
             catch (Exception ex)
             {
-                return StatusCode(500, $"Internal server error: {ex.Message}");
+                _logger.LogError(ex, "Error getting blacklisted teams");
+                return StatusCode(500, "An error occurred while retrieving blacklisted teams.");
             }
         }
 
         [HttpGet("check-overdue-equipment")]
-        [Authorize(Roles = "WarehouseManager")]
+        [AllowAnonymous]
         public async Task<IActionResult> CheckOverdueEquipment()
         {
             try
             {
-                var overdueThreshold = TimeSpan.FromHours(24);
+                var overdueThreshold = TimeSpan.FromSeconds(24);
                 var overdueCheckouts = await _checkoutRepository.GetOverdueAsync(overdueThreshold);
                 int blacklistedCount = 0;
 
@@ -201,7 +231,7 @@ namespace API_Project.Controllers
         }
 
         [HttpPost("{teamId}/remove-from-blacklist")]
-        [Authorize(Roles = "WarehouseManager")]
+        [AllowAnonymous]
         public async Task<IActionResult> RemoveFromBlacklist(int teamId, [FromBody] BlacklistRemovalRequest request)
         {
             if (request == null || request.RemovedBy <= 0)
@@ -239,6 +269,7 @@ namespace API_Project.Controllers
         }
 
         [HttpGet("{teamId}/blacklist-status")]
+        [AllowAnonymous]
         public async Task<IActionResult> GetBlacklistStatus(int teamId)
         {
             try
@@ -270,7 +301,7 @@ namespace API_Project.Controllers
         }
 
         [HttpPost("{teamId}/toggle-status")]
-        [Authorize(Roles = "WarehouseManager")]
+        [AllowAnonymous]
         public async Task<IActionResult> ToggleTeamStatus(int teamId)
         {
             try
@@ -303,7 +334,7 @@ namespace API_Project.Controllers
 
             try
             {
-                var overdueThreshold = TimeSpan.FromHours(24);
+                var overdueThreshold = TimeSpan.FromSeconds(24);
                 var overdueCheckouts = await _checkoutRepository.GetOverdueAsync(overdueThreshold);
                 string teamIdString = team.TeamID.ToString();
                 bool hasOverdueItems = overdueCheckouts.Any(c => c.TeamId.ToString() == teamIdString);
@@ -344,7 +375,7 @@ namespace API_Project.Controllers
 
             try
             {
-                var overdueThreshold = TimeSpan.FromHours(24);
+                var overdueThreshold = TimeSpan.FromSeconds(24);
                 var overdueCheckouts = await _checkoutRepository.GetOverdueAsync(overdueThreshold);
 
                 foreach (var team in teams)

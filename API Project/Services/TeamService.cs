@@ -21,6 +21,11 @@ public class TeamService : ITeamService
         return team?.IsBlacklisted ?? false;
     }
 
+    public async Task<IEnumerable<Team>> GetBlacklistedTeamsAsync()
+    {
+        return await _repo.GetBlacklistedTeamsAsync();
+    }
+
     public async Task AddToBlacklistAsync(string teamId)
     {
         var team = await _repo.GetByStringIdAsync(teamId); // Updated to match the renamed method

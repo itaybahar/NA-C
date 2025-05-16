@@ -16,98 +16,97 @@
 <link href="css/Login.css" rel="stylesheet">
 
 <div class="login-container">
-    <div class="login-card">
-        <div class="icon-wrapper">
-            <div class="icon-circle">
-                <img src="images/user-top.png" class="user-icon" alt="User Icon" />
+    <div class="login-card-wrapper">
+        <div class="login-card">
+            <div class="icon-wrapper">
+                <div class="icon-circle">
+                    <img src="images/user-top.png" class="user-icon" alt="User Icon" />
+                </div>
             </div>
+
+            @if (!string.IsNullOrEmpty(ErrorMessage))
+            {
+                <div class="alert alert-danger">@ErrorMessage</div>
+            }
+
+            @if (!string.IsNullOrEmpty(SuccessMessage))
+            {
+                <div class="alert alert-success">@SuccessMessage</div>
+            }
+
+            @if (!showForgotPassword)
+            {
+                <EditForm Model="LoginModel" OnValidSubmit="HandleLogin" id="login-form">
+                    <DataAnnotationsValidator />
+
+                    <div class="input-group">
+                        <div class="input-wrapper">
+                            <div class="input-icon">
+                                <img src="images/user-new-icon.png" alt="User Icon" />
+                            </div>
+                            <div class="input-separator"></div>
+                            <InputText @bind-Value="LoginModel.Username" placeholder="שם משתמש" class="input-field" />
+                        </div>
+                        <ValidationMessage For="@(() => LoginModel.Username)" />
+                    </div>
+
+                    <div class="input-group">
+                        <div class="input-wrapper">
+                            <div class="input-icon">
+                                <img src="images/lock-icon.png" alt="Lock Icon" />
+                            </div>
+                            <div class="input-separator"></div>
+                            <InputText @bind-Value="LoginModel.Password" type="password" placeholder="סיסמה" class="input-field" />
+                        </div>
+                        <ValidationMessage For="@(() => LoginModel.Password)" />
+                    </div>
+
+                    <div class="login-options">
+                        <div class="remember-me">
+                            <input type="checkbox" id="remember-me" @bind="RememberMe" />
+                            <label for="remember-me">זכור אותי</label>
+                        </div>
+                        <button type="button" class="forgot-password-link" @onclick="ToggleForgotPassword">שכחת סיסמה?</button>
+                    </div>
+                </EditForm>
+            }
+            else
+            {
+                <div class="forgot-password-form">
+                    <h3>איפוס סיסמה</h3>
+                    <p>הזן את כתובת האימייל שלך ונשלח לך קישור לאיפוס הסיסמה</p>
+
+                    <div class="input-group">
+                        <div class="input-wrapper">
+                            <div class="input-icon">
+                                <img src="images/email-icon.png" alt="Email Icon" />
+                            </div>
+                            <div class="input-separator"></div>
+                            <input type="email" @bind="forgotPasswordEmail" placeholder="אימייל" class="input-field" />
+                        </div>
+                    </div>
+
+                    <div class="button-group">
+                        <button type="button" class="login-button" @onclick="HandleForgotPassword" disabled="@IsSubmitting">
+                            @(IsSubmitting ? "שולח..." : "שלח קישור איפוס")
+                        </button>
+                        <button type="button" class="back-button" @onclick="ToggleForgotPassword">חזרה להתחברות</button>
+                    </div>
+                </div>
+            }
         </div>
+    </div>
 
-        @if (!string.IsNullOrEmpty(ErrorMessage))
-        {
-            <div class="alert alert-danger">@ErrorMessage</div>
-        }
-
-        @if (!string.IsNullOrEmpty(SuccessMessage))
-        {
-            <div class="alert alert-success">@SuccessMessage</div>
-        }
-
-        @if (!showForgotPassword)
-        {
-            <EditForm Model="LoginModel" OnValidSubmit="HandleLogin">
-                <DataAnnotationsValidator />
-
-                <div class="input-group">
-                    <div class="input-wrapper">
-                        <div class="input-icon">
-                            <img src="images/user-new-icon.png" alt="User Icon" />
-                        </div>
-                        <div class="input-separator"></div>
-                        <InputText @bind-Value="LoginModel.Username" placeholder="שם משתמש" class="input-field" />
-                    </div>
-                    <ValidationMessage For="@(() => LoginModel.Username)" />
-                </div>
-
-                <div class="input-group">
-                    <div class="input-wrapper">
-                        <div class="input-icon">
-                            <img src="images/lock-icon.png" alt="Lock Icon" />
-                        </div>
-                        <div class="input-separator"></div>
-                        <InputText @bind-Value="LoginModel.Password" type="password" placeholder="סיסמה" class="input-field" />
-                    </div>
-                    <ValidationMessage For="@(() => LoginModel.Password)" />
-                </div>
-
-                <div class="login-options">
-                    <div class="remember-me">
-                        <input type="checkbox" id="remember-me" @bind="RememberMe" />
-                        <label for="remember-me">זכור אותי</label>
-                    </div>
-                    <button type="button" class="forgot-password-link" @onclick="ToggleForgotPassword">שכחת סיסמה?</button>
-                </div>
-
-                <div class="login-button-container">
-                    <button type="submit" class="login-button" disabled="@IsSubmitting">
-                        @(IsSubmitting ? "מתחבר..." : "כניסה")
-                    </button>
-                </div>
-            </EditForm>
-        }
-        else
-        {
-            <div class="forgot-password-form">
-                <h3>איפוס סיסמה</h3>
-                <p>הזן את כתובת האימייל שלך ונשלח לך קישור לאיפוס הסיסמה</p>
-
-                <div class="input-group">
-                    <div class="input-wrapper">
-                        <div class="input-icon">
-                            <img src="images/email-icon.png" alt="Email Icon" />
-                        </div>
-                        <div class="input-separator"></div>
-                        <input type="email" @bind="forgotPasswordEmail" placeholder="אימייל" class="input-field" />
-                    </div>
-                </div>
-
-                <div class="button-group">
-                    <button type="button" class="login-button" @onclick="HandleForgotPassword" disabled="@IsSubmitting">
-                        @(IsSubmitting ? "שולח..." : "שלח קישור איפוס")
-                    </button>
-                    <button type="button" class="back-button" @onclick="ToggleForgotPassword">חזרה להתחברות</button>
-                </div>
-            </div>
-        }
+    <div class="login-floating-btn-container">
+        <button class="google-floating-btn" @onclick="HandleGoogleLogin" disabled="@IsSubmitting" type="button">
+            <img src="images/google-logo.png" alt="Google" />
+        </button>
+        <button type="submit" class="login-floating-btn" form="login-form" disabled="@IsSubmitting">
+            @(IsSubmitting ? "Logging in..." : "LOGIN")
+        </button>
     </div>
 
     <div class="google-and-signup">
-        <div class="google-login">
-            <button class="google-button" @onclick="HandleGoogleLogin" disabled="@IsSubmitting">
-                <img src="images/google-logo.png" alt="Google" />
-            </button>
-        </div>
-
         <div class="signup">
             <a href="/register">אין לך חשבון? הרשמה</a>
         </div>

@@ -285,10 +285,14 @@ namespace Blazor_WebAssembly.Services.Implementations
             }
         }
 
-        public async Task<bool> CheckoutEquipmentAsync(int teamId, int equipmentId, int userId, int quantity)
+        public async Task<(bool Success, string? ErrorMessage, string? OverdueEquipmentName, List<OverdueEquipmentInfo>? OverdueItems)> CheckoutEquipmentAsync(
+    int teamId, int equipmentId, int userId, int quantity)
         {
             try
             {
+                await EnsureAuthorizationHeaderAsync();
+                var httpClient = await GetHttpClientAsync();
+
                 // Create the checkout request with all required fields
                 var checkoutRequest = new
                 {
@@ -303,23 +307,146 @@ namespace Blazor_WebAssembly.Services.Implementations
 
                 Console.WriteLine($"Sending checkout request: {JsonSerializer.Serialize(checkoutRequest)}");
 
-                var response = await _httpClient.PostAsJsonAsync($"{BaseApiPath}/checkout", checkoutRequest);
+                var response = await httpClient.PostAsJsonAsync($"{BaseApiPath}/checkout", checkoutRequest);
+                var content = await response.Content.ReadAsStringAsync();
 
-                if (!response.IsSuccessStatusCode)
+                // For blacklist responses, the API now returns a 200 OK with blacklist information
+                if (response.IsSuccessStatusCode)
                 {
-                    var errorContent = await response.Content.ReadAsStringAsync();
-                    Console.Error.WriteLine($"Error checking out equipment: Status: {response.StatusCode}, Content: {errorContent}");
-                    return false;
-                }
+                    try
+                    {
+                        var checkoutResponse = JsonSerializer.Deserialize<CheckoutResponse>(content, _jsonOptions);
 
-                Console.WriteLine($"Successfully checked out {quantity} unit(s) of equipment ID {equipmentId}");
-                return true;
+                        // Check if this is a successful checkout or a blacklist info response
+                        if (checkoutResponse?.Success == true)
+                        {
+                            Console.WriteLine($"Successfully checked out {quantity} unit(s) of equipment ID {equipmentId}");
+                            return (true, null, null, null);
+                        }
+                        else if (checkoutResponse?.IsBlacklisted == true)
+                        {
+                            // This is a blacklist information response (200 OK but with blacklist details)
+                            Console.WriteLine($"Team blacklisted - Message: {checkoutResponse.Message}, OverdueEquipmentName: {checkoutResponse.OverdueEquipmentName}");
+
+                            // Process overdue items list
+                            var overdueItems = checkoutResponse.OverdueItems?.Select(item => new OverdueEquipmentInfo
+                            {
+                                CheckoutId = item.CheckoutID,
+                                EquipmentId = item.EquipmentId,
+                                EquipmentName = item.EquipmentName ?? "Unknown Equipment",
+                                CheckoutDate = item.CheckoutDate,
+                                ExpectedReturnDate = item.ExpectedReturnDate,
+                                DaysOverdue = item.DaysOverdue
+                            }).ToList() ?? new List<OverdueEquipmentInfo>();
+
+                            return (false, checkoutResponse.Message, checkoutResponse.OverdueEquipmentName, overdueItems);
+                        }
+
+                        // If we got here, it's an unexpected response format
+                        Console.WriteLine($"Unexpected response format: {content}");
+                        return (false, "Unexpected response from server", null, null);
+                    }
+                    catch (Exception ex)
+                    {
+                        Console.Error.WriteLine($"Error parsing response: {ex.Message}");
+                        return (false, $"Error parsing server response: {ex.Message}", null, null);
+                    }
+                }
+                else
+                {
+                    // Handle error responses (non-blacklist errors)
+                    Console.Error.WriteLine($"Error checking out equipment: Status: {response.StatusCode}, Content: {content}");
+
+                    try
+                    {
+                        var errorResponse = JsonSerializer.Deserialize<ErrorCheckoutResponse>(content, _jsonOptions);
+                        if (errorResponse != null)
+                        {
+                            Console.WriteLine($"Checkout failed - Message: {errorResponse.Message}, OverdueEquipmentName: {errorResponse.OverdueEquipmentName}");
+                            return (false, errorResponse.Message, errorResponse.OverdueEquipmentName, null);
+                        }
+                    }
+                    catch (Exception ex)
+                    {
+                        Console.Error.WriteLine($"Error parsing error response: {ex.Message}");
+                    }
+
+                    return (false, content, null, null);
+                }
             }
             catch (Exception ex)
             {
                 Console.Error.WriteLine($"Error in CheckoutEquipmentAsync: {ex.Message}");
-                return false;
+                if (ex.InnerException != null)
+                {
+                    Console.Error.WriteLine($"Inner exception: {ex.InnerException.Message}");
+                }
+                return (false, $"An unexpected error occurred: {ex.Message}", null, null);
             }
+        }
+
+        // Add these response classes at the bottom of the file
+        private class CheckoutResponse
+        {
+            [JsonPropertyName("success")]
+            public bool Success { get; set; }
+
+            [JsonPropertyName("isBlacklisted")]
+            public bool IsBlacklisted { get; set; }
+
+            [JsonPropertyName("message")]
+            public string? Message { get; set; }
+
+            [JsonPropertyName("overdueEquipmentName")]
+            public string? OverdueEquipmentName { get; set; }
+
+            [JsonPropertyName("overdueItems")]
+            public List<OverdueItemInfo>? OverdueItems { get; set; }
+        }
+
+        private class OverdueItemInfo
+        {
+            [JsonPropertyName("checkoutID")]
+            public int CheckoutID { get; set; }
+
+            [JsonPropertyName("equipmentId")]
+            public int EquipmentId { get; set; }
+
+            [JsonPropertyName("equipmentName")]
+            public string? EquipmentName { get; set; }
+
+            [JsonPropertyName("checkoutDate")]
+            public DateTime CheckoutDate { get; set; }
+
+            [JsonPropertyName("expectedReturnDate")]
+            public DateTime ExpectedReturnDate { get; set; }
+
+            [JsonPropertyName("daysOverdue")]
+            public double DaysOverdue { get; set; }
+        }
+
+        // Public model to expose to the rest of the application
+        public class OverdueEquipmentInfo
+        {
+            public int CheckoutId { get; set; }
+            public int EquipmentId { get; set; }
+            public string EquipmentName { get; set; } = "Unknown Equipment";
+            public DateTime CheckoutDate { get; set; }
+            public DateTime ExpectedReturnDate { get; set; }
+            public double DaysOverdue { get; set; }
+        }
+
+        // Add this class definition near the other response classes at the bottom of the file
+        private class ErrorCheckoutResponse
+        {
+            [JsonPropertyName("success")]
+            public bool Success { get; set; }
+
+            [JsonPropertyName("message")]
+            public string? Message { get; set; }
+
+            [JsonPropertyName("overdueEquipmentName")]
+            public string? OverdueEquipmentName { get; set; }
         }
 
         // Helper methods to safely get properties from JsonElement
@@ -352,7 +479,6 @@ namespace Blazor_WebAssembly.Services.Implementations
             }
             return null;
         }
-
 
         public async Task<List<CheckoutRecordDto>> GetCheckoutHistoryAsync()
         {

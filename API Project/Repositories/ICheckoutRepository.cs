@@ -9,6 +9,12 @@ namespace API_Project.Repositories
 {
     public interface ICheckoutRepository
     {
+        // Add this method to fix the error
+        Task<List<EquipmentCheckout>> GetAllCheckoutsAsync();
+
+        // Add this method for updating checkouts
+        Task UpdateCheckoutAsync(EquipmentCheckout checkout);
+
         // Basic CRUD operations
         Task AddAsync(CheckoutRecord record);
 
@@ -38,17 +44,18 @@ namespace API_Project.Repositories
 
         // Extended checkout methods
         Task AddCheckoutAsync(Checkout checkout);
+        Task AddCheckoutAsync(EquipmentCheckout checkout);
         Task<IEnumerable<Checkout>> GetCheckoutsByTeamIdAsync(string teamId);
 
         // Partial returns and quantity adjustments
         Task<bool> ProcessPartialReturnAsync(int checkoutId, int returnQuantity, string condition = "Good", string notes = "");
 
         // Bulk operations
-        Task<bool> BulkReturnEquipmentAsync(
-            int teamId,
-            IEnumerable<(int equipmentId, int quantity)> equipmentReturns,
-            int userId,
-            string condition = "Good",
-            string notes = "");
+        Task<(bool Success, string? UnBlacklistMessage)> ReturnEquipmentAsync(int checkoutId);
+        // Get unreturned items for a team
+        Task<List<CheckoutRecord>> GetUnreturnedItemsForTeamAsync(string teamId);
+
+        // Get active checkouts
+        Task<List<EquipmentCheckout>> GetActiveCheckoutsAsync();
     }
 }

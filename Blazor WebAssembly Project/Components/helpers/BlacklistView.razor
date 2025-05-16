@@ -2,17 +2,32 @@
 @using Domain_Project.DTOs
 @using Blazor_WebAssembly.Services.Interfaces
 @using System.Security.Claims
+@using System.Text.Json
+@using Blazored.LocalStorage
+@using Microsoft.AspNetCore.Components.Authorization
+
 @inject ITeamService TeamService
 @inject IBlacklistService BlacklistService
-@inject Microsoft.AspNetCore.Components.Authorization.AuthenticationStateProvider AuthStateProvider
+@inject AuthenticationStateProvider AuthStateProvider
 @inject ILogger<BlacklistView> Logger
+@inject IJSRuntime JSRuntime
+@inject Blazored.LocalStorage.ILocalStorageService LocalStorageService
 
 <link href="css/helpers.css" rel="stylesheet" />
 
 <h2 class="text-center text-xl font-bold mb-6">רשימה שחורה</h2>
 
 <div class="content-container">
-    @if (IsLoading)
+    @if (!isAuthenticated)
+    {
+        <div class="alert-warning mb-4">
+            <p>יש להתחבר כדי להשתמש באפשרות זו.</p>
+            <button class="btn-action mt-2" @onclick="HandleLogin">
+                <i class="bi bi-box-arrow-in-right"></i> התחבר
+            </button>
+        </div>
+    }
+    else if (IsLoading)
     {
         <div class="loading-container">
             <div class="spinner"></div>
@@ -115,24 +130,49 @@
     private bool IsError = false;
     private TeamDto? teamToRemove;
     private bool showConfirmDialog;
-    private int currentUserId = 0;
+    private int currentUserId = 1; // Default ID as fallback
+    private bool isAuthenticated = false;
 
     protected override async Task OnInitializedAsync()
     {
         try
         {
-            // Try to get the current user's ID
+            // Check authentication status
             var authState = await AuthStateProvider.GetAuthenticationStateAsync();
-            var user = authState.User;
-            if (user.Identity?.IsAuthenticated == true)
+            isAuthenticated = authState.User.Identity?.IsAuthenticated == true;
+
+            // If not authenticated, try revalidating token
+            if (!isAuthenticated)
             {
-                var userIdClaim = user.FindFirst(ClaimTypes.NameIdentifier);
-                if (userIdClaim != null && int.TryParse(userIdClaim.Value, out int userId))
+                var token = await LocalStorageService.GetItemAsync<string>("authToken");
+                if (!string.IsNullOrEmpty(token))
                 {
-                    currentUserId = userId;
+                    try
+                    {
+                        Logger.LogInformation("Attempting to revalidate token");
+                        // Check again
+                        authState = await AuthStateProvider.GetAuthenticationStateAsync();
+                        isAuthenticated = authState.User.Identity?.IsAuthenticated == true;
+                    }
+                    catch (Exception ex)
+                    {
+                        Logger.LogWarning(ex, "Failed to revalidate token");
+                    }
                 }
             }
 
+            // Load user info if authenticated
+            if (isAuthenticated)
+            {
+                await LoadUserInfo();
+            }
+            else
+            {
+                // Continue with default user ID if not authenticated
+                Logger.LogWarning("User not authenticated - using default user ID");
+            }
+
+            // Load blacklisted teams
             await LoadBlacklistedTeams();
         }
         catch (Exception ex)
@@ -141,6 +181,74 @@
             Message = $"שגיאה בטעינת הרשימה השחורה: {ex.Message}";
             IsError = true;
         }
+    }
+
+    private async Task LoadUserInfo()
+    {
+        try
+        {
+            var authState = await AuthStateProvider.GetAuthenticationStateAsync();
+            var user = authState.User;
+
+            if (user.Identity?.IsAuthenticated == true)
+            {
+                // Try standard identity claim types first
+                var userIdClaim = user.FindFirst(ClaimTypes.NameIdentifier) ??
+                                  user.FindFirst("sub") ??
+                                  user.FindFirst("userId") ??
+                                  user.FindFirst("UserID");
+
+                if (userIdClaim != null)
+                {
+                    Logger.LogInformation($"Found user ID claim: {userIdClaim.Type} = {userIdClaim.Value}");
+
+                    if (int.TryParse(userIdClaim.Value, out int userId))
+                    {
+                        currentUserId = userId;
+                        Logger.LogInformation($"Successfully parsed user ID: {currentUserId}");
+                    }
+                    else
+                    {
+                        Logger.LogWarning($"Could not parse user ID '{userIdClaim.Value}' as integer");
+                    }
+                }
+                else
+                {
+                    // Check for non-standard claims if standard ones not found
+                    var possibleIdClaims = user.Claims.Where(c =>
+                        c.Type.Contains("id", StringComparison.OrdinalIgnoreCase) ||
+                        c.Type.Contains("identifier", StringComparison.OrdinalIgnoreCase)).ToList();
+
+                    if (possibleIdClaims.Any())
+                    {
+                        foreach (var claim in possibleIdClaims)
+                        {
+                            Logger.LogInformation($"Potential ID claim found: {claim.Type} = {claim.Value}");
+                        }
+
+                        var firstPotentialClaim = possibleIdClaims.First();
+                        if (int.TryParse(firstPotentialClaim.Value, out int potentialUserId))
+                        {
+                            currentUserId = potentialUserId;
+                            Logger.LogInformation($"Using potential user ID claim: {currentUserId}");
+                        }
+                    }
+                }
+            }
+        }
+        catch (Exception ex)
+        {
+            Logger.LogError(ex, "Error loading user information");
+        }
+    }
+
+    private async Task HandleLogin()
+    {
+        // Save current URL to return after login
+        await LocalStorageService.SetItemAsync("returnUrl", JSRuntime.InvokeAsync<string>("window.location.href"));
+
+        // Navigate to login page
+        await JSRuntime.InvokeVoidAsync("window.location.href", "authentication/login");
     }
 
     private async Task LoadBlacklistedTeams()
@@ -152,16 +260,57 @@
 
         try
         {
-            Logger.LogInformation("Loading blacklisted teams...");
-            var teams = await TeamService.GetBlacklistedTeamsAsync();
-            BlacklistedTeams = teams.Select(t => new TeamDto
+            Logger.LogInformation($"Loading blacklisted teams using BlacklistService with userId: {currentUserId}");
+
+            try
             {
-                TeamID = t.TeamID,
-                TeamName = t.TeamName,
-                Description = t.Description ?? string.Empty,
-                IsActive = t.IsActive
-            }).ToList();
-            Logger.LogInformation($"Loaded {BlacklistedTeams.Count} blacklisted teams");
+                // Pass the current user ID to ensure proper blacklist processing
+                var teams = await BlacklistService.GetActiveBlacklistsAsync(currentUserId);
+                BlacklistedTeams = teams.ToList();
+                Logger.LogInformation($"Loaded {BlacklistedTeams.Count} blacklisted teams from BlacklistService");
+            }
+            catch (HttpRequestException ex) when (ex.StatusCode == System.Net.HttpStatusCode.Unauthorized)
+            {
+                Logger.LogWarning("Unauthorized access to blacklist API");
+                Message = "אין לך הרשאה לצפות ברשימה השחורה, אנא התחבר למערכת";
+                IsError = true;
+                isAuthenticated = false;
+            }
+            catch (HttpRequestException ex)
+            {
+                Logger.LogError(ex, "API error when loading blacklisted teams");
+                Message = $"שגיאה בהתקשרות עם השרת: {ex.Message}";
+                IsError = true;
+
+                // Fallback to TeamService if BlacklistService fails
+                Logger.LogInformation("Attempting fallback to TeamService...");
+                try
+                {
+                    var teams = await TeamService.GetBlacklistedTeamsAsync();
+                    BlacklistedTeams = teams.Select(t => new TeamDto
+                    {
+                        TeamID = t.TeamID,
+                        TeamName = t.TeamName,
+                        Description = t.Description ?? string.Empty,
+                        IsActive = t.IsActive
+                    }).ToList();
+                    Logger.LogInformation($"Loaded {BlacklistedTeams.Count} blacklisted teams from TeamService fallback");
+                    Message = null;
+                    IsError = false;
+                }
+                catch (Exception fallbackEx)
+                {
+                    Logger.LogError(fallbackEx, "Fallback to TeamService also failed");
+                    Message = $"שגיאה בטעינת רשימה שחורה: {fallbackEx.Message}";
+                    IsError = true;
+                }
+            }
+            catch (JsonException ex)
+            {
+                Logger.LogError(ex, "JSON parsing error - likely received HTML instead of JSON");
+                Message = "שגיאה בטעינת נתונים מהשרת. ייתכן שקיבלנו דף שגיאה במקום נתונים";
+                IsError = true;
+            }
         }
         catch (Exception ex)
         {
@@ -175,6 +324,7 @@
             StateHasChanged();
         }
     }
+
 
     private void RemoveFromBlacklist(TeamDto team)
     {
@@ -206,26 +356,31 @@
 
         try
         {
-            Logger.LogInformation($"Attempting to remove team {team.TeamID} from blacklist");
+            Logger.LogInformation($"Attempting to remove team {team.TeamID} from blacklist by user ID {currentUserId}");
 
             bool result = false;
 
-            // First try TeamService (which seems to use string IDs)
+            // Try BlacklistService (which uses int IDs and will pass the user ID)
             try
             {
-                result = await TeamService.RemoveFromBlacklistAsync(team.TeamID.ToString());
-                Logger.LogInformation($"TeamService.RemoveFromBlacklistAsync result: {result}");
+                // Pass the current user ID for tracking who removed the team from blacklist
+                result = await BlacklistService.RemoveFromBlacklistAsync(team.TeamID, currentUserId);
+                Logger.LogInformation($"BlacklistService.RemoveFromBlacklistAsync result: {result}");
             }
             catch (Exception ex)
             {
-                Logger.LogWarning(ex, "Attempt to use TeamService.RemoveFromBlacklistAsync failed, trying BlacklistService instead");
-            }
+                Logger.LogWarning(ex, "Attempt to use BlacklistService.RemoveFromBlacklistAsync failed");
 
-            // If that didn't work, try BlacklistService (which uses int IDs)
-            if (!result)
-            {
-                result = await BlacklistService.RemoveFromBlacklistAsync(team.TeamID);
-                Logger.LogInformation($"BlacklistService.RemoveFromBlacklistAsync result: {result}");
+                // Fallback to TeamService if BlacklistService fails
+                try
+                {
+                    result = await TeamService.RemoveFromBlacklistAsync(team.TeamID.ToString());
+                    Logger.LogInformation($"TeamService.RemoveFromBlacklistAsync result: {result}");
+                }
+                catch (Exception ex2)
+                {
+                    Logger.LogError(ex2, "Both removal attempts failed");
+                }
             }
 
             if (result)

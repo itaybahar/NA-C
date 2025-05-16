@@ -13,9 +13,14 @@ namespace API_Project.Repositories
     {
         private readonly EquipmentManagementContext _dbContext;
 
-        public CheckoutRepository(EquipmentManagementContext dbContext)
+        private readonly ILogger<CheckoutRepository> _logger;
+
+        public CheckoutRepository(
+            EquipmentManagementContext dbContext,
+            ILogger<CheckoutRepository> logger)
         {
             _dbContext = dbContext ?? throw new ArgumentNullException(nameof(dbContext));
+            _logger = logger ?? throw new ArgumentNullException(nameof(logger));
         }
 
         public async Task<bool> HasUnreturnedItemsAsync(string teamId)
@@ -247,10 +252,10 @@ namespace API_Project.Repositories
             }
             catch (Exception ex)
             {
-                Console.Error.WriteLine($"Error in GetByTeamIdAsync: {ex.Message}");
+                _logger.LogError(ex, "Error in GetByTeamIdAsync: {ex.Message}");
                 if (ex.InnerException != null)
                 {
-                    Console.Error.WriteLine($"Inner exception: {ex.InnerException.Message}");
+                    _logger.LogError(ex, "Inner exception: {ex.InnerException.Message}");
                 }
                 throw; // Let the controller handle it
             }
@@ -261,11 +266,12 @@ namespace API_Project.Repositories
         public async Task<List<CheckoutRecord>> GetOverdueAsync(TimeSpan overdueTime)
         {
             var now = DateTime.UtcNow;
-            var overdueDate = now.Subtract(overdueTime);
+            _logger.LogInformation("Executing GetOverdueAsync...");
 
-            // Query EquipmentCheckouts and map to CheckoutRecord objects
+
+            // Use ExpectedReturnDate for overdue check instead of threshold
             var overdueRecords = await _dbContext.EquipmentCheckouts
-                .Where(ec => ec.Status == "CheckedOut" && ec.ExpectedReturnDate < now)
+                .Where(ec => ec.Status == "CheckedOut" && (ec.ExpectedReturnDate < now ||  now - ec.CheckoutDate > overdueTime))
                 .Join(
                     _dbContext.Teams,
                     ec => ec.TeamID,
@@ -274,31 +280,33 @@ namespace API_Project.Repositories
                 )
                 .Join(
                     _dbContext.Equipment,
-                    joined => joined.Checkout.EquipmentId, // Changed from EquipmentID to EquipmentId
+                    joined => joined.Checkout.EquipmentId,
                     e => e.Id,
                     (joined, e) => new CheckoutRecord
                     {
                         Id = joined.Checkout.CheckoutID.ToString(),
-                        EquipmentId = joined.Checkout.EquipmentId, // Changed from EquipmentID to EquipmentId
-                        Equipment = e, // Set the required Equipment property
+                        EquipmentId = joined.Checkout.EquipmentId,
+                        Equipment = e,
                         TeamId = joined.Checkout.TeamID,
-                        Team = joined.Team, // Set the required Team property
+                        Team = joined.Team,
                         UserId = joined.Checkout.UserID,
-                        CheckedOutAt = joined.Checkout.CheckoutDate, // Removed null coalescing as CheckoutDate is non-nullable
+                        CheckedOutAt = joined.Checkout.CheckoutDate,
                         ReturnedAt = null,
-                        Quantity = joined.Checkout.Quantity // Include quantity information
+                        Quantity = joined.Checkout.Quantity
                     }
                 )
                 .ToListAsync();
 
+            _logger.LogInformation($"Found {overdueRecords.Count} overdue records based on ExpectedReturnDate");
             return overdueRecords;
         }
+
 
         public async Task<List<CheckoutRecordDto>> GetCheckoutHistoryAsync()
         {
             try
             {
-                Console.WriteLine("Executing GetCheckoutHistoryAsync...");
+                _logger.LogInformation("Executing GetCheckoutHistoryAsync...");
 
                 // Use raw SQL with proper null handling for all nullable columns
                 var query = @"
@@ -353,17 +361,17 @@ namespace API_Project.Repositories
                     });
                 }
 
-                Console.WriteLine($"Successfully retrieved {result.Count} checkout records");
+                _logger.LogInformation($"Successfully retrieved {result.Count} checkout records");
                 return result;
             }
             catch (Exception ex)
             {
-                Console.Error.WriteLine($"Error in GetCheckoutHistoryAsync: {ex.Message}");
+                _logger.LogError(ex, "Error in GetCheckoutHistoryAsync: {ex.Message}");
                 if (ex.InnerException != null)
                 {
-                    Console.Error.WriteLine($"Inner exception: {ex.InnerException.Message}");
+                    _logger.LogError(ex, "Inner exception: {ex.InnerException.Message}");
                 }
-                Console.Error.WriteLine($"Stack trace: {ex.StackTrace}");
+                _logger.LogError(ex, "Stack trace: {ex.StackTrace}");
                 throw; // Rethrow so the controller can handle it
             }
         }
@@ -516,7 +524,7 @@ namespace API_Project.Repositories
             }
             catch (Exception ex)
             {
-                Console.Error.WriteLine($"Error in ProcessPartialReturnAsync: {ex.Message}");
+                _logger.LogError(ex, "Error in ProcessPartialReturnAsync: {ex.Message}");
                 return false;
             }
         }
@@ -617,9 +625,117 @@ namespace API_Project.Repositories
             catch (Exception ex)
             {
                 await transaction.RollbackAsync();
-                Console.Error.WriteLine($"Error in BulkReturnEquipmentAsync: {ex.Message}");
+                _logger.LogError(ex, "Error in BulkReturnEquipmentAsync: {ex.Message}");
                 return false;
             }
         }
+
+        /// <summary>
+        /// Returns a checked out equipment item and checks for blacklist status changes
+        /// </summary>
+        /// <param name="checkoutId">The ID of the checkout to return</param>
+        /// <returns>A tuple with success status and any un-blacklist message</returns>
+        public async Task<(bool Success, string? UnBlacklistMessage)> ReturnEquipmentAsync(int checkoutId)
+        {
+            try
+            {
+                // Get the checkout record
+                var checkout = await GetCheckoutByIdAsync(checkoutId);
+                if (checkout == null)
+                {
+                    return (false, null);
+                }
+
+                // Check if it's already returned
+                if (checkout.Status == "Returned")
+                {
+                    return (true, null); // Already returned, consider the operation successful
+                }
+
+                // Update checkout status
+                checkout.ReturnDate = DateTime.UtcNow;
+                checkout.ActualReturnDate = DateTime.UtcNow;
+                checkout.Status = "Returned";
+
+                // Update the database
+                await UpdateCheckoutAsync(checkout);
+
+                // The blacklist message handling is done at the service level, 
+                // not the repository level, so we just return a success with no message
+                return (true, null);
+            }
+            catch (Exception ex)
+            {
+                _logger.LogError(ex, $"Error returning equipment (ID: {checkoutId}): {ex.Message}");
+                return (false, null);
+            }
+        }
+
+
+        // Implementation of GetAllCheckoutsAsync
+        public async Task<List<EquipmentCheckout>> GetAllCheckoutsAsync()
+        {
+            return await _dbContext.EquipmentCheckouts.ToListAsync();
+        }
+
+        // Implementation of UpdateCheckoutAsync
+        public async Task UpdateCheckoutAsync(EquipmentCheckout checkout)
+        {
+            _dbContext.EquipmentCheckouts.Update(checkout);
+            await _dbContext.SaveChangesAsync();
+        }
+
+        // Implementation of GetUnreturnedItemsForTeamAsync
+        public async Task<List<CheckoutRecord>> GetUnreturnedItemsForTeamAsync(string teamId)
+        {
+            if (int.TryParse(teamId, out int numericTeamId))
+            {
+                var unreturned = await _dbContext.EquipmentCheckouts
+                    .Where(ec => ec.TeamID == numericTeamId && ec.Status == "CheckedOut")
+                    .Join(
+                        _dbContext.Teams,
+                        ec => ec.TeamID,
+                        t => t.TeamID,
+                        (ec, t) => new { Checkout = ec, Team = t }
+                    )
+                    .Join(
+                        _dbContext.Equipment,
+                        joined => joined.Checkout.EquipmentId,
+                        e => e.Id,
+                        (joined, e) => new CheckoutRecord
+                        {
+                            Id = joined.Checkout.CheckoutID.ToString(),
+                            EquipmentId = joined.Checkout.EquipmentId,
+                            Equipment = e,
+                            TeamId = joined.Checkout.TeamID,
+                            Team = joined.Team,
+                            UserId = joined.Checkout.UserID,
+                            CheckedOutAt = joined.Checkout.CheckoutDate,
+                            ReturnedAt = null,
+                            Quantity = joined.Checkout.Quantity
+                        }
+                    )
+                    .ToListAsync();
+
+                return unreturned;
+            }
+            return new List<CheckoutRecord>();
+        }
+
+        // Implementation of GetActiveCheckoutsAsync
+        public async Task<List<EquipmentCheckout>> GetActiveCheckoutsAsync()
+        {
+            return await _dbContext.EquipmentCheckouts
+                .Where(ec => ec.Status == "CheckedOut")
+                .ToListAsync();
+        }
+
+        // Overload for AddCheckoutAsync to support EquipmentCheckout
+        public async Task AddCheckoutAsync(EquipmentCheckout checkout)
+        {
+            await _dbContext.EquipmentCheckouts.AddAsync(checkout);
+            await _dbContext.SaveChangesAsync();
+        }
+
     }
 }

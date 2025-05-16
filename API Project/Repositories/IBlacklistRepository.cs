@@ -10,6 +10,6 @@ namespace API_Project.Repositories
         Task RemoveAsync(int blacklistId);
         Task<Blacklist?> GetByTeamIdAsync(int teamId);
         Task<List<Blacklist>> GetAllAsync();
-        Task<bool> IsBlacklistedAsync(int teamId);
+        Task<bool> IsTeamBlacklistedAsync(int teamId);
     }
 }

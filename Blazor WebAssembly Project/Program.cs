@@ -231,6 +231,7 @@ try
     Console.WriteLine("Added IJavaScriptInitializer");
 
     builder.Services.AddScoped<Domain_Project.Interfaces.IEquipmentRepository, ClientSideEquipmentRepository>();
+
     Console.WriteLine("Added IEquipmentRepository");
 
     builder.Services.AddScoped<Blazor_WebAssembly.Services.Interfaces.IEquipmentService, EquipmentService>();

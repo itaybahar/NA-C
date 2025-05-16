@@ -20,24 +20,7 @@ namespace Domain_Project.DTOs
         public UserDto? User { get; set; }
 
         /// <summary>
-        /// Creates a new instance of the authentication response DTO.
-        /// </summary>
-        public AuthenticationResponseDto() { }
-
-        /// <summary>
-        /// Creates a new instance of the authentication response DTO with the specified token and user.
-        /// </summary>
-        /// <param name="token">The authentication token</param>
-        /// <param name="user">The user details</param>
-        public AuthenticationResponseDto(string token, UserDto user)
-        {
-            Token = token;
-            User = user;
-        }
-
-        /// <summary>
-        /// Converts an API_Project.Services.AuthenticationResponseDto to a Domain_Project.DTOs.AuthenticationResponseDto.
-        /// Used for cross-layer translation between API and Domain layers.
+        /// Creates a Domain layer authentication response DTO from an API layer DTO.
         /// </summary>
         /// <param name="apiDto">The API layer authentication response DTO</param>
         /// <returns>A new Domain layer authentication response DTO</returns>
@@ -55,9 +38,9 @@ namespace Domain_Project.DTOs
         }
 
         /// <summary>
-        /// Creates an authentication response DTO with no token (for failed authentication).
+        /// Creates a failed authentication response with no token or user information.
         /// </summary>
-        /// <returns>A new authentication response DTO with null values</returns>
+        /// <returns>An authentication response representing a failed authentication attempt</returns>
         public static AuthenticationResponseDto CreateFailedResponse()
         {
             return new AuthenticationResponseDto

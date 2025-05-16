@@ -1,18 +1,25 @@
 ﻿/* ====== ROOT VARIABLES ====== */
 :root {
-    --background-color: #1a1a1a;
-    --card-background: rgba(255, 255, 255, 0.15);
-    --input-background: rgba(255, 255, 255, 0.25);
-    --button-background: #e53e3e; /* Changed to red */
-    --link-color: #e53e3e; /* Added red link color */
-    --input-placeholder: #888;
-    --text-color: #222;
-    --shadow-color: rgba(0, 0, 0, 0.2);
-    --icon-color: #333;
+    --background-gradient: linear-gradient(135deg, #5a2326 0%, #fff 100%);
+    --card-background: #f8f6f3;
+    --icon-color: #b0b0b0;
+    --input-background: #fff;
+    --input-border: #d1cfc9;
+    --input-border-focus: #bfa181;
+    --button-gradient: linear-gradient(90deg, #e7d7c1 0%, #f5e7d6 100%);
+    --button-hover-gradient: linear-gradient(90deg, #f5e7d6 0%, #e7d7c1 100%);
+    --button-text: #3a2c1a;
+    --button-text-hover: #bfa181;
+    --google-button-bg: #fff;
+    --google-button-shadow: 0 4px 10px rgba(0,0,0,0.10);
+    --link-color: #bfa181;
+    --text-color: #2a2a2a;
+    --placeholder-color: #b0b0b0;
+    --shadow-color: rgba(0, 0, 0, 0.10);
     --success-background: #ddffd6;
     --error-background: #ffdddd;
-    --error-text: #8b0000; /* Added dark red color for error text */
-    --success-text: #006600; /* Added dark green color for success text */
+    --error-text: #e53e3e;
+    --success-text: #4caf50;
 }
 
 /* ====== GENERAL BODY ====== */
@@ -21,13 +28,14 @@ body, html {
     padding: 0;
     height: 100%;
     font-family: 'Segoe UI', sans-serif;
-    background: url('/images/login-background.png') no-repeat center center fixed;
+    background: var(--background-gradient);
+    background-attachment: fixed;
     background-size: cover;
-    background-color: var(--background-color);
     display: flex;
     align-items: center;
     justify-content: center;
-    direction: rtl;
+    direction: ltr;
+    color: var(--text-color);
 }
 
 /* ====== LOGIN CONTAINER ====== */
@@ -42,14 +50,15 @@ body, html {
 /* ====== LOGIN CARD ====== */
 .login-card {
     background: var(--card-background);
-    border-radius: 25px;
+    border-radius: 28px;
     padding: 60px 30px 30px;
     width: 100%;
-    max-width: 380px;
+    max-width: 400px;
     text-align: center;
     position: relative;
     box-shadow: 0 8px 32px var(--shadow-color);
-    backdrop-filter: blur(10px);
+    border: 1px solid #f3e9d2;
+    color: var(--text-color);
 }
 
 /* ====== ICON ====== */
@@ -71,64 +80,62 @@ body, html {
     .icon-wrapper img {
         width: 50px;
         height: 50px;
+        filter: brightness(0) invert(1);
     }
 
 /* ====== INPUTS ====== */
 .input-group {
     margin-bottom: 15px;
-    position: relative; /* Added for positioning validation icons */
+    position: relative;
 }
 
 .input-wrapper {
     background: var(--input-background);
-    border-radius: 10px;
+    border: 1.5px solid var(--input-border);
+    border-radius: 12px;
     display: flex;
     align-items: center;
     padding: 0;
-    height: 45px;
+    height: 48px;
     overflow: hidden;
-    transition: border 0.3s ease;
+    transition: border 0.3s;
 }
-
-    /* Add styles for valid input state */
-    .input-wrapper.valid {
-        border: 2px solid var(--success-text);
-    }
-
+.input-wrapper:focus-within {
+    border: 1.5px solid var(--input-border-focus);
+}
 .input-icon {
-    width: 45px;
+    width: 48px;
     display: flex;
     align-items: center;
     justify-content: center;
 }
 
     .input-icon img {
-        width: 20px;
-        opacity: 0.7;
+        width: 22px;
+        opacity: 0.8;
+        filter: brightness(0) invert(0.5);
     }
 
 .input-separator {
     width: 1px;
     height: 60%;
-    background-color: #bbb;
+    background-color: #e0e0e0;
 }
 
 .input-field {
     flex-grow: 1;
     border: none;
     background: transparent;
-    padding: 0 10px;
-    font-size: 16px;
+    padding: 0 12px;
+    font-size: 17px;
     color: var(--text-color);
 }
-
-    .input-field::placeholder {
-        color: var(--input-placeholder);
-    }
-
-    .input-field:focus {
-        outline: none;
-    }
+.input-field::placeholder {
+    color: var(--placeholder-color);
+}
+.input-field:focus {
+    outline: none;
+}
 
 /* ====== VALIDATION INDICATOR ====== */
 .validation-indicator {
@@ -138,7 +145,7 @@ body, html {
     transform: translateY(-50%);
     width: 22px;
     height: 22px;
-    display: none; /* Hidden by default */
+    display: none;
 }
 
     .validation-indicator.valid {
@@ -161,111 +168,132 @@ body, html {
     display: flex;
     justify-content: space-between;
     align-items: center;
-    font-size: 13px;
-    margin: 10px 0;
+    font-size: 14px;
+    margin: 12px 0 18px 0;
+    color: var(--text-color);
 }
 
 .remember-me {
     display: flex;
     align-items: center;
-    gap: 5px;
+    gap: 6px;
 }
 
 .forgot-password-link {
     background: none;
     border: none;
-    color: var(--link-color); /* Changed to red */
+    color: var(--link-color);
     text-decoration: underline;
     cursor: pointer;
-    font-size: 13px;
+    font-size: 14px;
+    transition: color 0.2s;
+}
+
+.forgot-password-link:hover {
+    color: #3a2c1a;
+    text-decoration: underline;
 }
 
 /* ====== LOGIN BUTTON ====== */
+.login-actions-row {
+    display: flex;
+    flex-direction: column;
+    gap: 0;
+    justify-content: center;
+    align-items: center;
+    margin-top: 24px;
+    margin-bottom: 0;
+}
+
 .login-button {
-    width: 260px;
-    height: 48px;
-    background: var(--button-background);
+    background: var(--button-gradient);
+    color: var(--button-text);
     border: none;
-    border-radius: 25px;
-    font-size: 18px;
+    border-radius: 32px;
+    font-size: 22px;
     font-weight: bold;
-    color: white; /* Changed to white for better contrast with red */
     box-shadow: 0 6px 15px var(--shadow-color);
     cursor: pointer;
-    transition: all 0.3s ease;
-    margin-top: 20px;
+    transition: background 0.3s, color 0.3s;
+    width: 100%;
+    max-width: 340px;
+    letter-spacing: 2px;
+    margin-top: 0 !important;
+    margin-bottom: 12px;
+    padding: 18px 0;
+    display: block;
+}
+.login-button:hover,
+.login-button:active {
+    background: var(--button-hover-gradient);
+    color: var(--button-text-hover);
 }
 
-    .login-button:hover {
-        background: #c53030; /* Darker red on hover */
-        transform: translateY(-3px);
-        box-shadow: 0 8px 20px var(--shadow-color);
-    }
-
-/* ====== GOOGLE LOGIN ====== */
-.google-login {
-    margin-top: 20px;
+.google-button {
+    background: var(--google-button-bg);
+    color: #222;
+    border-radius: 50%;
+    box-shadow: var(--google-button-shadow);
+    width: 44px;
+    height: 44px;
+    border: none;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    cursor: pointer;
+    transition: transform 0.2s, background 0.2s;
+    margin: 0 auto;
+    margin-bottom: 0;
 }
-
-    .google-login button {
-        background: white;
-        width: 55px;
-        height: 55px;
-        border-radius: 50%;
-        border: none;
-        box-shadow: 0 4px 10px var(--shadow-color);
-        display: flex;
-        align-items: center;
-        justify-content: center;
-        cursor: pointer;
-        transition: transform 0.2s ease;
-    }
-
-        .google-login button:hover {
-            transform: scale(1.05);
-        }
-
-    .google-login img {
-        width: 24px;
-    }
+.google-button:hover {
+    background: #f5f5f5;
+    transform: scale(1.05);
+}
+.google-button img {
+    width: 22px;
+}
 
 /* ====== SIGNUP LINK ====== */
 .signup {
-    margin-top: 15px;
-    font-size: 13px;
+    margin-top: 18px;
+    font-size: 14px;
     color: var(--text-color);
+    text-align: center;
 }
 
     .signup a {
-        color: var(--link-color); /* Changed to red */
+        color: var(--link-color);
         font-weight: bold;
         text-decoration: none;
+        transition: color 0.2s;
     }
 
         .signup a:hover {
+            color: #3a2c1a;
             text-decoration: underline;
         }
 
 /* ====== ALERTS ====== */
 .alert {
-    background-color: var(--error-background);
-    color: var(--error-text); /* Changed to dark red */
+    background: #f5e7d6;
+    color: #bfa181;
     padding: 10px;
-    border-radius: 5px;
+    border-radius: 7px;
     margin-bottom: 15px;
     font-size: 14px;
-    font-weight: bold; /* Added bold */
+    font-weight: 500;
+    border: 1px solid #e7d7c1;
 }
 
 .alert-success {
     background-color: var(--success-background);
     color: var(--success-text);
-    font-weight: normal; /* Keep success messages not bold */
+    font-weight: normal;
 }
 
 /* ====== VALIDATION MESSAGES ====== */
 .validation-message {
-    color: var(--error-text) !important; /* Dark red */
+    color: var(--error-text) !important;
     font-size: 13px;
     margin-top: 5px;
     text-align: right;
@@ -275,7 +303,7 @@ body, html {
 
 /* For Blazor's deep CSS targeting */
 ::deep .validation-message {
-    color: var(--error-text) !important; /* Dark red */
+    color: var(--error-text) !important;
     font-size: 13px;
     margin-top: 5px;
     text-align: right;
@@ -284,7 +312,7 @@ body, html {
 
 /* Success validation message */
 .validation-success {
-    color: var(--success-text) !important; /* Dark green */
+    color: var(--success-text) !important;
     font-size: 13px;
     margin-top: 5px;
     text-align: right;
@@ -293,7 +321,7 @@ body, html {
 }
 
 ::deep .validation-success {
-    color: var(--success-text) !important; /* Dark green */
+    color: var(--success-text) !important;
     font-size: 13px;
     margin-top: 5px;
     text-align: right;
@@ -310,10 +338,11 @@ body, html {
     display: flex;
     align-items: center;
     margin-top: 5px;
+    color: #b0b0b0;
 }
 
     .field-status.valid {
-        color: var(--success-text);
+        color: #4caf50;
     }
 
         .field-status.valid::before {
@@ -509,9 +538,9 @@ body, html {
 /* Back button styling */
 .back-button {
     background: transparent;
-    border: 1px solid rgba(255, 255, 255, 0.3);
+    border: 1px solid #e7d7c1;
     border-radius: 25px;
-    color: white;
+    color: #bfa181;
     padding: 10px 20px;
     font-size: 16px;
     cursor: pointer;
@@ -519,7 +548,7 @@ body, html {
 }
 
     .back-button:hover {
-        background: rgba(255, 255, 255, 0.1);
+        background: #f5e7d6;
     }
 
 /* Forgot password form styling */
@@ -548,22 +577,31 @@ body, html {
 /* Responsive adjustments */
 @media (max-width: 480px) {
     .login-card {
-        padding: 50px 20px 20px;
+        padding: 50px 10px 20px;
     }
 
     .icon-wrapper {
-        width: 80px;
-        height: 80px;
-        top: -40px;
+        width: 70px;
+        height: 70px;
+        top: -35px;
     }
 
         .icon-wrapper img {
-            width: 45px;
-            height: 45px;
+            width: 36px;
+            height: 36px;
         }
 
     .login-button {
         width: 100%;
+        font-size: 18px;
+        padding: 12px 0;
+    }
+    .google-button {
+        width: 38px;
+        height: 38px;
+    }
+    .google-button img {
+        width: 18px;
     }
 }
 
@@ -573,4 +611,157 @@ body, html {
     display: flex;
     flex-direction: column;
     align-items: center;
+}
+
+.login-card-wrapper {
+    position: relative;
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+}
+
+/* Remove margin-top from .login-button if present */
+.login-button {
+    margin-top: 0 !important;
+}
+
+@media (max-width: 480px) {
+    .login-button-floating-container {
+        bottom: -24px;
+    }
+    .login-button-floating-container .login-button {
+        width: 100%;
+        min-width: 0;
+    }
+}
+
+.login-button-under-card {
+    display: flex;
+    flex-direction: row;
+    justify-content: center;
+    align-items: center;
+    gap: 16px;
+    margin-top: -24px; /* overlap effect */
+    margin-bottom: 32px;
+    z-index: 2;
+}
+
+.login-button-under {
+    background: var(--card-background);
+    color: #fff;
+    border: none;
+    border-radius: 25px;
+    font-size: 18px;
+    font-weight: bold;
+    width: 260px;
+    height: 48px;
+    box-shadow: 0 8px 24px rgba(0,0,0,0.25);
+    cursor: pointer;
+    transition: all 0.3s;
+    letter-spacing: 1px;
+}
+.login-button-under:hover {
+    background: #232326;
+    color: var(--button-background);
+}
+
+.login-floating-btn-container {
+    display: flex;
+    flex-direction: row;
+    justify-content: center;
+    align-items: center;
+    gap: 24px;
+    margin-top: 48px;
+    margin-bottom: 0;
+    z-index: 10;
+    position: relative;
+}
+
+.login-floating-btn {
+    min-width: 220px;
+    max-width: 340px;
+    width: 100%;
+    height: 60px;
+    padding: 0 40px;
+    background: linear-gradient(90deg, #5a5a6e 0%, #c94b4b 100%);
+    color: #fff;
+    border: none;
+    border-radius: 32px;
+    font-size: 22px;
+    font-weight: 500;
+    box-shadow: 0 24px 48px 0 rgba(0,0,0,0.18), 0 4px 24px 0 rgba(0,0,0,0.10);
+    cursor: pointer;
+    letter-spacing: 4px;
+    transition: all 0.3s;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    outline: none;
+}
+.login-floating-btn:hover {
+    background: linear-gradient(90deg, #c94b4b 0%, #5a5a6e 100%);
+    color: #fff;
+    box-shadow: 0 32px 64px 0 rgba(0,0,0,0.22), 0 8px 32px 0 rgba(0,0,0,0.14);
+}
+
+.google-floating-btn {
+    background: #fff;
+    color: #fff;
+    border: 1.5px solid rgba(0,0,0,0.06);
+    border-radius: 50%;
+    width: 60px;
+    min-width: 60px;
+    max-width: 60px;
+    height: 60px;
+    box-shadow: 0 8px 32px rgba(0,0,0,0.18);
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    padding: 0;
+    transition: box-shadow 0.3s;
+}
+.google-floating-btn:hover {
+    box-shadow: 0 16px 32px rgba(0,0,0,0.22);
+}
+
+.google-floating-btn img {
+    width: 28px;
+}
+
+@media (max-width: 480px) {
+    .login-floating-btn {
+        min-width: 0;
+        width: 100%;
+        font-size: 18px;
+        height: 48px;
+    }
+    .google-floating-btn {
+        width: 44px;
+        min-width: 44px;
+        max-width: 44px;
+        height: 44px;
+    }
+    .google-floating-btn img {
+        width: 22px;
+    }
+    .login-floating-btn-container {
+        gap: 10px;
+        margin-bottom: 16px;
+    }
+}
+
+a, .forgot-password-link {
+    color: var(--link-color);
+    transition: color 0.2s;
+}
+a:hover, .forgot-password-link:hover {
+    color: #fff;
+}
+.alert, .validation-message {
+    color: var(--link-color);
+}
+
+/* ====== RTL ENFORCEMENT ====== */
+.login-card, .login-container, .input-group, .input-wrapper {
+    direction: rtl;
 }

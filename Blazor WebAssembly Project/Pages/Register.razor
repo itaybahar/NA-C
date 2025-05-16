@@ -119,7 +119,7 @@
                 }
             </div>
 
-            <div class="login-button-container">
+            <div class="login-actions-row">
                 <button type="submit" class="login-button" disabled="@(!IsFormValid || isSubmitting)">
                     @if (isSubmitting)
                     {
@@ -130,20 +130,15 @@
                         <span>הירשם</span>
                     }
                 </button>
+                <button class="google-button" @onclick="HandleGoogleRegister" disabled="@isSubmitting" type="button">
+                    <img src="images/google-logo.png" alt="Google" />
+                </button>
             </div>
         </EditForm>
     </div>
 
-    <div class="google-and-signup">
-        <div class="google-login">
-            <button class="google-button" @onclick="HandleGoogleRegister" disabled="@isSubmitting">
-                <img src="images/google-logo.png" alt="Google" />
-            </button>
-        </div>
-
-        <div class="signup">
-            <a href="/login">כבר רשום? התחבר עכשיו</a>
-        </div>
+    <div class="signup">
+        <a href="/login">כבר רשום? התחבר עכשיו</a>
     </div>
 </div>
 

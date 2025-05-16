@@ -55,10 +55,26 @@ namespace API_Project
         private static void ConfigureLogging(WebApplicationBuilder builder)
         {
             builder.Logging.ClearProviders();
-            builder.Logging.AddConsole();
+            builder.Logging.AddConsole(options =>
+            {
+                options.IncludeScopes = true;
+                options.DisableColors = false;
+                options.TimestampFormat = "[HH:mm:ss] ";
+            });
             builder.Logging.AddDebug();
+
+            // Set minimum level for all categories
             builder.Logging.SetMinimumLevel(LogLevel.Information);
+
+            // Set specific levels for your controllers and services
+            builder.Logging.AddFilter("API_Project.Controllers", LogLevel.Debug);
+            builder.Logging.AddFilter("API_Project.Services", LogLevel.Debug);
+            builder.Logging.AddFilter("API_Project.Repositories", LogLevel.Debug);
+
+            // Add this to see EF Core SQL
+            builder.Logging.AddFilter("Microsoft.EntityFrameworkCore.Database.Command", LogLevel.Information);
         }
+
 
         private static void ConfigureKestrel(WebApplicationBuilder builder)
         {
@@ -380,6 +396,8 @@ namespace API_Project
             builder.Services.AddScoped<ICheckoutRepository, CheckoutRepository>();
             builder.Services.AddScoped<IBlacklistRepository, BlacklistRepository>();
             builder.Services.AddScoped<IUnitOfWork, UnitOfWorkRepository>();
+            builder.Services.AddScoped<IBlacklistRepository, BlacklistRepository>();
+
 
             builder.Services.AddScoped<Services.AuthenticationService>();
             builder.Services.AddScoped<Domain_Project.Interfaces.IAuthenticationService>(sp =>
@@ -410,8 +428,15 @@ namespace API_Project
 
             // Fix issue with CheckoutService
             builder.Services.AddScoped<ICheckoutService, API_Project.Services.CheckoutService>(sp =>
-                new API_Project.Services.CheckoutService(
-                    sp.GetRequiredService<IHttpClientFactory>().CreateClient("API")));
+            new API_Project.Services.CheckoutService(
+                sp.GetRequiredService<ICheckoutRepository>(),
+                sp.GetRequiredService<ITeamRepository>(),
+                sp.GetRequiredService<IBlacklistRepository>(),
+                sp.GetRequiredService<IEquipmentRepository>(),
+                sp.GetRequiredService<IUnitOfWork>(),
+                sp.GetRequiredService<ILogger<API_Project.Services.CheckoutService>>()
+                )
+            );
         }
 
         private static void ConfigureRateLimiting(WebApplicationBuilder builder)
@@ -704,19 +729,43 @@ namespace API_Project
                 new { HttpPort = portProvider.HttpPort, HttpsPort = portProvider.HttpsPort });
 
             // Add CORS preflight handling middleware for all OPTIONS requests - FIX: Use Append for headers
+            // In ConfigurePipeline method, add this near the top:
             app.Use(async (context, next) =>
             {
-                if (context.Request.Method == "OPTIONS")
-                {
-                    context.Response.Headers.Append("Access-Control-Allow-Origin", "*");
-                    context.Response.Headers.Append("Access-Control-Allow-Headers", "Origin, X-Requested-With, Content-Type, Accept, Authorization");
-                    context.Response.Headers.Append("Access-Control-Allow-Methods", "GET, POST, PUT, DELETE, OPTIONS");
-                    context.Response.StatusCode = 200;
-                    return;
-                }
+                var logger = app.Services.GetRequiredService<ILogger<Program>>();
+                var requestId = Guid.NewGuid().ToString("N").Substring(0, 8);
 
-                await next();
+                // Log request info 
+                logger.LogInformation("[{RequestId}] HTTP {Method} {Path}{QueryString} from {IP}",
+                    requestId,
+                    context.Request.Method,
+                    context.Request.Path,
+                    context.Request.QueryString,
+                    context.Connection.RemoteIpAddress);
+
+                // Start timing for performance tracking
+                var sw = System.Diagnostics.Stopwatch.StartNew();
+
+                try
+                {
+                    await next();
+                    sw.Stop();
+
+                    // Log response info with timing
+                    logger.LogInformation("[{RequestId}] HTTP {StatusCode} completed in {ElapsedMs}ms",
+                        requestId,
+                        context.Response.StatusCode,
+                        sw.ElapsedMilliseconds);
+                }
+                catch (Exception ex)
+                {
+                    sw.Stop();
+                    logger.LogError(ex, "[{RequestId}] Request failed after {ElapsedMs}ms",
+                        requestId, sw.ElapsedMilliseconds);
+                    throw;
+                }
             });
+
 
             // Add email test endpoint - FIX: Using nullable dictionary
             app.MapGet("/api/email/test", async (IEmailService emailService, IConfiguration config) =>
