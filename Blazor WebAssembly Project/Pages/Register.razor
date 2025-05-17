@@ -125,14 +125,14 @@
                 </div>
             </EditForm>
         </div>
-        <button type="submit" class="login-button" form="register-form" disabled="@(!IsFormValid || isSubmitting)">
+        <button type="submit" class="login-button" form="register-form" disabled="@(!IsFormValid || isSubmitting)" @onclick="HandleRegistration">
             @if (isSubmitting)
             {
-                <span>Registering...</span>
+                <span>מתבצע רישום...</span>
             }
             else
             {
-                <span>Register</span>
+                <span>הרשמה</span>
             }
         </button>
         <button class="google-oauth-btn" @onclick="HandleGoogleRegister" type="button">
@@ -333,8 +333,20 @@
     private async Task ValidateUsername(ChangeEventArgs e)
     {
         var username = e.Value?.ToString();
-        // Basic username validation
-        IsUsernameValid = !string.IsNullOrWhiteSpace(username) && username.Length >= 3;
+        // Check if username contains both first and last name
+        IsUsernameValid = !string.IsNullOrWhiteSpace(username) && 
+                         username.Contains(" ") && 
+                         username.Split(' ').Length >= 2 &&
+                         username.Split(' ').All(part => part.Length >= 2);
+        
+        if (!IsUsernameValid)
+        {
+            errorMessage = "שם המשתמש חייב להכיל שם פרטי ושם משפחה";
+        }
+        else
+        {
+            errorMessage = string.Empty;
+        }
         StateHasChanged();
     }
 
@@ -346,6 +358,14 @@
         {
             // Try to use JS validation if available
             IsEmailValid = await JSRuntime.InvokeAsync<bool>("registerPageFunctions.validateEmail", email);
+            if (!IsEmailValid)
+            {
+                errorMessage = "כתובת המייל אינה תקינה";
+            }
+            else
+            {
+                errorMessage = string.Empty;
+            }
         }
         catch
         {
@@ -357,6 +377,15 @@
                 !email.EndsWith("@") &&
                 !email.StartsWith(".") &&
                 !email.EndsWith(".");
+            
+            if (!IsEmailValid)
+            {
+                errorMessage = "כתובת המייל אינה תקינה";
+            }
+            else
+            {
+                errorMessage = string.Empty;
+            }
         }
 
         StateHasChanged();
@@ -377,6 +406,15 @@
             HasSpecialChar = result["hasSpecialChar"];
 
             IsPasswordValid = HasMinLength && HasUpperCase && HasNumber && HasSpecialChar;
+            
+            if (!IsPasswordValid)
+            {
+                errorMessage = "הסיסמה אינה עומדת בדרישות המינימום";
+            }
+            else
+            {
+                errorMessage = string.Empty;
+            }
         }
         catch (Exception ex)
         {
@@ -390,6 +428,7 @@
                 HasUpperCase = false;
                 HasNumber = false;
                 HasSpecialChar = false;
+                errorMessage = "הסיסמה אינה עומדת בדרישות המינימום";
             }
             else
             {
@@ -399,6 +438,15 @@
                 HasSpecialChar = password.Any(c => !char.IsLetterOrDigit(c));
 
                 IsPasswordValid = HasMinLength && HasUpperCase && HasNumber && HasSpecialChar;
+                
+                if (!IsPasswordValid)
+                {
+                    errorMessage = "הסיסמה אינה עומדת בדרישות המינימום";
+                }
+                else
+                {
+                    errorMessage = string.Empty;
+                }
             }
         }
 
@@ -416,28 +464,56 @@
         IsConfirmPasswordValid = !string.IsNullOrWhiteSpace(registerModel.Password) &&
                                  !string.IsNullOrWhiteSpace(registerModel.ConfirmPassword) &&
                                  registerModel.Password == registerModel.ConfirmPassword;
+        
+        if (!IsConfirmPasswordValid)
+        {
+            errorMessage = "הסיסמאות אינן תואמות";
+        }
+        else
+        {
+            errorMessage = string.Empty;
+        }
+        
         StateHasChanged();
     }
 
     private async Task HandleRegistration()
     {
-        isSubmitting = true;
-        errorMessage = string.Empty;
-        successMessage = string.Empty;
-        StateHasChanged();
-
         try
         {
+            if (!IsFormValid)
+            {
+                errorMessage = "אנא מלא את כל השדות הנדרשים";
+                return;
+            }
+
+            isSubmitting = true;
+            errorMessage = string.Empty;
+            successMessage = string.Empty;
+            StateHasChanged();
+
+            // Additional validation before submission
+            if (string.IsNullOrWhiteSpace(registerModel.Username) || 
+                string.IsNullOrWhiteSpace(registerModel.Email) || 
+                string.IsNullOrWhiteSpace(registerModel.Password))
+            {
+                errorMessage = "אנא מלא את כל השדות הנדרשים";
+                return;
+            }
+
             // Ensure Role is set before submitting
             if (string.IsNullOrEmpty(registerModel.Role))
             {
                 registerModel.Role = "User";
             }
 
+            Console.WriteLine("Attempting registration..."); // Debug log
             var result = await AuthService.RegisterAsync(registerModel);
+            Console.WriteLine($"Registration result: {result}"); // Debug log
+
             if (result)
             {
-                successMessage = "הרשמתך התקבלה בהצלחה!";
+                successMessage = "נרשמת בהצלחה!";
                 await Task.Delay(1500); // Show success message briefly
                 Navigation.NavigateTo("/login?registered=true");
             }
@@ -448,6 +524,7 @@
         }
         catch (Exception ex)
         {
+            Console.WriteLine($"Registration error: {ex}"); // Debug log
             if (ex.Message.Contains("Username is already taken") || ex.Message.Contains("Username already exists"))
             {
                 errorMessage = "שם המשתמש כבר תפוס. אנא בחר שם אחר.";
@@ -456,9 +533,17 @@
             {
                 errorMessage = "כתובת המייל כבר בשימוש.";
             }
+            else if (ex.Message.Contains("Invalid email format"))
+            {
+                errorMessage = "כתובת המייל אינה תקינה.";
+            }
+            else if (ex.Message.Contains("Password"))
+            {
+                errorMessage = "הסיסמה אינה עומדת בדרישות המינימום.";
+            }
             else
             {
-                errorMessage = $"שגיאה: {ex.Message}";
+                errorMessage = "אירעה שגיאה בתהליך ההרשמה. אנא נסה שוב.";
                 Console.WriteLine($"Registration error details: {ex}");
             }
         }

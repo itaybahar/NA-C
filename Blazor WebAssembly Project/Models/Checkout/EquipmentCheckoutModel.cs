@@ -1,4 +1,5 @@
 ﻿using System.ComponentModel.DataAnnotations;
+using System.Text.Json.Serialization;
 
 namespace Blazor_WebAssembly.Models.Checkout
 {
@@ -32,6 +33,9 @@ namespace Blazor_WebAssembly.Models.Checkout
         public DateTime? ActualReturnDate { get; set; }
 
         public string Status { get; set; } = "CheckedOut";
+
+        public int Quantity { get; set; }
+
         public EquipmentCheckoutModel()
         {
             // Set the default ExpectedReturnDate to one week after CheckoutDate

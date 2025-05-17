@@ -951,7 +951,7 @@ else if (ActiveTab == "log")
             if (equipment?.CheckoutRecords != null && equipment.CheckoutRecords.Any())
             {
                 int checkedOutItems = equipment.CheckoutRecords
-                    .Where(cr => !cr.ReturnedAt.HasValue)
+                    .Where(cr => cr.Status != "returned")
                     .Sum(cr => cr.Quantity);
 
                 return Math.Max(0, totalQuantity - checkedOutItems);

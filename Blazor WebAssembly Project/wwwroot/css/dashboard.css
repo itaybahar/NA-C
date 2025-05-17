@@ -104,6 +104,16 @@
    DASHBOARD LAYOUT
    ============================ */
 
+body, html {
+    background: var(--background) !important;
+    color: var(--text) !important;
+}
+
+.dashboard-layout, .dashboard-content, .main-content, .admin-content, .content-wrapper {
+    background: var(--background);
+    color: var(--text);
+}
+
 .dashboard-layout {
     display: flex;
     flex-direction: column;
@@ -121,6 +131,12 @@
 /* ============================
    DASHBOARD HEADER
    ============================ */
+
+.dashboard-header, .dashboard-card, .widget-container, .panel, .card {
+    background: var(--surface);
+    color: var(--text);
+    border-color: var(--border);
+}
 
 .dashboard-header {
     background-color: var(--surface);
@@ -1000,13 +1016,18 @@
     border: 1px solid var(--border);
 }
 
+    .data-table th, .data-table td {
+        background: var(--surface);
+        color: var(--text);
+        border-color: var(--border);
+    }
+
     .data-table th {
         text-align: left;
         padding: var(--space-3);
         font-weight: 600;
         border-bottom: 1px solid var(--border);
         color: var(--text-secondary);
-        background-color: var(--surface-variant);
     }
 
     .data-table td {
@@ -1562,3 +1583,24 @@
     }
 }
 /* Settings Sidebar */
+
+.card-subtitle, .stat-label, .filter-label, .pagination-info {
+    color: var(--text-secondary);
+}
+
+.content-container,
+.admin-content-container,
+.dashboard-section,
+.card,
+.panel,
+.widget-container {
+    background: var(--surface);
+    color: var(--text);
+    border-color: var(--border);
+}
+
+.tabs-with-separator .dashboard-tab:not(:last-child) {
+    border-left: 0.5px solid rgba(255,255,255,0.04);
+    margin-left: 0.5rem;
+    padding-left: 1rem;
+}

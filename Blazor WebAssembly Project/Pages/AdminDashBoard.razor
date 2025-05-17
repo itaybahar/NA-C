@@ -1,87 +1,89 @@
 ﻿@page "/admin/dashboard"
 @using Microsoft.AspNetCore.Authorization
 @using Blazor_WebAssembly_Project.Components.helpers
+@using Blazor_WebAssembly_Project.Components
 @inject ILogger<AdminDashBoard> Logger
+@inject IJSRuntime JS
 @attribute [Authorize(Roles = "Admin")]
 
 <link href="css/dashboard.css" rel="stylesheet" />
 <link href="css/themeToggle.css" rel="stylesheet" />
+<link href="css/Sidebar.css" rel="stylesheet" />
+<link href="css/themeToggle.css" rel="stylesheet" />
+
 
 <PageTitle>Dashboard - מנהל מערכת</PageTitle>
 
-<div class="admin-layout">
-    <!-- Top navbar with logo and tabs -->
-    <header class="admin-header">
-        <div class="admin-navbar">
-            <div class="branding">
-                <img src="images/pailM.png" alt="Logo" class="brand-logo" />
-                <span class="brand-title pixel">ADMIN</span>
+<div style="display: flex; min-height: 100vh;">
+    <Sidebar SidebarOpen="@sidebarOpen" SidebarOpenChanged="@ToggleSidebarFromDashboard" />
+    <div style="flex: 1; display: flex; flex-direction: column;">
+        <!-- Top navbar with logo and tabs -->
+        <header class="admin-header">
+            <div class="admin-navbar">
+                <nav class="dashboard-nav tabs-with-separator">
+                    <button class="dashboard-tab @(ActiveTab == "equipment" ? "active" : "")" @onclick='() => ChangeTab("equipment", 0)'>
+                        <i class="bi bi-list-ul"></i> רשימת ציוד
+                    </button>
+                    <button class="dashboard-tab @(ActiveTab == "blacklist" ? "active" : "")" @onclick='() => ChangeTab("blacklist", 1)'>
+                        <i class="bi bi-shield-x"></i> רשימה שחורה
+                    </button>
+                    <button class="dashboard-tab @(ActiveTab == "teams" ? "active" : "")" @onclick='() => ChangeTab("teams", 2)'>
+                        <i class="bi bi-people"></i> ניהול צוותים
+                    </button>
+                    <button class="dashboard-tab @(ActiveTab == "users" ? "active" : "")" @onclick='() => ChangeTab("users", 3)'>
+                        <i class="bi bi-person"></i> ניהול משתמשים
+                    </button>
+                    <button class="dashboard-tab settings-tab" @onclick="() => sidebarOpen = !sidebarOpen" title="הגדרות">
+                        <i class="bi bi-gear"></i> הגדרות
+                    </button>
+                    <button class="dashboard-tab @(ActiveTab == "checkout" ? "active" : "")" @onclick='() => ChangeTab("checkout", 4)'>
+                        <i class="bi bi-box-arrow-right"></i> הוצאת ציוד
+                    </button>
+                    <button class="dashboard-tab @(ActiveTab == "return" ? "active" : "")" @onclick='() => ChangeTab("return", 5)'>
+                        <i class="bi bi-box-arrow-in-left"></i> החזרת ציוד
+                    </button>
+                    <button class="dashboard-tab @(ActiveTab == "add" ? "active" : "")" @onclick='() => ChangeTab("add", 6)'>
+                        <i class="bi bi-plus-circle"></i> הוספת ציוד
+                    </button>
+                </nav>
             </div>
+        </header>
 
-            <nav class="dashboard-nav">
-                <button class="dashboard-tab @(ActiveTab == "equipment" ? "active" : "")" @onclick='() => ChangeTab("equipment", 0)'>
-                    <i class="bi bi-list-ul"></i> רשימת ציוד
-                </button>
-                <button class="dashboard-tab @(ActiveTab == "blacklist" ? "active" : "")" @onclick='() => ChangeTab("blacklist", 1)'>
-                    <i class="bi bi-shield-x"></i> רשימה שחורה
-                </button>
-                <button class="dashboard-tab @(ActiveTab == "teams" ? "active" : "")" @onclick='() => ChangeTab("teams", 2)'>
-                    <i class="bi bi-people"></i> ניהול צוותים
-                </button>
-                <button class="dashboard-tab @(ActiveTab == "users" ? "active" : "")" @onclick='() => ChangeTab("users", 3)'>
-                    <i class="bi bi-person-gear"></i> ניהול משתמשים
-                </button>
-                <button class="dashboard-tab @(ActiveTab == "checkout" ? "active" : "")" @onclick='() => ChangeTab("checkout", 4)'>
-                    <i class="bi bi-box-arrow-right"></i> הוצאת ציוד
-                </button>
-                <button class="dashboard-tab @(ActiveTab == "return" ? "active" : "")" @onclick='() => ChangeTab("return", 5)'>
-                    <i class="bi bi-box-arrow-in-left"></i> החזרת ציוד
-                </button>
-                <button class="dashboard-tab @(ActiveTab == "add" ? "active" : "")" @onclick='() => ChangeTab("add", 6)'>
-                    <i class="bi bi-plus-circle"></i> הוספת ציוד
-                </button>
-            </nav>
-
-            <!-- Theme toggle added -->
-            <div class="theme-container">
-                <ThemeToggle />
+        <!-- Main content area -->
+        <main class="admin-content">
+            <div class="admin-content-container">
+                @switch (ActiveTab)
+                {
+                    case "equipment":
+                        <EquipmentList />
+                        break;
+                    case "blacklist":
+                        <BlacklistView />
+                        break;
+                    case "teams":
+                        <AddTeam />
+                        break;
+                    case "users":
+                        <UserRoleManager />
+                        break;
+                    case "checkout":
+                        <EquipmentCheckout />
+                        break;
+                    case "return":
+                        <EquipmentReturnForm />
+                        break;
+                    case "add":
+                        <AddEquipmentForm />
+                        break;
+                }
             </div>
-        </div>
-    </header>
-
-    <!-- Main content area -->
-    <main class="admin-content">
-        <div class="admin-content-container">
-            @switch (ActiveTab)
-            {
-                case "equipment":
-                    <EquipmentList />
-                    break;
-                case "blacklist":
-                    <BlacklistView />
-                    break;
-                case "teams":
-                    <AddTeam />
-                    break;
-                case "users":
-                    <UserRoleManager />
-                    break;
-                case "checkout":
-                    <EquipmentCheckout />
-                    break;
-                case "return":
-                    <EquipmentReturnForm />
-                    break;
-                case "add":
-                    <AddEquipmentForm />
-                    break;
-            }
-        </div>
-    </main>
+        </main>
+    </div>
 </div>
 
 @code {
     private string ActiveTab = "equipment";
+    private bool sidebarOpen = false;
 
     protected override void OnInitialized()
     {
@@ -109,4 +111,11 @@
             _ => 0
         };
     }
+
+    private async Task ToggleTheme()
+    {
+        await JS.InvokeVoidAsync("setTheme", "dark"); // or "light"
+    }
+
+    private void ToggleSidebarFromDashboard(bool open = true) => sidebarOpen = open ? !sidebarOpen : sidebarOpen;
 }

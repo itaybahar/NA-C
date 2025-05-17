@@ -1,8 +1,8 @@
-﻿// theme.js - Improved theme management for Blazor WebAssembly
+﻿// theme.js - Robust dark/light mode management for Blazor WebAssembly
 
 // Theme management constants
 const themeKey = 'app-theme';
-const defaultTheme = 'light'; // Changed default to 'light' instead of 'auto'
+const defaultTheme = 'light';
 const THEME_DARK = 'dark';
 const THEME_LIGHT = 'light';
 const THEME_AUTO = 'auto';
@@ -85,26 +85,25 @@ function applyTheme(theme, isInitialLoad = false) {
         const isDarkMode = theme === THEME_DARK || (theme === THEME_AUTO && prefersDark);
         const effectiveTheme = isDarkMode ? THEME_DARK : THEME_LIGHT;
 
-        // Update data attribute first
-        document.documentElement.setAttribute('data-theme', effectiveTheme);
+        // Remove all theme classes first
+        document.documentElement.classList.remove('dark', 'light', DARK_THEME_CLASS, LIGHT_THEME_CLASS);
+        document.body.classList.remove('dark', 'light', DARK_THEME_CLASS, LIGHT_THEME_CLASS);
 
-        // Apply to root element (affects all tabs/pages)
-        document.documentElement.classList.remove(DARK_THEME_CLASS, LIGHT_THEME_CLASS);
+        // Add the correct theme classes
+        document.documentElement.classList.add(isDarkMode ? 'dark' : 'light');
+        document.body.classList.add(isDarkMode ? 'dark' : 'light');
         document.documentElement.classList.add(isDarkMode ? DARK_THEME_CLASS : LIGHT_THEME_CLASS);
-
-        // Apply to body as well for components that might depend on body classes
-        document.body.classList.remove(DARK_THEME_CLASS, LIGHT_THEME_CLASS);
         document.body.classList.add(isDarkMode ? DARK_THEME_CLASS : LIGHT_THEME_CLASS);
+
+        // Update data attribute for CSS variable targeting
+        document.documentElement.setAttribute('data-theme', effectiveTheme);
 
         // Update any theme toggle UI elements
         updateAllToggleUI(theme);
-
-        // Update all theme toggle buttons
         updateAllThemeToggles(effectiveTheme);
 
         // Dispatch custom event for any components that need to react to theme changes
         if (!isInitialLoad && !document.hidden) {
-            // Create a new event instead of reusing a global one
             try {
                 const newEvent = new CustomEvent(themeChangeEvent, { bubbles: true });
                 document.dispatchEvent(newEvent);
@@ -186,7 +185,7 @@ window.themeManager = {
 
     // Check if currently in dark mode (regardless of theme setting)
     isDarkMode: function () {
-        return document.documentElement.classList.contains(DARK_THEME_CLASS);
+        return document.documentElement.classList.contains(DARK_THEME_CLASS) || document.documentElement.classList.contains('dark');
     }
 };
 
@@ -206,3 +205,20 @@ document.addEventListener('blazorNavigated', () => {
 if (typeof module !== 'undefined' && module.exports) {
     module.exports = window.themeManager;
 }
+
+window.getTheme = function () {
+    // Return the current theme from your theme manager, or fallback to localStorage
+    if (window.themeManager && typeof window.themeManager.getCurrentTheme === 'function') {
+        return window.themeManager.getCurrentTheme();
+    }
+    return localStorage.getItem('app-theme') || 'light';
+};
+
+window.setTheme = function(theme) {
+    if (window.themeManager && typeof window.themeManager.setTheme === 'function') {
+        return window.themeManager.setTheme(theme);
+    }
+    // fallback: just store in localStorage and reload
+    localStorage.setItem('app-theme', theme);
+    location.reload();
+};

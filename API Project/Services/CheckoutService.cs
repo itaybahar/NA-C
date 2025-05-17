@@ -1044,5 +1044,24 @@ namespace API_Project.Services
             }
         }
 
+        public async Task ProcessEquipmentReturn(int teamId)
+        {
+            // 1. Mark the equipment as returned (your existing logic)
+
+            // 2. Check if the team has any equipment still checked out
+            bool hasOutstanding = await _checkoutRepository.GetInUseQuantityForEquipmentAsync(teamId) > 0;
+
+            if (!hasOutstanding)
+            {
+                // 3. Un-blacklist the team
+                var team = await _teamRepository.GetByIntIdAsync(teamId);
+                if (team != null && team.IsBlacklisted)
+                {
+                    team.IsBlacklisted = false;
+                    await _teamRepository.UpdateAsync(team);
+                }
+            }
+        }
+
     }
 }

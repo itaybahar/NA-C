@@ -374,3 +374,28 @@ input:checked + .slider:before {
         left: 12px;
     }
 }
+
+.settings-btn {
+    position: fixed;
+    top: 1.5rem;
+    right: 1.5rem;
+    background: #fff;
+    border: 1px solid #eee;
+    border-radius: 50%;
+    width: 48px;
+    height: 48px;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    font-size: 1.7rem;
+    color: #333;
+    z-index: 1100;
+    box-shadow: 0 2px 8px rgba(0,0,0,0.08);
+    cursor: pointer;
+    transition: background 0.2s, color 0.2s, box-shadow 0.2s;
+}
+.settings-btn:hover {
+    background: #f0f0f0;
+    color: #007bff;
+    box-shadow: 0 4px 16px rgba(0,0,0,0.12);
+}

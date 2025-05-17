@@ -1,0 +1,158 @@
+@using Microsoft.AspNetCore.Components.Authorization
+@inject AuthenticationStateProvider AuthStateProvider
+@inject IJSRuntime JS
+
+<link href="css/dashboard.css" rel="stylesheet" />
+<link href="css/themeToggle.css" rel="stylesheet" />
+<link href="css/Sidebar.css" rel="stylesheet" />
+
+
+
+<div>
+    <!-- Sidebar Drawer (slides in from the left) -->
+    <div class="sidebar-drawer left @(isOpen ? "open" : "")" @onclick:stopPropagation>
+        <div class="sidebar-header">
+            <span class="brand">ADMIN</span>
+            <button class="close-btn" @onclick="ToggleSidebar"><i class="bi bi-x"></i></button>
+        </div>
+        <div class="sidebar-content">
+            <nav class="sidebar-nav">
+                <a class="nav-link nav-toggle-sidebar" href="#" @onclick="ToggleSidebar" title="הגדרות">
+                    <i class="bi bi-gear"></i>
+                    <span>הגדרות</span>
+                </a>
+                <a class="nav-link" href="/admin/dashboard?tab=users" title="משתמשים">
+                    <i class="bi bi-person"></i>
+                    <span>משתמשים</span>
+                </a>
+            </nav>
+            <div class="sidebar-actions">
+                <div class="theme-toggle-switch">
+                    <span class="theme-label light-label @(isDark ? "" : "active")">Light</span>
+                    <button class="toggle-switch" @onclick="ToggleThemeAsync" aria-label="Toggle dark mode">
+                        <span class="switch-thumb">
+                            @if (isDark)
+                            {
+                                <span class="moon">
+                                    <svg width="20" height="20" viewBox="0 0 20 20"><path fill="#fff" d="M13.61 2.39A8 8 0 1 0 17.66 17.66 8 8 0 0 1 13.61 2.39z"/><circle fill="#fff" cx="15" cy="7" r="1"/><circle fill="#fff" cx="17" cy="10" r="0.5"/><circle fill="#fff" cx="13" cy="5" r="0.5"/></svg>
+                                </span>
+                            }
+                            else
+                            {
+                                <span class="sun">
+                                    <svg width="20" height="20" viewBox="0 0 20 20">
+                                        <circle fill="#FFD600" cx="10" cy="10" r="5"/>
+                                        <circle fill="#FFD600" cx="15" cy="10" r="1"/>
+                                        <circle fill="#FFD600" cx="5" cy="10" r="1"/>
+                                        <circle fill="#FFD600" cx="10" cy="5" r="1"/>
+                                        <circle fill="#FFD600" cx="10" cy="15" r="1"/>
+                                    </svg>
+                                </span>
+                            }
+                        </span>
+                    </button>
+                    <span class="theme-label dark-label @(isDark ? "active" : "")">Dark</span>
+                </div>
+                <button class="sidebar-action" @onclick="ResetPassword">
+                    <i class="bi bi-key"></i> איפוס סיסמה
+                </button>
+                <button class="sidebar-action" @onclick="ChangeEmail">
+                    <i class="bi bi-envelope"></i> שינוי אימייל
+                </button>
+                <button class="logout-btn" @onclick="Logout" title="התנתק">
+                    <i class="bi bi-box-arrow-right"></i> התנתק
+                </button>
+            </div>
+        </div>
+        <div class="sidebar-footer">
+            <div class="user-info">
+                <span class="avatar">
+                    <i class="bi bi-person-circle" style="font-size:2rem;"></i>
+                </span>
+                <div>
+                    <div class="user-name">@userName</div>
+                    <div class="user-role">@userRole</div>
+                    <div class="account-details">פרטי חשבון</div>
+                </div>
+            </div>
+        </div>
+    </div>
+    @if (isOpen)
+    {
+        <div class="sidebar-overlay" @onclick="ToggleSidebar"></div>
+    }
+</div>
+
+@code {
+    [Parameter]
+    public bool SidebarOpen { get; set; }
+    [Parameter]
+    public EventCallback<bool> SidebarOpenChanged { get; set; }
+
+    private bool isOpen = false;
+    private bool isDark = false;
+    private string userName = "User";
+    private string userRole = "User";
+
+    protected override async Task OnInitializedAsync()
+    {
+        var authState = await AuthStateProvider.GetAuthenticationStateAsync();
+        var user = authState.User;
+        if (user.Identity.IsAuthenticated)
+        {
+            userName = user.Identity.Name ?? "User";
+            userRole = user.Claims.FirstOrDefault(c => c.Type.Contains("role"))?.Value ?? "User";
+        }
+        var theme = await JS.InvokeAsync<string>("getTheme");
+        isDark = theme == "dark";
+        await SetThemeOnDom(theme);
+    }
+
+    protected override void OnParametersSet()
+    {
+        isOpen = SidebarOpen;
+    }
+
+    private async void ToggleSidebar()
+    {
+        isOpen = !isOpen;
+        await SidebarOpenChanged.InvokeAsync(isOpen);
+    }
+
+    private async Task ToggleThemeAsync()
+    {
+        isDark = !isDark;
+        var theme = isDark ? "dark" : "light";
+        await JS.InvokeVoidAsync("setTheme", theme);
+        await SetThemeOnDom(theme);
+    }
+
+    private async Task SetThemeOnDom(string theme)
+    {
+        await JS.InvokeVoidAsync("eval", $@"
+            (function() {{
+                var html = document.documentElement;
+                var body = document.body;
+                html.classList.remove('dark', 'light');
+                body.classList.remove('dark', 'light');
+                html.classList.add('{theme}');
+                body.classList.add('{theme}');
+            }})();
+        ");
+    }
+
+    private void Logout()
+    {
+        // Implement your logout logic here
+    }
+
+    private void ResetPassword()
+    {
+        // Implement your reset password logic here
+    }
+
+    private void ChangeEmail()
+    {
+        // Implement your change email logic here
+    }
+}

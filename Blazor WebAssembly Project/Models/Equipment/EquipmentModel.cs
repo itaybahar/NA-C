@@ -1,4 +1,6 @@
 ﻿using System.Text.Json.Serialization;
+using System.ComponentModel.DataAnnotations;
+using Blazor_WebAssembly.Models.Checkout;
 
 namespace Blazor_WebAssembly.Models.Equipment
 {
@@ -25,6 +27,9 @@ namespace Blazor_WebAssembly.Models.Equipment
         public string StorageLocation { get; set; } = string.Empty;
 
         [JsonPropertyName("checkoutRecords")]
-        public List<CheckoutRecord> CheckoutRecords { get; set; } = new(); // Added setter and default initialization
+        public List<EquipmentCheckoutModel> CheckoutRecords { get; set; } = new();
+
+        [JsonIgnore]
+        public int AvailableQuantity => Quantity - (CheckoutRecords?.Count(r => r.ActualReturnDate == null) ?? 0);
     }
 }

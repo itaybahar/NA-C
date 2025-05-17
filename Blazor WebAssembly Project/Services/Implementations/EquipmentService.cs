@@ -1,5 +1,6 @@
 ﻿using Blazor_WebAssembly.Auth;
 using Blazor_WebAssembly.Models.Equipment;
+using Blazor_WebAssembly.Models.Checkout;
 using Blazor_WebAssembly.Services.Interfaces;
 using Microsoft.JSInterop;
 using Microsoft.Extensions.Logging;
@@ -300,7 +301,7 @@ namespace Blazor_WebAssembly.Services.Implementations
                                 Status = dto.Status ?? "Unknown",
                                 Quantity = dto.Quantity,
                                 StorageLocation = dto.StorageLocation ?? "Unknown",
-                                CheckoutRecords = new List<CheckoutRecord>() // Empty list since API doesn't provide this
+                                CheckoutRecords = new List<EquipmentCheckoutModel>() // Empty list since API doesn't provide this
                             }).ToList();
                         }
                     }
@@ -322,7 +323,7 @@ namespace Blazor_WebAssembly.Services.Implementations
                             // Initialize CheckoutRecords if null to prevent null reference exceptions
                             foreach (var item in equipment)
                             {
-                                item.CheckoutRecords ??= new List<CheckoutRecord>();
+                                item.CheckoutRecords ??= new List<EquipmentCheckoutModel>();
 
                                 // Set default values for any null properties
                                 item.Name ??= "Unknown";
@@ -455,7 +456,7 @@ namespace Blazor_WebAssembly.Services.Implementations
                 Name = "Unknown",
                 Status = "Unknown",
                 StorageLocation = "Unknown",
-                CheckoutRecords = new List<CheckoutRecord>(),
+                CheckoutRecords = new List<EquipmentCheckoutModel>(),
             };
 
             try
@@ -614,7 +615,7 @@ namespace Blazor_WebAssembly.Services.Implementations
                             if (equipment != null)
                             {
                                 // Initialize empty collections to prevent null reference errors
-                                equipment.CheckoutRecords ??= new List<CheckoutRecord>();
+                                equipment.CheckoutRecords ??= new List<EquipmentCheckoutModel>();
 
                                 // Set default values for any null string properties
                                 equipment.Name ??= "Unknown";
@@ -702,7 +703,7 @@ namespace Blazor_WebAssembly.Services.Implementations
 
                     if (equipment != null)
                     {
-                        equipment.CheckoutRecords ??= new List<CheckoutRecord>();
+                        equipment.CheckoutRecords ??= new List<EquipmentCheckoutModel>();
                         equipment.Name ??= "Unknown";
                         equipment.Status ??= "Unknown";
                         equipment.StorageLocation ??= "Unknown";
@@ -734,7 +735,7 @@ namespace Blazor_WebAssembly.Services.Implementations
                 if (historyResponse.IsSuccessStatusCode)
                 {
                     var historyContent = await historyResponse.Content.ReadAsStringAsync();
-                    var checkoutHistory = JsonSerializer.Deserialize<List<CheckoutRecord>>(historyContent, _jsonOptions);
+                    var checkoutHistory = JsonSerializer.Deserialize<List<EquipmentCheckoutModel>>(historyContent, _jsonOptions);
                     if (checkoutHistory != null && checkoutHistory.Any())
                     {
                         equipment.CheckoutRecords = checkoutHistory;
@@ -961,7 +962,7 @@ namespace Blazor_WebAssembly.Services.Implementations
                             // Initialize empty collections to prevent null reference errors
                             foreach (var item in equipment)
                             {
-                                item.CheckoutRecords ??= new List<CheckoutRecord>();
+                                item.CheckoutRecords ??= new List<EquipmentCheckoutModel>();
                             }
 
                             return equipment;
@@ -1053,7 +1054,7 @@ namespace Blazor_WebAssembly.Services.Implementations
                             // Initialize empty collections to prevent null reference errors
                             foreach (var item in equipment)
                             {
-                                item.CheckoutRecords ??= new List<CheckoutRecord>();
+                                item.CheckoutRecords ??= new List<EquipmentCheckoutModel>();
                             }
 
                             return equipment;

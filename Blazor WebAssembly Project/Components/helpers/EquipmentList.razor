@@ -10,6 +10,7 @@
 @inject IJSRuntime JSRuntime
 @using Blazor_WebAssembly.Services
 @inject ApiErrorHandler ApiErrorHandler
+@using Blazor_WebAssembly.Models.Checkout
 @implements IDisposable
 @using Domain_Project.DTOs
 
@@ -1794,7 +1795,7 @@
                 Quantity = equipment.Quantity,
                 StorageLocation = equipment.StorageLocation ?? string.Empty,
                 Value = equipment.Value,
-                CheckoutRecords = equipment.CheckoutRecords?.ToList() ?? new List<CheckoutRecord>()
+                CheckoutRecords = equipment.CheckoutRecords ?? new List<EquipmentCheckoutModel>()
             };
 
             // Show the edit modal
