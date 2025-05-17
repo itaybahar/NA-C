@@ -104,7 +104,7 @@ namespace API_Project.Services
                 _logger.LogInformation("Current UTC time: {Time}", now);
 
                 // Use 24 hours for threshold (not seconds)
-                var overdueThreshold = TimeSpan.FromHours(24);
+                var overdueThreshold = TimeSpan.FromSeconds(24);
                 _logger.LogInformation("Using overdue threshold of {Hours} hours", overdueThreshold.TotalHours);
 
                 // Request overdue records from repository
@@ -453,7 +453,7 @@ namespace API_Project.Services
                     TeamID = teamId,
                     UserID = userId,
                     Quantity = quantity,
-                    ExpectedReturnDate = DateTime.UtcNow.AddHours(24),
+                    ExpectedReturnDate = DateTime.UtcNow.AddSeconds(24),
                     CheckoutDate = DateTime.UtcNow,
                     Status = "CheckedOut",
                     Notes = "Checked out via system"

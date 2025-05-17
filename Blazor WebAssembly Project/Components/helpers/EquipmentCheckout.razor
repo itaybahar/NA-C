@@ -531,16 +531,11 @@ else if (ActiveTab == "log")
                 if (isTeamBlacklisted)
                 {
                     var teamName = EligibleTeams.FirstOrDefault(t => t.TeamID == SelectedTeamId)?.TeamName ?? "הנבחר";
-                    Message = $"לא ניתן להוציא ציוד: הצוות {teamName} חסום בגלל החזרה באיחור של פריט";
-
-                    // If we have overdue equipment name, add it to the message
-                    if (!string.IsNullOrEmpty(overdueEquipmentName))
-                    {
-                        Message += $" '{overdueEquipmentName}'";
-                    }
+                    var equipName = !string.IsNullOrEmpty(overdueEquipmentName) ? overdueEquipmentName : "(לא ידוע)";
+                    Message = $"לא ניתן להוציא ציוד: הצוות {teamName} חסום בגלל החזרה באיחור של פריט '{equipName}'";
 
                     // Log this as info, not error, since it's an expected business logic outcome
-                    Logger.LogInformation($"Checkout blocked: Team '{teamName}' is blacklisted due to overdue equipment: {overdueEquipmentName}");
+                    Logger.LogInformation($"Checkout blocked: Team '{teamName}' is blacklisted due to overdue equipment: {equipName}");
                 }
                 else
                 {

@@ -15,9 +15,13 @@
 
 <link href="css/Login.css" rel="stylesheet">
 
+<a href="/" class="home-btn">
+    <i class="bi bi-house-fill"></i>
+</a>
+
 <div class="login-container">
     <div class="login-card-wrapper">
-        <div class="login-card">
+        <div class="login-card @formAnimationClass">
             <div class="icon-wrapper">
                 <div class="icon-circle">
                     <img src="images/user-top.png" class="user-icon" alt="User Icon" />
@@ -87,7 +91,7 @@
                     </div>
 
                     <div class="button-group">
-                        <button type="button" class="login-button" @onclick="HandleForgotPassword" disabled="@IsSubmitting">
+                        <button type="button" class="login-floating-btn" @onclick="HandleForgotPassword" disabled="@IsSubmitting">
                             @(IsSubmitting ? "שולח..." : "שלח קישור איפוס")
                         </button>
                         <button type="button" class="back-button" @onclick="ToggleForgotPassword">חזרה להתחברות</button>
@@ -96,20 +100,15 @@
             }
         </div>
     </div>
-
-    <div class="login-floating-btn-container">
-        <button class="google-floating-btn" @onclick="HandleGoogleLogin" disabled="@IsSubmitting" type="button">
-            <img src="images/google-logo.png" alt="Google" />
-        </button>
-        <button type="submit" class="login-floating-btn" form="login-form" disabled="@IsSubmitting">
-            @(IsSubmitting ? "Logging in..." : "LOGIN")
-        </button>
-    </div>
-
-    <div class="google-and-signup">
-        <div class="signup">
-            <a href="/register">אין לך חשבון? הרשמה</a>
-        </div>
+    <button type="submit" class="login-floating-btn" form="login-form" disabled="@IsSubmitting">
+        @(IsSubmitting ? "Logging in..." : "LOGIN")
+    </button>
+    <button class="google-oauth-btn" @onclick="HandleGoogleLogin" type="button">
+        <img src="images/google-logo.png" alt="Google" class="google-icon" />
+        Login with Google
+    </button>
+    <div class="signup">
+        <a href="/register">אין לך חשבון? הרשמה</a>
     </div>
 </div>
 
@@ -122,6 +121,7 @@
     private bool isInitialized = false;
     private bool showForgotPassword = false;
     private string forgotPasswordEmail = string.Empty;
+    private string formAnimationClass = "form-animate-down";
 
     protected override async Task OnInitializedAsync()
     {
@@ -314,6 +314,25 @@
             IsSubmitting = false;
             StateHasChanged();
         }
+    }
+
+    // Animation methods for transitions
+    public async Task AnimateInDown()
+    {
+        formAnimationClass = "form-fade-out";
+        StateHasChanged();
+        await Task.Delay(400);
+        formAnimationClass = "form-animate-down";
+        StateHasChanged();
+    }
+
+    public async Task AnimateInUp()
+    {
+        formAnimationClass = "form-fade-out";
+        StateHasChanged();
+        await Task.Delay(400);
+        formAnimationClass = "form-animate-up";
+        StateHasChanged();
     }
 
     public void Dispose() { }

@@ -150,7 +150,7 @@ namespace API_Project.Services
                 var now = DateTime.UtcNow;
 
                 // Define the overdue threshold (24 hours)
-                var overdueThreshold = TimeSpan.FromHours(24); // This was seconds before - changed to hours
+                var overdueThreshold = TimeSpan.FromSeconds(24); // This was seconds before - changed to hours
                 _logger.LogInformation("Using overdue threshold of {Hours} hours", overdueThreshold.TotalHours);
 
                 // Get all overdue checkouts

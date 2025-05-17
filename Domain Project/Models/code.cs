@@ -132,6 +132,9 @@ namespace Domain_Project.Models
         public int Quantity { get; set; }
 
         [Required]
+        public int AvailableQuantity { get; set; }
+
+        [Required]
         [MaxLength(100)]
         public required string StorageLocation { get; set; } = string.Empty;
 

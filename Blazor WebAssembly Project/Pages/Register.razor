@@ -9,136 +9,139 @@
 
 <link href="css/Login.css" rel="stylesheet">
 
+<a href="/" class="home-btn">
+    <i class="bi bi-house-fill"></i>
+</a>
+
 <div class="login-container">
-    <div class="login-card">
-        <div class="icon-wrapper">
-            <div class="icon-circle">
-                <img src="images/user-top.png" class="user-icon" alt="User Icon" />
-            </div>
-        </div>
-
-        @if (!string.IsNullOrEmpty(errorMessage))
-        {
-            <div class="alert alert-danger">@errorMessage</div>
-        }
-
-        @if (!string.IsNullOrEmpty(successMessage))
-        {
-            <div class="alert alert-success">@successMessage</div>
-        }
-
-        <EditForm Model="registerModel" OnValidSubmit="HandleRegistration">
-            <DataAnnotationsValidator />
-
-            <div class="input-group">
-                <div class="input-wrapper @(IsUsernameValid ? "valid" : "")">
-                    <div class="input-icon">
-                        <img src="images/user-new-icon.png" alt="User Icon" />
-                    </div>
-                    <div class="input-separator"></div>
-                    <InputText @bind-Value="registerModel.Username" class="input-field" placeholder="שם משתמש" @oninput="ValidateUsername" />
+    <div class="login-card-wrapper">
+        <div class="login-card @formAnimationClass">
+            <div class="icon-wrapper">
+                <div class="icon-circle">
+                    <img src="images/user-top.png" class="user-icon" alt="User Icon" />
                 </div>
-                @if (IsUsernameValid)
-                {
-                    <div class="validation-indicator valid"></div>
-                    <div class="field-status valid">
-                        <span class="status-message">שם משתמש תקין</span>
-                    </div>
-                }
-                else
-                {
-                    <ValidationMessage For="@(() => registerModel.Username)" />
-                }
             </div>
 
-            <div class="input-group">
-                <div class="input-wrapper @(IsEmailValid ? "valid" : "")">
-                    <div class="input-icon">
-                        <img src="images/email-icon.png" alt="Email Icon" />
-                    </div>
-                    <div class="input-separator"></div>
-                    <InputText @bind-Value="registerModel.Email" type="email" class="input-field" placeholder="אימייל" @oninput="ValidateEmail" />
-                </div>
-                @if (IsEmailValid)
-                {
-                    <div class="validation-indicator valid"></div>
-                    <div class="field-status valid">
-                        <span class="status-message">כתובת אימייל תקינה</span>
-                    </div>
-                }
-                else
-                {
-                    <ValidationMessage For="@(() => registerModel.Email)" />
-                }
-            </div>
+            @if (!string.IsNullOrEmpty(errorMessage))
+            {
+                <div class="alert alert-danger">@errorMessage</div>
+            }
 
-            <div class="input-group">
-                <div class="input-wrapper @(IsPasswordValid ? "valid" : "")">
-                    <div class="input-icon">
-                        <img src="images/lock-icon.png" alt="Lock Icon" />
-                    </div>
-                    <div class="input-separator"></div>
-                    <InputText @bind-Value="registerModel.Password" type="password" class="input-field" placeholder="סיסמה" @oninput="ValidatePassword" @onfocus="ShowPasswordRequirements" @onblur="HidePasswordRequirements" />
-                </div>
-                <div class="input-actions">
-                    <button type="button" class="password-info-button" @onclick="TogglePasswordRequirements">
-                        <span class="password-info-icon">?</span>
-                    </button>
-                </div>
-                @if (IsPasswordValid)
-                {
-                    <div class="validation-indicator valid"></div>
-                    <div class="field-status valid">
-                        <span class="status-message">סיסמה תקינה</span>
-                    </div>
-                }
-                else
-                {
-                    <ValidationMessage For="@(() => registerModel.Password)" />
-                }
-            </div>
+            @if (!string.IsNullOrEmpty(successMessage))
+            {
+                <div class="alert alert-success">@successMessage</div>
+            }
 
-            <div class="input-group">
-                <div class="input-wrapper @(IsConfirmPasswordValid ? "valid" : "")">
-                    <div class="input-icon">
-                        <img src="images/lock-icon.png" alt="Lock Icon" />
-                    </div>
-                    <div class="input-separator"></div>
-                    <InputText @bind-Value="registerModel.ConfirmPassword" type="password" class="input-field" placeholder="אימות סיסמה" @oninput="ValidateConfirmPassword" />
-                </div>
-                @if (IsConfirmPasswordValid)
-                {
-                    <div class="validation-indicator valid"></div>
-                    <div class="field-status valid">
-                        <span class="status-message">הסיסמאות תואמות</span>
-                    </div>
-                }
-                else
-                {
-                    <ValidationMessage For="@(() => registerModel.ConfirmPassword)" />
-                }
-            </div>
+            <EditForm Model="registerModel" OnValidSubmit="HandleRegistration" id="register-form">
+                <DataAnnotationsValidator />
 
-            <div class="login-actions-row">
-                <button type="submit" class="login-button" disabled="@(!IsFormValid || isSubmitting)">
-                    @if (isSubmitting)
+                <div class="input-group">
+                    <div class="input-wrapper @(IsUsernameValid ? "valid" : "")">
+                        <div class="input-icon">
+                            <img src="images/user-new-icon.png" alt="User Icon" />
+                        </div>
+                        <div class="input-separator"></div>
+                        <InputText @bind-Value="registerModel.Username" class="input-field" placeholder="שם משתמש" @oninput="ValidateUsername" />
+                    </div>
+                    @if (IsUsernameValid)
                     {
-                        <span>מתבצעת הרשמה...</span>
+                        <div class="validation-indicator valid"></div>
+                        <div class="field-status valid">
+                            <span class="status-message">שם משתמש תקין</span>
+                        </div>
                     }
                     else
                     {
-                        <span>הירשם</span>
+                        <ValidationMessage For="@(() => registerModel.Username)" />
                     }
-                </button>
-                <button class="google-button" @onclick="HandleGoogleRegister" disabled="@isSubmitting" type="button">
-                    <img src="images/google-logo.png" alt="Google" />
-                </button>
-            </div>
-        </EditForm>
-    </div>
+                </div>
 
-    <div class="signup">
-        <a href="/login">כבר רשום? התחבר עכשיו</a>
+                <div class="input-group">
+                    <div class="input-wrapper @(IsEmailValid ? "valid" : "")">
+                        <div class="input-icon">
+                            <img src="images/email-icon.png" alt="Email Icon" />
+                        </div>
+                        <div class="input-separator"></div>
+                        <InputText @bind-Value="registerModel.Email" type="email" class="input-field" placeholder="אימייל" @oninput="ValidateEmail" />
+                    </div>
+                    @if (IsEmailValid)
+                    {
+                        <div class="validation-indicator valid"></div>
+                        <div class="field-status valid">
+                            <span class="status-message">כתובת אימייל תקינה</span>
+                        </div>
+                    }
+                    else
+                    {
+                        <ValidationMessage For="@(() => registerModel.Email)" />
+                    }
+                </div>
+
+                <div class="input-group">
+                    <div class="input-wrapper @(IsPasswordValid ? "valid" : "")">
+                        <div class="input-icon">
+                            <img src="images/lock-icon.png" alt="Lock Icon" />
+                        </div>
+                        <div class="input-separator"></div>
+                        <InputText @bind-Value="registerModel.Password" type="password" class="input-field" placeholder="סיסמה" @oninput="ValidatePassword" />
+                    </div>
+                    <div class="input-actions">
+                        <button type="button" class="password-info-button" @onclick="TogglePasswordRequirements">
+                            <span class="password-info-icon">?</span>
+                        </button>
+                    </div>
+                    @if (IsPasswordValid)
+                    {
+                        <div class="validation-indicator valid"></div>
+                        <div class="field-status valid">
+                            <span class="status-message">סיסמה תקינה</span>
+                        </div>
+                    }
+                    else
+                    {
+                        <ValidationMessage For="@(() => registerModel.Password)" />
+                    }
+                </div>
+
+                <div class="input-group">
+                    <div class="input-wrapper @(IsConfirmPasswordValid ? "valid" : "")">
+                        <div class="input-icon">
+                            <img src="images/lock-icon.png" alt="Lock Icon" />
+                        </div>
+                        <div class="input-separator"></div>
+                        <InputText @bind-Value="registerModel.ConfirmPassword" type="password" class="input-field" placeholder="אימות סיסמה" @oninput="ValidateConfirmPassword" />
+                    </div>
+                    @if (IsConfirmPasswordValid)
+                    {
+                        <div class="validation-indicator valid"></div>
+                        <div class="field-status valid">
+                            <span class="status-message">הסיסמאות תואמות</span>
+                        </div>
+                    }
+                    else
+                    {
+                        <ValidationMessage For="@(() => registerModel.ConfirmPassword)" />
+                    }
+                </div>
+            </EditForm>
+        </div>
+        <button type="submit" class="login-button" form="register-form" disabled="@(!IsFormValid || isSubmitting)">
+            @if (isSubmitting)
+            {
+                <span>Registering...</span>
+            }
+            else
+            {
+                <span>Register</span>
+            }
+        </button>
+        <button class="google-oauth-btn" @onclick="HandleGoogleRegister" type="button">
+            <img src="images/google-logo.png" alt="Google" class="google-icon" />
+            Register with Google
+        </button>
+        <div class="signup">
+            <a href="/login">Already registered? Login now</a>
+        </div>
     </div>
 </div>
 
@@ -169,7 +172,7 @@
         Email = "",
         Password = "",
         ConfirmPassword = "",
-        Role = "User"  // Always ensure Role is set to a default value
+        Role = "User"
     };
 
     private string errorMessage = string.Empty;
@@ -190,6 +193,26 @@
     private bool HasSpecialChar { get; set; } = false;
 
     private bool IsFormValid => IsUsernameValid && IsEmailValid && IsPasswordValid && IsConfirmPasswordValid;
+
+    private string formAnimationClass = "form-animate-down";
+
+    public async Task AnimateInDown()
+    {
+        formAnimationClass = "form-fade-out";
+        StateHasChanged();
+        await Task.Delay(400);
+        formAnimationClass = "form-animate-down";
+        StateHasChanged();
+    }
+
+    public async Task AnimateInUp()
+    {
+        formAnimationClass = "form-fade-out";
+        StateHasChanged();
+        await Task.Delay(400);
+        formAnimationClass = "form-animate-up";
+        StateHasChanged();
+    }
 
     // Object reference for JS interop
     private DotNetObjectReference<Register>? objRef;
