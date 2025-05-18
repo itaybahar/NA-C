@@ -1,0 +1,86 @@
+@page "/user/dashboard"
+@using Microsoft.AspNetCore.Components.Authorization
+@using Blazor_WebAssembly_Project.Components.helpers
+@using Blazor_WebAssembly_Project.Components
+@inject AuthenticationStateProvider AuthenticationStateProvider
+
+<link href="css/dashboard.css" rel="stylesheet" />
+<link href="css/themeToggle.css" rel="stylesheet" />
+<link href="css/Sidebar.css" rel="stylesheet" />
+
+<div class="dashboard-wrapper @(sidebarCollapsed ? "sidebar-collapsed" : "")">
+    <Sidebar SidebarOpen="@sidebarOpen"
+             SidebarOpenChanged="@ToggleSidebarFromDashboard"
+             IsCollapsed="@sidebarCollapsed"
+             OnCollapseChanged="@OnSidebarCollapseChanged" />
+    <div style="flex: 1; display: flex; flex-direction: column;">
+        <!-- Top navbar with tabs -->
+        <header class="admin-header">
+            <div class="admin-navbar tabs-with-separator">
+                <button class="dashboard-tab @(ActiveTab == "equipment" ? "active" : "")" @onclick='() => ChangeTab("equipment")'>
+                    <i class="bi bi-list-ul"></i> רשימת ציוד
+                </button>
+                <button class="dashboard-tab @(ActiveTab == "blacklist" ? "active" : "")" @onclick='() => ChangeTab("blacklist")'>
+                    <i class="bi bi-shield-x"></i> רשימה שחורה
+                </button>
+                <div style="flex:1"></div>
+            </div>
+        </header>
+        <main class="admin-content">
+            <div class="admin-content-container">
+                @if (ActiveTab == "equipment")
+                {
+                    <div class="dashboard-card">
+                        <div class="card-header">
+                            <h3>רשימת ציוד</h3>
+                        </div>
+                        <div class="card-content">
+                            <EquipmentList />
+                        </div>
+                    </div>
+                }
+                else if (ActiveTab == "blacklist")
+                {
+                    <div class="dashboard-card">
+                        <div class="card-header">
+                            <h3>רשימה שחורה</h3>
+                        </div>
+                        <div class="card-content">
+                            <BlackList />
+                        </div>
+                    </div>
+                }
+            </div>
+        </main>
+    </div>
+</div>
+
+@code {
+    private string UserName { get; set; } = string.Empty;
+    private bool sidebarCollapsed = true;
+    private bool sidebarOpen = false;
+    private string ActiveTab { get; set; } = "equipment";
+
+    protected override async Task OnInitializedAsync()
+    {
+        var authState = await AuthenticationStateProvider.GetAuthenticationStateAsync();
+        var user = authState.User;
+
+        if (user.Identity?.IsAuthenticated == true)
+        {
+            UserName = user.Identity.Name ?? "משתמש";
+        }
+        else
+        {
+            UserName = "משתמש";
+        }
+    }
+
+    private void ChangeTab(string tab)
+    {
+        ActiveTab = tab;
+    }
+
+    private void ToggleSidebarFromDashboard(bool open = true) => sidebarOpen = open ? !sidebarOpen : sidebarOpen;
+    private void OnSidebarCollapseChanged(bool collapsed) => sidebarCollapsed = collapsed;
+} 

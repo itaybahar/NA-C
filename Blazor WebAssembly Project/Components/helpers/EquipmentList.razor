@@ -3,6 +3,9 @@
 @using System.Net.Http.Json
 @using Microsoft.AspNetCore.Components.Authorization
 @using System.Security.Claims
+@using Blazor_WebAssembly.Models.Checkout
+@using Domain_Project.DTOs
+
 @inject ICheckoutService CheckoutService
 @inject IEquipmentService EquipmentService
 @inject ILogger<EquipmentList> Logger
@@ -10,9 +13,9 @@
 @inject IJSRuntime JSRuntime
 @using Blazor_WebAssembly.Services
 @inject ApiErrorHandler ApiErrorHandler
-@using Blazor_WebAssembly.Models.Checkout
+@inject Blazored.LocalStorage.ILocalStorageService LocalStorageService
+
 @implements IDisposable
-@using Domain_Project.DTOs
 
 <link href="css/dashboard.css" rel="stylesheet" />
 
@@ -413,8 +416,8 @@
         }
     </div>
 }
- else if (ActiveTab == "history")
- {
+else if (ActiveTab == "history")
+{
     <div class="dashboard-section slide-in">
         <!-- Equipment history tab content -->
         <div class="widget-header">
@@ -520,70 +523,70 @@
                             </tr>
                         </thead>
                         <tbody>
-                        @foreach (var record in filteredCheckoutHistory)
-                        {
-                            <tr class="@(record.ReturnedAt.HasValue ? "returned" : "checked-out")"
-                                @onclick="() => ShowRecordDetails(record)">
-                                <td>@record.TeamName</td>
-                                <td>@record.EquipmentName</td>
-                                <td>@record.Quantity</td>
-                                <td>@(record.CheckedOutAt.HasValue? record.CheckedOutAt.Value.ToString("dd/MM/yyyy HH:mm") : "-")</td>
-                                <td>@(record.ReturnedAt.HasValue? record.ReturnedAt.Value.ToString("dd/MM/yyyy HH:mm") : "-")</td>
-                                <td>
-                                    <span class="status-badge @(record.ReturnedAt.HasValue ? "returned-badge" : "checked-out-badge")">
-                                        @(record.ReturnedAt.HasValue ? "הוחזר" : "לא הוחזר")
-                                    </span>
-                                </td>
-                                <td>
-                                    @if (record.ReturnedAt.HasValue)
-                                    {
-                                        <span class="status-badge @GetConditionBadgeClass(record.ItemCondition)">
-                                            @GetConditionText(record.ItemCondition)
+                            @foreach (var record in filteredCheckoutHistory)
+                            {
+                                <tr class="@(record.ReturnedAt.HasValue ? "returned" : "checked-out")"
+                                    @onclick="() => ShowRecordDetails(record)">
+                                    <td>@record.TeamName</td>
+                                    <td>@record.EquipmentName</td>
+                                    <td>@record.Quantity</td>
+                                    <td>@(record.CheckedOutAt.HasValue? record.CheckedOutAt.Value.ToString("dd/MM/yyyy HH:mm") : "-")</td>
+                                    <td>@(record.ReturnedAt.HasValue? record.ReturnedAt.Value.ToString("dd/MM/yyyy HH:mm") : "-")</td>
+                                    <td>
+                                        <span class="status-badge @(record.ReturnedAt.HasValue ? "returned-badge" : "checked-out-badge")">
+                                            @(record.ReturnedAt.HasValue ? "הוחזר" : "לא הוחזר")
                                         </span>
-                                    }
-                                    else
-                                    {
-                                        <span class="text-muted">-</span>
-                                    }
-                                </td>
-                                <!-- New column for available quantity after operation -->
-                                <td>
-                                    <span class="availability @(record.AvailableAfterOperation <= 0 ? "out-of-stock" : "")">
-                                        @record.AvailableAfterOperation
-                                    </span>
-                                </td>
-                                <td>
-                                    <div class="user-info">
-                                        @if (!string.IsNullOrEmpty(record.UserName))
+                                    </td>
+                                    <td>
+                                        @if (record.ReturnedAt.HasValue)
                                         {
-                                            <span class="username">@record.UserName</span>
-                                        }
-                                        else if (record.UserId > 0)
-                                        {
-                                            <span>משתמש #@record.UserId</span>
+                                            <span class="status-badge @GetConditionBadgeClass(record.ItemCondition)">
+                                                @GetConditionText(record.ItemCondition)
+                                            </span>
                                         }
                                         else
                                         {
-                                            <span class="text-muted">לא ידוע</span>
+                                            <span class="text-muted">-</span>
                                         }
-                                    </div>
-                                </td>
-                                <td>
-                                    @if (!string.IsNullOrEmpty(record.UserRole))
-                                    {
-                                        <span class="role-badge">@FormatUserRole(record.UserRole)</span>
-                                    }
-                                    else
-                                    {
-                                        <span class="text-muted">-</span>
-                                    }
-                                </td>
-                            </tr>
-                        }
-                    </tbody>
-                </table>
-            </div>
-        }
+                                    </td>
+                                    <!-- New column for available quantity after operation -->
+                                    <td>
+                                        <span class="availability @(record.AvailableAfterOperation <= 0 ? "out-of-stock" : "")">
+                                            @record.AvailableAfterOperation
+                                        </span>
+                                    </td>
+                                    <td>
+                                        <div class="user-info">
+                                            @if (!string.IsNullOrEmpty(record.UserName))
+                                            {
+                                                <span class="username">@record.UserName</span>
+                                            }
+                                            else if (record.UserId > 0)
+                                            {
+                                                <span>משתמש #@record.UserId</span>
+                                            }
+                                            else
+                                            {
+                                                <span class="text-muted">לא ידוע</span>
+                                            }
+                                        </div>
+                                    </td>
+                                    <td>
+                                        @if (!string.IsNullOrEmpty(record.UserRole))
+                                        {
+                                            <span class="role-badge">@FormatUserRole(record.UserRole)</span>
+                                        }
+                                        else
+                                        {
+                                            <span class="text-muted">-</span>
+                                        }
+                                    </td>
+                                </tr>
+                            }
+                        </tbody>
+                    </table>
+                </div>
+            }
         </td>
     </div>
     if (showRecordDetailsModal && selectedRecordDetails != null)
@@ -701,15 +704,17 @@
         .out-of-stock {
             color: #dc3545;
         }
-        .out-of-stock::before {
-            content: "";
-            display: inline-block;
-            width: 8px;
-            height: 8px;
-            border-radius: 50%;
-            background-color: #dc3545;
-            margin-right: 5px;
-        }
+
+            .out-of-stock::before {
+                content: "";
+                display: inline-block;
+                width: 8px;
+                height: 8px;
+                border-radius: 50%;
+                background-color: #dc3545;
+                margin-right: 5px;
+            }
+
         .availability {
             font-weight: bold;
         }
@@ -734,7 +739,7 @@
 
 @code {
     private enum ViewMode { List, Cards }
-
+    private int? CurrentUserId; // To store the current user ID
     private List<EquipmentModel> equipmentList = new List<EquipmentModel>();
     private string? errorMessage;
     private bool isLoading = false;
@@ -792,6 +797,8 @@
     private string ActiveTab = "list";
     private string TabIndicatorPosition => ActiveTab == "list" ? "0px" : "120px";
     private string TabIndicatorWidth => "120px";
+    private int systemTeamId = 1;  // Default fallback ID
+    private string systemTeamName = "System Administration";  // Default name
 
     // History-related properties
     private List<CheckoutRecordDto> checkoutHistory = new();
@@ -803,6 +810,7 @@
     private bool? showReturned = null;
     private DateTime lastHistoryRefresh = DateTime.MinValue;
     private TimeSpan historyRefreshThreshold = TimeSpan.FromMinutes(5);
+    private bool isAuthenticated = false;
 
     // Record details modal
     private bool showRecordDetailsModal = false;
@@ -839,6 +847,7 @@
         Logger.LogInformation("Initializing EquipmentList component...");
         await CheckUserRole();
         await LoadEquipment();
+        await LoadSystemTeam();
     }
     // Tab change handler
     // Tab change handler
@@ -860,13 +869,191 @@
         {
             // Always switch to equipment list tab when requested
             ActiveTab = tab;
+            try
+            {
+                // Check and set authentication status
+                var authState = await AuthenticationStateProvider.GetAuthenticationStateAsync();
+                isAuthenticated = authState.User.Identity?.IsAuthenticated == true;
+
+                if (!isAuthenticated)
+                {
+                    var token = await LocalStorageService.GetItemAsync<string>("authToken");
+
+                    if (!string.IsNullOrEmpty(token))
+                    {
+                        try
+                        {
+                            await JSRuntime.InvokeVoidAsync("console.log", "Attempting to revalidate token");
+
+                            // Check again
+                            authState = await AuthenticationStateProvider.GetAuthenticationStateAsync();
+                            isAuthenticated = authState.User.Identity?.IsAuthenticated == true;
+                        }
+                        catch (Exception ex)
+                        {
+                            Logger.LogWarning(ex, "Failed to revalidate token");
+                        }
+                    }
+                }
+
+                Logger.LogInformation($"Authentication status: {(isAuthenticated ? "Authenticated" : "Not authenticated")}");
+
+                // Then load user info if authenticated
+                if (isAuthenticated)
+                {
+                    await LoadUserInfo();
+                }
+                else
+                {
+                    // Default for testing
+                    CurrentUserId = 1;
+                    Logger.LogWarning("User not authenticated - using default user ID for development");
+                }
+            }
+            catch (Exception ex)
+            {
+                Logger.LogError(ex, "Error in OnInitializedAsync");
+            }
         }
 
+       
         // Add a slight delay for animation
         await Task.Delay(50);
         StateHasChanged();
     }
 
+    // Add a method to load the system team info
+    private async Task LoadSystemTeam()
+    {
+        try
+        {
+            Logger.LogInformation("Loading system team information...");
+
+            // Try to find the system team in checkout history
+            var history = await CheckoutService.GetCheckoutHistoryAsync();
+
+            // Look for the System Administration team in history records
+            var systemTeamRecord = history
+                .FirstOrDefault(h => h.TeamName != null &&
+                               h.TeamName.Contains("System", StringComparison.OrdinalIgnoreCase) &&
+                               h.TeamId > 0);
+
+            if (systemTeamRecord != null)
+            {
+                systemTeamId = systemTeamRecord.TeamId;
+                systemTeamName = systemTeamRecord.TeamName ?? "System Administration";
+                Logger.LogInformation($"Found system team in history: ID={systemTeamId}, Name={systemTeamName}");
+            }
+            else
+            {
+                // If we couldn't find it in history, set a default value
+                // Use ID 1 as a safer default than 0
+                systemTeamId = 1;
+                systemTeamName = "System Administration";
+                Logger.LogInformation($"Using default system team: ID={systemTeamId}, Name={systemTeamName}");
+            }
+        }
+        catch (Exception ex)
+        {
+            Logger.LogError(ex, "Error loading system team information");
+            // Set default values in case of error
+            systemTeamId = 1;
+            systemTeamName = "System Administration";
+        }
+    }
+
+    // Update the GetSystemTeam method to use our stored values
+    private (int TeamId, string TeamName) GetSystemTeam()
+    {
+        return (systemTeamId, systemTeamName);
+    }
+    // Method to get user info including user ID
+    private async Task LoadUserInfo()
+    {
+        try
+        {
+            var authState = await AuthenticationStateProvider.GetAuthenticationStateAsync();
+            var user = authState.User;
+
+            if (user.Identity?.IsAuthenticated == true)
+            {
+                // Try standard identity claim types first
+                var userIdClaim = user.FindFirst(ClaimTypes.NameIdentifier) ??
+                                  user.FindFirst("sub") ??
+                                  user.FindFirst("userId") ??
+                                  user.FindFirst("UserID");
+
+                if (userIdClaim != null)
+                {
+                    Logger.LogInformation($"Found user ID claim: {userIdClaim.Type} = {userIdClaim.Value}");
+
+                    if (int.TryParse(userIdClaim.Value, out int userId))
+                    {
+                        CurrentUserId = userId;
+                        Logger.LogInformation($"Successfully parsed user ID: {CurrentUserId}");
+                    }
+                    else
+                    {
+                        Logger.LogWarning($"Could not parse user ID '{userIdClaim.Value}' as integer");
+
+                        // Set a hardcoded user ID for testing/development
+                        CurrentUserId = 1;
+                        Logger.LogWarning($"Using hardcoded user ID: {CurrentUserId}");
+                    }
+                }
+                else
+                {
+                    // If no standard claim is found, check for non-standard or custom claims
+                    var possibleIdClaims = user.Claims.Where(c =>
+                        c.Type.Contains("id", StringComparison.OrdinalIgnoreCase) ||
+                        c.Type.Contains("identifier", StringComparison.OrdinalIgnoreCase)).ToList();
+
+                    if (possibleIdClaims.Any())
+                    {
+                        foreach (var claim in possibleIdClaims)
+                        {
+                            Logger.LogInformation($"Potential ID claim found: {claim.Type} = {claim.Value}");
+                        }
+
+                        var firstPotentialClaim = possibleIdClaims.First();
+                        if (int.TryParse(firstPotentialClaim.Value, out int potentialUserId))
+                        {
+                            CurrentUserId = potentialUserId;
+                            Logger.LogInformation($"Using potential user ID claim: {CurrentUserId}");
+                        }
+                        else
+                        {
+                            // Hardcoded for testing/development
+                            CurrentUserId = 1;
+                            Logger.LogWarning($"Using hardcoded user ID: {CurrentUserId}");
+                        }
+                    }
+                    else
+                    {
+                        // Hardcoded for testing/development
+                        CurrentUserId = 1;
+                        Logger.LogWarning($"No suitable user ID claim found. Using hardcoded user ID: {CurrentUserId}");
+                    }
+                }
+            }
+            else
+            {
+                Logger.LogWarning("User is not authenticated");
+
+                // Hardcoded for testing/development when not authenticated
+                CurrentUserId = 1;
+                Logger.LogWarning($"User not authenticated. Using hardcoded user ID: {CurrentUserId}");
+            }
+        }
+        catch (Exception ex)
+        {
+            Logger.LogError(ex, "Error loading user information");
+
+            // Ensure we have a fallback even if there's an exception
+            CurrentUserId = 1;
+            Logger.LogWarning($"Exception occurred. Using hardcoded user ID: {CurrentUserId}");
+        }
+    }
 
     // Modify LoadHistory to calculate available quantities after each checkout/return
     private async Task LoadHistory()
@@ -1028,7 +1215,6 @@
                 await UpdateAvailableQuantityForEquipment(editingEquipment.EquipmentID, editingEquipment.Quantity);
 
                 // Add history record for the edit if there was a quantity change
-                // Add history record for the edit if there was a quantity change
                 if (quantityChange != 0)
                 {
                     // For equipment updates, we'll get the most relevant team
@@ -1125,7 +1311,7 @@
         }
     }
 
-    
+
     private async Task<bool> CreateAdminHistoryRecord(int equipmentId, string action, int quantityChanged, string notes)
     {
         try
@@ -1138,7 +1324,34 @@
             var userNameValue = authStateProvider.User.Identity?.Name;
 
             Logger.LogInformation($"Current user: {userNameValue} (ID: {userIdValue})");
+            // Check authentication first
+            var authState = await AuthenticationStateProvider.GetAuthenticationStateAsync();
+            
+            // Get user ID with better fallback mechanism
+            if (!CurrentUserId.HasValue)
+            {
+                var nameIdentifierClaim = authState.User.FindFirst(ClaimTypes.NameIdentifier);
+                var userIdClaim = authState.User.FindFirst("UserID") ??
+                                  authState.User.FindFirst("userId") ??
+                                  authState.User.FindFirst("sub");
 
+                if (nameIdentifierClaim != null && int.TryParse(nameIdentifierClaim.Value, out int parsedId))
+                {
+                    CurrentUserId = parsedId;
+                    Logger.LogInformation($"Using NameIdentifier claim for user ID: {parsedId}");
+                }
+                else if (userIdClaim != null && int.TryParse(userIdClaim.Value, out parsedId))
+                {
+                    CurrentUserId = parsedId;
+                    Logger.LogInformation($"Using custom UserID claim for user ID: {parsedId}");
+                }
+                else
+                {
+                    // Last resort fallback for testing
+                    CurrentUserId = 1;
+                    Logger.LogWarning("No user ID found in claims. Using default ID 1 for testing");
+                }
+            }
             // Make sure we have a valid equipment name
             var equipment = equipmentList.FirstOrDefault(e => e.EquipmentID == equipmentId);
             if (equipment == null)
@@ -1168,9 +1381,8 @@
                 userId = id;
             }
 
-            // Use the System Administration Team (ID: 0) for all equipment admin operations
-            int systemTeamId =11;
-            string systemTeamName = "System Administration";
+        
+            var (systemTeamId, systemTeamName) = GetSystemTeam();
 
             // Use positive quantity for checkout
             int checkoutQuantity = Math.Abs(quantityChanged);
@@ -1231,17 +1443,6 @@
             return false;
         }
     }
-
-
-    /// <summary>
-    /// Gets the system administration team info used for equipment operations
-    /// </summary>
-    private (int TeamId, string TeamName) GetSystemTeam()
-    {
-        // System Administration Team has fixed ID 0
-        return (0, "System Administration");
-    }
-
 
     // Make sure the filter method handles empty values correctly
     private void FilterHistory()

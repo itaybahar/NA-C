@@ -14,8 +14,11 @@
 
 <PageTitle>Dashboard - מנהל מערכת</PageTitle>
 
-<div style="display: flex; min-height: 100vh;">
-    <Sidebar SidebarOpen="@sidebarOpen" SidebarOpenChanged="@ToggleSidebarFromDashboard" />
+<div class="dashboard-wrapper @(sidebarCollapsed ? "sidebar-collapsed" : "")">
+    <Sidebar SidebarOpen="@sidebarOpen"
+             SidebarOpenChanged="@ToggleSidebarFromDashboard"
+             IsCollapsed="@sidebarCollapsed"
+             OnCollapseChanged="@OnSidebarCollapseChanged" />
     <div style="flex: 1; display: flex; flex-direction: column;">
         <!-- Top navbar with logo and tabs -->
         <header class="admin-header">
@@ -32,9 +35,6 @@
                     </button>
                     <button class="dashboard-tab @(ActiveTab == "users" ? "active" : "")" @onclick='() => ChangeTab("users", 3)'>
                         <i class="bi bi-person"></i> ניהול משתמשים
-                    </button>
-                    <button class="dashboard-tab settings-tab" @onclick="() => sidebarOpen = !sidebarOpen" title="הגדרות">
-                        <i class="bi bi-gear"></i> הגדרות
                     </button>
                     <button class="dashboard-tab @(ActiveTab == "checkout" ? "active" : "")" @onclick='() => ChangeTab("checkout", 4)'>
                         <i class="bi bi-box-arrow-right"></i> הוצאת ציוד
@@ -75,6 +75,18 @@
                     case "add":
                         <AddEquipmentForm />
                         break;
+                    case "history":
+                        <UserActionLog />
+                        break;
+                    case "guide":
+                        <SiteGuide />
+                        break;
+                    case "notifications":
+                        <SiteNotifications />
+                        break;
+                    case "about":
+                        <SiteAbout />
+                        break;
                 }
             </div>
         </main>
@@ -84,6 +96,7 @@
 @code {
     private string ActiveTab = "equipment";
     private bool sidebarOpen = false;
+    private bool sidebarCollapsed = true;
 
     protected override void OnInitialized()
     {
@@ -108,6 +121,10 @@
             "checkout" => 4,
             "return" => 5,
             "add" => 6,
+            "history" => 7,
+            "guide" => 8,
+            "notifications" => 9,
+            "about" => 10,
             _ => 0
         };
     }
@@ -118,4 +135,14 @@
     }
 
     private void ToggleSidebarFromDashboard(bool open = true) => sidebarOpen = open ? !sidebarOpen : sidebarOpen;
+
+    private void OnSidebarCollapseChanged(bool collapsed)
+    {
+        sidebarCollapsed = collapsed;
+    }
+
+    private void ToggleSidebarCollapse()
+    {
+        sidebarCollapsed = !sidebarCollapsed;
+    }
 }

@@ -1604,3 +1604,187 @@ body, html {
     margin-left: 0.5rem;
     padding-left: 1rem;
 }
+
+.dashboard-tab.settings-tab {
+    position: relative;
+    margin-right: 1.5rem;
+    transition: background 0.2s, color 0.2s, box-shadow 0.2s;
+}
+.dashboard-tab.settings-tab:hover {
+    background: var(--surface-variant);
+    color: var(--primary);
+}
+.dashboard-tab.settings-tab.open {
+    background: var(--surface-variant);
+    color: var(--primary);
+    box-shadow: 0 2px 8px rgba(255, 214, 0, 0.08);
+}
+.dashboard-tab.settings-tab.open i {
+    font-size: 1.5rem;
+    font-weight: bold;
+    color: var(--primary);
+}
+.dashboard-tab.settings-tab .settings-label {
+    display: none;
+    margin-right: 0.5rem;
+    font-weight: 600;
+    font-size: 1.1rem;
+    color: var(--primary);
+    transition: opacity 0.2s;
+}
+.dashboard-tab.settings-tab.open .settings-label {
+    display: inline;
+    opacity: 1;
+}
+[dir="rtl"] .dashboard-tab.settings-tab {
+    margin-left: 1.5rem;
+    margin-right: 0;
+}
+[dir="rtl"] .dashboard-tab.settings-tab .settings-label {
+    margin-left: 0.5rem;
+    margin-right: 0;
+}
+
+.settings-btn-floating {
+    position: absolute;
+    top: 12px;
+    left: 32px;
+    right: auto;
+    background: var(--surface-variant);
+    border: none;
+    border-radius: 999px;
+    width: 48px;
+    height: 48px;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    font-size: 1.5rem;
+    color: var(--text-secondary);
+    z-index: 2100;
+    box-shadow: 0 2px 8px rgba(0,0,0,0.10);
+    cursor: pointer;
+    transition: background 0.2s, color 0.2s, box-shadow 0.2s, width 0.3s;
+    padding: 0 16px;
+    overflow: hidden;
+}
+.settings-btn-floating.open {
+    background: var(--surface);
+    color: var(--primary);
+    width: 120px;
+    box-shadow: 0 4px 16px rgba(255,214,0,0.10);
+}
+.settings-btn-floating .settings-label {
+    display: inline-block;
+    opacity: 0;
+    margin-right: 0.5rem;
+    font-weight: 600;
+    font-size: 1.1rem;
+    color: var(--primary);
+    white-space: nowrap;
+    transition: opacity 0.25s, margin 0.25s;
+}
+.settings-btn-floating.open .settings-label {
+    opacity: 1;
+    margin-right: 0.75rem;
+}
+.settings-btn-floating i {
+    transition: color 0.2s, font-size 0.2s;
+}
+.settings-btn-floating.open i {
+    color: var(--primary);
+    font-size: 1.7rem;
+}
+[dir="rtl"] .settings-btn-floating {
+    left: auto;
+    right: 32px;
+}
+[dir="rtl"] .settings-btn-floating .settings-label {
+    margin-left: 0.5rem;
+    margin-right: 0;
+}
+
+/* עיצוב כפתור הגדרות בהדר הדשבורד */
+.settings-btn-dashboard {
+    background: var(--sidebar-bg, #222);
+    color: var(--sidebar-icon, #FFD600);
+    border: none;
+    outline: none;
+    padding: 0.5rem 0.8rem;
+    font-size: 1.5rem;
+    cursor: pointer;
+    transition: background 0.2s, color 0.2s, box-shadow 0.2s;
+    box-shadow: none;
+    border-radius: 0; /* קצוות חדים */
+    margin-left: 1rem;
+    margin-right: 0.5rem;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+}
+
+.settings-btn-dashboard i {
+    color: #FFD600; /* צהוב מודגש לאייקון */
+    transition: color 0.2s;
+}
+
+.settings-btn-dashboard:hover,
+.settings-btn-dashboard:focus {
+    background: var(--sidebar-hover, #333);
+    color: #fff;
+}
+
+.settings-btn-dashboard:hover i,
+.settings-btn-dashboard:focus i {
+    color: #fff;
+}
+
+/* עוטף ראשי של הדשבורד */
+.dashboard-wrapper {
+    transition: margin-right 0.3s cubic-bezier(.4,2,.6,1);
+    margin-right: 240px; /* ברירת מחדל - sidebar פתוח */
+}
+.dashboard-wrapper.sidebar-collapsed {
+    margin-right: 64px; /* sidebar מכווץ */
+}
+
+/* במסכים קטנים – הסיידבר יכסה (overlay) */
+@media (max-width: 900px) {
+    .dashboard-wrapper,
+    .dashboard-wrapper.sidebar-collapsed {
+        margin-right: 0 !important;
+    }
+}
+
+.user-action-log ul {
+    list-style: none;
+    padding: 0;
+}
+.user-action-log li {
+    display: flex;
+    gap: 1rem;
+    padding: 0.5rem 0;
+    border-bottom: 1px solid #3333;
+}
+.user-action-log .action-time {
+    color: #888;
+    min-width: 120px;
+    font-size: 0.95em;
+}
+.user-action-log .action-desc {
+    flex: 1;
+}
+
+.site-guide, .site-notifications, .site-about {
+    direction: rtl;
+    color: #fff;
+    background: transparent;
+    padding: 2rem 1rem;
+}
+.site-guide h2, .site-notifications h2, .site-about h2 {
+    color: #FFD600;
+    margin-bottom: 1rem;
+}
+.site-guide ul, .site-about ul {
+    margin: 1rem 0 0 0;
+    padding-right: 1.5rem;
+}

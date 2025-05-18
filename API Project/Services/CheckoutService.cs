@@ -1063,5 +1063,48 @@ namespace API_Project.Services
             }
         }
 
+        public async Task<List<BlacklistedTeamDto>> GetBlacklistedTeamsAsync()
+        {
+            try
+            {
+                _logger.LogInformation("Getting all blacklisted teams");
+                var blacklistedTeams = await _teamRepository.GetBlacklistedTeamsAsync();
+                var result = new List<BlacklistedTeamDto>();
+
+                foreach (var team in blacklistedTeams)
+                {
+                    var blacklistEntry = await _blacklistRepository.GetByTeamIdAsync(team.TeamID);
+                    var overdueItems = await GetOverdueItemsByTeamAsync(team.TeamID);
+
+                    var blacklistedTeam = new BlacklistedTeamDto
+                    {
+                        TeamId = team.TeamID,
+                        TeamName = team.TeamName,
+                        BlacklistReason = blacklistEntry?.ReasonForBlacklisting ?? "Unknown",
+                        BlacklistDate = blacklistEntry?.BlacklistDate ?? DateTime.UtcNow,
+                        OverdueItems = overdueItems.Select(item => new OverdueItemDto
+                        {
+                            EquipmentId = item.EquipmentId,
+                            EquipmentName = item.Equipment?.Name ?? "Unknown",
+                            CheckoutId = item.CheckoutID,
+                            CheckoutDate = item.CheckoutDate,
+                            ExpectedReturnDate = item.ExpectedReturnDate,
+                            DaysOverdue = (DateTime.UtcNow - item.ExpectedReturnDate).TotalDays
+                        }).ToList()
+                    };
+
+                    result.Add(blacklistedTeam);
+                }
+
+                _logger.LogInformation("Found {Count} blacklisted teams", result.Count);
+                return result;
+            }
+            catch (Exception ex)
+            {
+                _logger.LogError(ex, "Error getting blacklisted teams: {ErrorMessage}", ex.Message);
+                return new List<BlacklistedTeamDto>();
+            }
+        }
+
     }
 }

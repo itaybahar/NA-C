@@ -418,5 +418,20 @@ namespace API_Project.Controllers
             public string? Notes { get; set; }
             public int Quantity { get; set; }
         }
+
+        [HttpGet("blacklisted-teams")]
+        public async Task<ActionResult<List<BlacklistedTeamDto>>> GetBlacklistedTeams()
+        {
+            try
+            {
+                var blacklistedTeams = await _checkoutService.GetBlacklistedTeamsAsync();
+                return Ok(blacklistedTeams);
+            }
+            catch (Exception ex)
+            {
+                _logger.LogError(ex, "Error getting blacklisted teams");
+                return StatusCode(500, "An error occurred while retrieving blacklisted teams");
+            }
+        }
     }
 }

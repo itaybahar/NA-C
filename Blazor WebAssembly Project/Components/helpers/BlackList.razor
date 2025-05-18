@@ -1,0 +1,139 @@
+@using Domain_Project.DTOs
+@using Blazor_WebAssembly.Services.Interfaces
+@using Microsoft.Extensions.Logging
+@inject ICheckoutService CheckoutService
+@inject ILogger<BlackList> Logger
+
+<div class="widget-header">
+    <h3 class="widget-title">רשימת שחורה</h3>
+    <div class="widget-actions">
+        <button class="btn-refresh" title="רענן רשימה" @onclick="LoadBlacklist">
+            <i class="bi bi-arrow-clockwise"></i>
+        </button>
+    </div>
+</div>
+
+@if (isLoading)
+{
+    <div class="loading-container">
+        <div class="spinner"></div>
+        <p>טוען רשימה שחורה...</p>
+    </div>
+}
+else if (blacklistedTeams.Count == 0)
+{
+    <div class="empty-state">
+        <i class="bi bi-check-circle empty-icon"></i>
+        <p class="no-history">אין צוותים ברשימה השחורה</p>
+    </div>
+}
+else
+{
+    <div class="info-bar">
+        <span class="records-count">@blacklistedTeams.Count צוותים ברשימה השחורה</span>
+    </div>
+
+    <div class="table-responsive">
+        <table class="history-table">
+            <thead>
+                <tr>
+                    <th>צוות</th>
+                    <th>סיבה</th>
+                    <th>תאריך הוספה</th>
+                    <th>פריטים שלא הוחזרו</th>
+                </tr>
+            </thead>
+            <tbody>
+                @foreach (var team in blacklistedTeams)
+                {
+                    <tr class="blacklisted">
+                        <td>@team.TeamName</td>
+                        <td>@team.BlacklistReason</td>
+                        <td>@team.BlacklistDate.ToString("dd/MM/yyyy HH:mm")</td>
+                        <td>
+                            <div class="overdue-items">
+                                @foreach (var item in team.OverdueItems)
+                                {
+                                    <div class="overdue-item">
+                                        <span class="item-name">@item.EquipmentName</span>
+                                        <span class="days-overdue">@item.DaysOverdue ימים</span>
+                                    </div>
+                                }
+                            </div>
+                        </td>
+                    </tr>
+                }
+            </tbody>
+        </table>
+    </div>
+}
+
+<style>
+    .blacklisted {
+        background-color: #fff5f5;
+    }
+
+    .overdue-items {
+        display: flex;
+        flex-direction: column;
+        gap: 0.5rem;
+    }
+
+    .overdue-item {
+        display: flex;
+        justify-content: space-between;
+        align-items: center;
+        padding: 0.25rem 0.5rem;
+        background-color: #fee2e2;
+        border-radius: 0.25rem;
+        font-size: 0.9rem;
+    }
+
+    .item-name {
+        font-weight: 500;
+    }
+
+    .days-overdue {
+        color: #dc2626;
+        font-weight: 600;
+    }
+</style>
+
+@code {
+    private List<BlacklistedTeamDto> blacklistedTeams = new();
+    private bool isLoading = false;
+
+    protected override async Task OnInitializedAsync()
+    {
+        await LoadBlacklist();
+    }
+
+    private async Task LoadBlacklist()
+    {
+        try
+        {
+            isLoading = true;
+            StateHasChanged();
+
+            var response = await CheckoutService.GetBlacklistedTeamsAsync();
+            if (response != null)
+            {
+                blacklistedTeams = response;
+            }
+            else
+            {
+                blacklistedTeams = new List<BlacklistedTeamDto>();
+            }
+        }
+        catch (Exception ex)
+        {
+            Logger.LogError(ex, "Error loading blacklist");
+            blacklistedTeams = new List<BlacklistedTeamDto>();
+        }
+        finally
+        {
+            isLoading = false;
+            StateHasChanged();
+        }
+    }
+} 

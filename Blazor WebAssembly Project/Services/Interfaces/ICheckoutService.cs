@@ -21,5 +21,6 @@ namespace Blazor_WebAssembly.Services.Interfaces
         Task<int> GetInUseQuantityForEquipmentAsync(int equipmentId);
         Task<int> GetAvailableQuantityForEquipmentAsync(int equipmentId, int totalQuantity);
         Task<bool> AddAdminHistoryRecordAsync(CheckoutRecordDto record);
+        Task<List<BlacklistedTeamDto>> GetBlacklistedTeamsAsync();
     }
 }

@@ -1,47 +1,88 @@
 ﻿@page "/warehouse/operator/dashboard"
 @using Microsoft.AspNetCore.Authorization
 @using Blazor_WebAssembly_Project.Components.helpers
+@using Blazor_WebAssembly_Project.Components
+@inject AuthenticationStateProvider AuthenticationStateProvider
 @attribute [Authorize(Roles = "WarehouseOperator,WarehouseManager,Admin")]
+
+<link href="css/dashboard.css" rel="stylesheet" />
+<link href="css/themeToggle.css" rel="stylesheet" />
+<link href="css/Sidebar.css" rel="stylesheet" />
 
 <PageTitle>Dashboard - פעיל מחסן</PageTitle>
 
-<div class="app-layout">
-    <!-- Top navbar with logo and tabs -->
-    <div class="top-navbar">
-        <div class="navbar-container">
-            <div class="navbar-branding">
-                <img src="images/logo_png.png" alt="לוגו השבט" class="navbar-logo" />
-                <span class="navbar-title">פ.מחסן שבט הנשיא</span>
+<div class="dashboard-wrapper @(sidebarCollapsed ? "sidebar-collapsed" : "")">
+    <Sidebar SidebarOpen="@sidebarOpen"
+             SidebarOpenChanged="@ToggleSidebarFromDashboard"
+             IsCollapsed="@sidebarCollapsed"
+             OnCollapseChanged="@OnSidebarCollapseChanged" />
+    <div style="flex: 1; display: flex; flex-direction: column;">
+        <!-- Top navbar with tabs -->
+        <header class="admin-header">
+            <div class="admin-navbar tabs-with-separator">
+                <button class="dashboard-tab @(ActiveTab == "equipment" ? "active" : "")" @onclick='() => ChangeTab("equipment")'>
+                    <i class="bi bi-list-ul"></i> רשימת ציוד
+                </button>
+                <button class="dashboard-tab @(ActiveTab == "blacklist" ? "active" : "")" @onclick='() => ChangeTab("blacklist")'>
+                    <i class="bi bi-shield-x"></i> רשימה שחורה
+                </button>
+                <button class="dashboard-tab @(ActiveTab == "checkout" ? "active" : "")" @onclick='() => ChangeTab("checkout")'>
+                    <i class="bi bi-box-arrow-right"></i> הוצאת ציוד
+                </button>
+                <button class="dashboard-tab @(ActiveTab == "return" ? "active" : "")" @onclick='() => ChangeTab("return")'>
+                    <i class="bi bi-box-arrow-in-left"></i> החזרת ציוד
+                </button>
+                <div style="flex:1"></div>
             </div>
-
-            <div class="navbar-tabs">
-                <button class="nav-tab @(ActiveTab == "equipment" ? "active" : "")" @onclick='() => ActiveTab = "equipment"'>רשימת ציוד</button>
-                <button class="nav-tab @(ActiveTab == "blacklist" ? "active" : "")" @onclick='() => ActiveTab = "blacklist"'>רשימה שחורה</button>
-                <button class="nav-tab @(ActiveTab == "checkout" ? "active" : "")" @onclick='() => ActiveTab = "checkout"'>הוצאת ציוד</button>
-                <button class="nav-tab @(ActiveTab == "return" ? "active" : "")" @onclick='() => ActiveTab = "return"'>החזרת ציוד</button>
+        </header>
+        <main class="admin-content">
+            <div class="admin-content-container">
+                @if (ActiveTab == "equipment")
+                {
+                    <div class="dashboard-card">
+                        <div class="card-header">
+                            <h3>רשימת ציוד</h3>
+                        </div>
+                        <div class="card-content">
+                            <EquipmentList />
+                        </div>
+                    </div>
+                }
+                else if (ActiveTab == "blacklist")
+                {
+                    <div class="dashboard-card">
+                        <div class="card-header">
+                            <h3>רשימה שחורה</h3>
+                        </div>
+                        <div class="card-content">
+                            <BlackList />
+                        </div>
+                    </div>
+                }
+                else if (ActiveTab == "checkout")
+                {
+                    <div class="dashboard-card">
+                        <div class="card-header">
+                            <h3>הוצאת ציוד</h3>
+                        </div>
+                        <div class="card-content">
+                            <EquipmentCheckout />
+                        </div>
+                    </div>
+                }
+                else if (ActiveTab == "return")
+                {
+                    <div class="dashboard-card">
+                        <div class="card-header">
+                            <h3>החזרת ציוד</h3>
+                        </div>
+                        <div class="card-content">
+                            <EquipmentReturnForm />
+                        </div>
+                    </div>
+                }
             </div>
-        </div>
-    </div>
-
-    <!-- Main content area -->
-    <div class="content-container">
-        <div class="content-area">
-            @switch (ActiveTab)
-            {
-                case "equipment":
-                    <EquipmentList />
-                    break;
-                case "blacklist":
-                    <BlacklistView />
-                    break;
-                case "checkout":
-                    <EquipmentCheckout />
-                    break;
-                case "return":
-                    <EquipmentReturnForm />
-                    break;
-            }
-        </div>
+        </main>
     </div>
 </div>
 
@@ -238,5 +279,15 @@
 </style>
 
 @code {
-    private string ActiveTab = "equipment";
+    private bool sidebarCollapsed = true;
+    private bool sidebarOpen = false;
+    private string ActiveTab { get; set; } = "equipment";
+
+    private void ChangeTab(string tab)
+    {
+        ActiveTab = tab;
+    }
+
+    private void ToggleSidebarFromDashboard(bool open = true) => sidebarOpen = open ? !sidebarOpen : sidebarOpen;
+    private void OnSidebarCollapseChanged(bool collapsed) => sidebarCollapsed = collapsed;
 }

@@ -9,75 +9,92 @@
 
 
 <div>
-    <!-- Sidebar Drawer (slides in from the left) -->
-    <div class="sidebar-drawer left @(isOpen ? "open" : "")" @onclick:stopPropagation>
+    <!-- Sidebar Drawer (collapsible) -->
+    <div class="sidebar-drawer @(IsCollapsed ? "collapsed" : "") @(IsDark ? "dark" : "light")" @onclick:stopPropagation>
+        <!-- כפתור קריסה עגול -->
+        <button class="sidebar-toggle" @onclick="ToggleCollapse" title="הסתר/הצג סיידבר">
+            <i class="bi @(IsCollapsed ? "bi-chevron-left" : "bi-chevron-right")"></i>
+        </button>
+
+        <!-- פרופיל למעלה -->
         <div class="sidebar-header">
-            <span class="brand">ADMIN</span>
-            <button class="close-btn" @onclick="ToggleSidebar"><i class="bi bi-x"></i></button>
-        </div>
-        <div class="sidebar-content">
-            <nav class="sidebar-nav">
-                <a class="nav-link nav-toggle-sidebar" href="#" @onclick="ToggleSidebar" title="הגדרות">
-                    <i class="bi bi-gear"></i>
-                    <span>הגדרות</span>
-                </a>
-                <a class="nav-link" href="/admin/dashboard?tab=users" title="משתמשים">
-                    <i class="bi bi-person"></i>
-                    <span>משתמשים</span>
-                </a>
-            </nav>
-            <div class="sidebar-actions">
-                <div class="theme-toggle-switch">
-                    <span class="theme-label light-label @(isDark ? "" : "active")">Light</span>
-                    <button class="toggle-switch" @onclick="ToggleThemeAsync" aria-label="Toggle dark mode">
-                        <span class="switch-thumb">
-                            @if (isDark)
-                            {
-                                <span class="moon">
-                                    <svg width="20" height="20" viewBox="0 0 20 20"><path fill="#fff" d="M13.61 2.39A8 8 0 1 0 17.66 17.66 8 8 0 0 1 13.61 2.39z"/><circle fill="#fff" cx="15" cy="7" r="1"/><circle fill="#fff" cx="17" cy="10" r="0.5"/><circle fill="#fff" cx="13" cy="5" r="0.5"/></svg>
-                                </span>
-                            }
-                            else
-                            {
-                                <span class="sun">
-                                    <svg width="20" height="20" viewBox="0 0 20 20">
-                                        <circle fill="#FFD600" cx="10" cy="10" r="5"/>
-                                        <circle fill="#FFD600" cx="15" cy="10" r="1"/>
-                                        <circle fill="#FFD600" cx="5" cy="10" r="1"/>
-                                        <circle fill="#FFD600" cx="10" cy="5" r="1"/>
-                                        <circle fill="#FFD600" cx="10" cy="15" r="1"/>
-                                    </svg>
-                                </span>
-                            }
-                        </span>
-                    </button>
-                    <span class="theme-label dark-label @(isDark ? "active" : "")">Dark</span>
-                </div>
-                <button class="sidebar-action" @onclick="ResetPassword">
-                    <i class="bi bi-key"></i> איפוס סיסמה
-                </button>
-                <button class="sidebar-action" @onclick="ChangeEmail">
-                    <i class="bi bi-envelope"></i> שינוי אימייל
-                </button>
-                <button class="logout-btn" @onclick="Logout" title="התנתק">
-                    <i class="bi bi-box-arrow-right"></i> התנתק
-                </button>
-            </div>
-        </div>
-        <div class="sidebar-footer">
-            <div class="user-info">
-                <span class="avatar">
-                    <i class="bi bi-person-circle" style="font-size:2rem;"></i>
-                </span>
+            <span class="avatar">
+                <i class="bi bi-person-circle" style="font-size:2rem;"></i>
+            </span>
+            @if (!IsCollapsed)
+            {
                 <div>
                     <div class="user-name">@userName</div>
                     <div class="user-role">@userRole</div>
-                    <div class="account-details">פרטי חשבון</div>
                 </div>
+            }
+        </div>
+
+        <!-- שדה חיפוש -->
+        <div class="sidebar-search">
+            <input type="text" placeholder="חפש..." class="search-input" @bind="searchText" />
+            <i class="bi bi-search"></i>
+        </div>
+
+        <!-- תפריט ניווט -->
+        <nav class="sidebar-nav">
+            <a class="nav-link @(ActiveTab == "dashboard" ? "active" : "")" @onclick='() => ChangeTab("dashboard")'>
+                <i class="bi bi-house"></i>
+                @if (!IsCollapsed) { <span>ראשי</span> }
+            </a>
+            <a class="nav-link @(ActiveTab == "guide" ? "active" : "")" @onclick="ShowGuideModal">
+                <i class="bi bi-info-circle"></i>
+                @if (!IsCollapsed) { <span>מידע</span> }
+            </a>
+            <a class="nav-link @(ActiveTab == "notifications" ? "active" : "")" @onclick="ShowNotificationsModal">
+                <i class="bi bi-bell"></i>
+                @if (!IsCollapsed) { <span>התראות</span> }
+            </a>
+            <a class="nav-link @(ActiveTab == "about" ? "active" : "")" @onclick="ShowAboutModal">
+                <i class="bi bi-info-square"></i>
+                @if (!IsCollapsed) { <span>מפרט על האתר</span> }
+            </a>
+            <a class="nav-link @(ActiveTab == "history" ? "active" : "")" @onclick="ShowHistoryModal">
+                <i class="bi bi-clock-history"></i>
+                @if (!IsCollapsed) { <span>היסטוריה</span> }
+            </a>
+        </nav>
+
+        <!-- תחתית: Logout + מתג מצב כהה/בהיר -->
+        <div class="sidebar-footer">
+            <a class="nav-link logout-btn" href="#" @onclick="Logout">
+                <i class="bi bi-box-arrow-right"></i>
+                @if (!IsCollapsed) { <span>התנתק</span> }
+            </a>
+            <div class="theme-toggle-switch">
+                <span class="theme-label @(IsDark ? "" : "active")">בהיר</span>
+                <button class="toggle-switch" @onclick="ToggleThemeAsync" aria-label="החלף מצב כהה">
+                    <span class="switch-thumb">
+                        @if (IsDark)
+                        {
+                            <span class="moon">
+                                <svg width="20" height="20" viewBox="0 0 20 20"><path fill="#fff" d="M13.61 2.39A8 8 0 1 0 17.66 17.66 8 8 0 0 1 13.61 2.39z"/><circle fill="#fff" cx="15" cy="7" r="1"/><circle fill="#fff" cx="17" cy="10" r="0.5"/><circle fill="#fff" cx="13" cy="5" r="0.5"/></svg>
+                            </span>
+                        }
+                        else
+                        {
+                            <span class="sun">
+                                <svg width="20" height="20" viewBox="0 0 20 20">
+                                    <circle fill="#FFD600" cx="10" cy="10" r="5"/>
+                                    <circle fill="#FFD600" cx="15" cy="10" r="1"/>
+                                    <circle fill="#FFD600" cx="5" cy="10" r="1"/>
+                                    <circle fill="#FFD600" cx="10" cy="5" r="1"/>
+                                    <circle fill="#FFD600" cx="10" cy="15" r="1"/>
+                                </svg>
+                            </span>
+                        }
+                    </span>
+                </button>
+                <span class="theme-label @(IsDark ? "active" : "")">כהה</span>
             </div>
         </div>
     </div>
-    @if (isOpen)
+    @if (SidebarOpen)
     {
         <div class="sidebar-overlay" @onclick="ToggleSidebar"></div>
     }
@@ -88,11 +105,18 @@
     public bool SidebarOpen { get; set; }
     [Parameter]
     public EventCallback<bool> SidebarOpenChanged { get; set; }
+    [Parameter] public bool IsCollapsed { get; set; }
+    [Parameter] public EventCallback<bool> OnCollapseChanged { get; set; }
 
-    private bool isOpen = false;
-    private bool isDark = false;
-    private string userName = "User";
-    private string userRole = "User";
+    private bool IsDark = false;
+    private string userName = "רותם";
+    private string userRole = "מנהל";
+    private string ActiveTab = "dashboard";
+    private string searchText = "";
+    private bool showGuideModal = false;
+    private bool showNotificationsModal = false;
+    private bool showAboutModal = false;
+    private bool showHistoryModal = false;
 
     protected override async Task OnInitializedAsync()
     {
@@ -100,29 +124,45 @@
         var user = authState.User;
         if (user.Identity.IsAuthenticated)
         {
-            userName = user.Identity.Name ?? "User";
-            userRole = user.Claims.FirstOrDefault(c => c.Type.Contains("role"))?.Value ?? "User";
+            userName = user.Identity.Name ?? "רותם";
+            userRole = user.Claims.FirstOrDefault(c => c.Type.Contains("role"))?.Value ?? "מנהל";
         }
         var theme = await JS.InvokeAsync<string>("getTheme");
-        isDark = theme == "dark";
+        IsDark = theme == "dark";
         await SetThemeOnDom(theme);
     }
 
     protected override void OnParametersSet()
     {
-        isOpen = SidebarOpen;
+        SidebarOpen = SidebarOpen;
     }
 
-    private async void ToggleSidebar()
+    private void ChangeTab(string tab)
     {
-        isOpen = !isOpen;
-        await SidebarOpenChanged.InvokeAsync(isOpen);
+        ActiveTab = tab;
+        // כאן תוכל להוסיף ניווט אמיתי אם תרצה
+        // NavigationManager.NavigateTo(...);
+    }
+
+    private void Logout()
+    {
+        // כאן תוכל להוסיף קריאה ל־AuthService.Logout או ניתוב לדף התחברות
+    }
+
+    private void ToggleSidebar()
+    {
+        SidebarOpenChanged.InvokeAsync(!SidebarOpen);
+    }
+
+    private void ToggleCollapse()
+    {
+        OnCollapseChanged.InvokeAsync(!IsCollapsed);
     }
 
     private async Task ToggleThemeAsync()
     {
-        isDark = !isDark;
-        var theme = isDark ? "dark" : "light";
+        IsDark = !IsDark;
+        var theme = IsDark ? "dark" : "light";
         await JS.InvokeVoidAsync("setTheme", theme);
         await SetThemeOnDom(theme);
     }
@@ -141,18 +181,73 @@
         ");
     }
 
-    private void Logout()
+    private void ShowGuideModal()
     {
-        // Implement your logout logic here
+        CloseAllModals();
+        showGuideModal = true;
+        ActiveTab = "guide";
     }
+    private void ShowNotificationsModal()
+    {
+        CloseAllModals();
+        showNotificationsModal = true;
+        ActiveTab = "notifications";
+    }
+    private void ShowAboutModal()
+    {
+        CloseAllModals();
+        showAboutModal = true;
+        ActiveTab = "about";
+    }
+    private void ShowHistoryModal()
+    {
+        CloseAllModals();
+        showHistoryModal = true;
+        ActiveTab = "history";
+    }
+    private void CloseAllModals()
+    {
+        showGuideModal = false;
+        showNotificationsModal = false;
+        showAboutModal = false;
+        showHistoryModal = false;
+        ActiveTab = "";
+    }
+}
 
-    private void ResetPassword()
-    {
-        // Implement your reset password logic here
-    }
-
-    private void ChangeEmail()
-    {
-        // Implement your change email logic here
-    }
+@if (showGuideModal)
+{
+    <div class="modal-overlay" @onclick="CloseAllModals">
+        <div class="modal-window" @onclick:stopPropagation>
+            <button class="modal-close" @onclick="CloseAllModals">&times;</button>
+            <SiteGuide />
+        </div>
+    </div>
+}
+@if (showNotificationsModal)
+{
+    <div class="modal-overlay" @onclick="CloseAllModals">
+        <div class="modal-window" @onclick:stopPropagation>
+            <button class="modal-close" @onclick="CloseAllModals">&times;</button>
+            <SiteNotifications />
+        </div>
+    </div>
+}
+@if (showAboutModal)
+{
+    <div class="modal-overlay" @onclick="CloseAllModals">
+        <div class="modal-window" @onclick:stopPropagation>
+            <button class="modal-close" @onclick="CloseAllModals">&times;</button>
+            <SiteAbout />
+        </div>
+    </div>
+}
+@if (showHistoryModal)
+{
+    <div class="modal-overlay" @onclick="CloseAllModals">
+        <div class="modal-window" @onclick:stopPropagation>
+            <button class="modal-close" @onclick="CloseAllModals">&times;</button>
+            <UserActionLog />
+        </div>
+    </div>
 }

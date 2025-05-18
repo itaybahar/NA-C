@@ -26,4 +26,5 @@ public interface ICheckoutService
     // Methods for team and overdue handling
     Task<Team> GetTeamByIdAsync(int teamId);
     Task<List<EquipmentCheckout>> GetOverdueItemsByTeamAsync(int teamId);
+    Task<List<BlacklistedTeamDto>> GetBlacklistedTeamsAsync();
 }

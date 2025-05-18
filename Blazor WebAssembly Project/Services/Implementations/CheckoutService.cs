@@ -1,4 +1,5 @@
 ﻿using Blazor_WebAssembly.Services.Interfaces;
+using Blazor_WebAssembly.Models.Checkout;
 using Domain_Project.DTOs;
 using Domain_Project.Models;
 using Microsoft.AspNetCore.Components.Authorization;
@@ -628,6 +629,36 @@ namespace Blazor_WebAssembly.Services.Implementations
             else
             {
                 Console.Error.WriteLine($"Error {(int)response.StatusCode} {response.StatusCode} when {operationDescription}: {errorContent}");
+            }
+        }
+
+        public async Task<List<BlacklistedTeamDto>> GetBlacklistedTeamsAsync()
+        {
+            try
+            {
+                var httpClient = await GetHttpClientAsync();
+                var response = await httpClient.GetAsync($"{BaseApiPath}/blacklisted-teams");
+
+                if (response.IsSuccessStatusCode)
+                {
+                    var content = await response.Content.ReadAsStringAsync();
+                    Console.WriteLine($"Blacklisted teams response: {content}");
+                    return JsonSerializer.Deserialize<List<BlacklistedTeamDto>>(content, _jsonOptions) ?? new List<BlacklistedTeamDto>();
+                }
+                else
+                {
+                    Console.WriteLine($"Failed to get blacklisted teams. Status: {response.StatusCode}");
+                    return new List<BlacklistedTeamDto>();
+                }
+            }
+            catch (Exception ex)
+            {
+                Console.Error.WriteLine($"Error getting blacklisted teams: {ex.Message}");
+                if (ex.InnerException != null)
+                {
+                    Console.Error.WriteLine($"Inner exception: {ex.InnerException.Message}");
+                }
+                return new List<BlacklistedTeamDto>();
             }
         }
     }
