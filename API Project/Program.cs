@@ -625,10 +625,9 @@ namespace API_Project
 
                 options.AddPolicy("AllowAll", builder =>
                 {
-                    builder.SetIsOriginAllowed(_ => true) // Allow any origin
+                    builder.AllowAnyOrigin()
                            .AllowAnyMethod()
-                           .AllowAnyHeader()
-                           .AllowCredentials();
+                           .AllowAnyHeader();
                 });
             });
         }

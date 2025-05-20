@@ -371,16 +371,41 @@ namespace API_Project.Services
                     return false;
                 }
 
+                // Get the current in-use quantity
+                var inUseQuantity = await _dbContext.EquipmentCheckouts
+                    .Where(c => c.EquipmentId == equipmentDto.Id && c.Status != "Returned")
+                    .SumAsync(c => c.Quantity);
+
+                // Check if new quantity is less than in-use quantity
+                if (equipmentDto.Quantity < inUseQuantity)
+                {
+                    _logger.LogWarning($"Cannot reduce quantity below in-use amount. Current in-use: {inUseQuantity}, Requested: {equipmentDto.Quantity}");
+                    throw new InvalidOperationException($"Cannot reduce quantity below in-use amount ({inUseQuantity} items currently checked out)");
+                }
+
+                // Update equipment properties
                 existingEquipment.Name = equipmentDto.Name;
                 existingEquipment.Description = equipmentDto.Description;
                 existingEquipment.SerialNumber = equipmentDto.SerialNumber;
-                existingEquipment.Status = equipmentDto.Status;
                 existingEquipment.Value = equipmentDto.Value;
                 existingEquipment.Quantity = equipmentDto.Quantity;
                 existingEquipment.StorageLocation = equipmentDto.StorageLocation;
+                existingEquipment.LastUpdatedDate = DateTime.UtcNow;
+
+                // Update status based on new quantity
+                if (equipmentDto.Quantity == 0)
+                {
+                    existingEquipment.Status = "Unavailable";
+                }
+                else if (equipmentDto.Quantity > 0 && existingEquipment.Status == "Unavailable")
+                {
+                    existingEquipment.Status = "Available";
+                }
 
                 _dbContext.Equipment.Update(existingEquipment);
                 await _dbContext.SaveChangesAsync();
+
+                _logger.LogInformation($"Successfully updated equipment ID: {equipmentDto.Id}. New quantity: {equipmentDto.Quantity}, Status: {existingEquipment.Status}");
                 return true;
             }
             catch (Exception ex)

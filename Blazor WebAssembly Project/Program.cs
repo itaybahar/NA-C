@@ -171,16 +171,10 @@ try
     // Register AuthService with factory to break circular dependency
     // ===========================================
     // Ensure your HttpClient is configured with the correct base address
-    builder.Services.AddScoped(sp => new HttpClient
-    {
-        BaseAddress = new Uri(builder.HostEnvironment.BaseAddress)
-    });
+    builder.Services.AddScoped(sp => new HttpClient { BaseAddress = new Uri("http://192.168.1.138:5000/") });
 
     // Or for a separate API server:
-    builder.Services.AddScoped(sp => new HttpClient
-    {
-        BaseAddress = new Uri("https://localhost:5001/")
-    });
+    builder.Services.AddScoped(sp => new HttpClient { BaseAddress = new Uri("https://localhost:5001/") });
 
     // 11. Register AuthService without direct reference to AuthenticationStateProvider
     builder.Services.AddScoped<IAuthService>(sp =>
