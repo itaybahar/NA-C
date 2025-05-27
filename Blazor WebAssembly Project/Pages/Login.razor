@@ -13,6 +13,8 @@
 @inject AuthenticationStateProvider AuthStateProvider
 @implements IDisposable
 
+<PageTitle>Login</PageTitle>
+
 <link href="css/Login.css" rel="stylesheet">
 
 <a href="/" class="home-btn">
@@ -100,16 +102,19 @@
             }
         </div>
     </div>
-    <button type="submit" class="login-floating-btn" form="login-form" disabled="@IsSubmitting">
-        @(IsSubmitting ? "Logging in..." : "LOGIN")
-    </button>
-    <button class="google-oauth-btn" @onclick="HandleGoogleLogin" type="button">
-        <img src="images/google-logo.png" alt="Google" class="google-icon" />
-        Login with Google
-    </button>
-    <div class="signup">
-        <a href="/register">אין לך חשבון? הרשמה</a>
-    </div>
+
+    @if (!showForgotPassword)
+    {
+        <button type="submit" class="login-floating-btn" form="login-form" disabled="@IsSubmitting">
+            @(IsSubmitting ? "מתחבר..." : "התחבר")
+        </button>
+        <div class="google-signin-button">
+            <div id="g_id_signin"></div>
+        </div>
+        <div class="signup">
+            <a href="/register">אין לך חשבון? הרשמה</a>
+        </div>
+    }
 </div>
 
 @code {
@@ -122,6 +127,7 @@
     private bool showForgotPassword = false;
     private string forgotPasswordEmail = string.Empty;
     private string formAnimationClass = "form-animate-down";
+    private DotNetObjectReference<Login>? dotNetHelper;
 
     protected override async Task OnInitializedAsync()
     {
@@ -167,6 +173,60 @@
         finally
         {
             isInitialized = true;
+            StateHasChanged();
+        }
+    }
+
+    protected override async Task OnAfterRenderAsync(bool firstRender)
+    {
+        if (firstRender)
+        {
+            dotNetHelper = DotNetObjectReference.Create(this);
+            await JSRuntime.InvokeVoidAsync("initializeGoogleSignIn", dotNetHelper);
+        }
+    }
+
+    [JSInvokable]
+    public async Task OnGoogleLogin(string credential)
+    {
+        try
+        {
+            var result = await AuthService.LoginWithGoogleAsync(credential);
+            if (result.NeedsProfile)
+            {
+                var queryParams = new Dictionary<string, string>
+                {
+                    { "token", result.Token },
+                    { "email", result.Email }
+                };
+                var queryString = string.Join("&", queryParams.Select(x => $"{x.Key}={Uri.EscapeDataString(x.Value)}"));
+                Navigation.NavigateTo($"/complete-profile?{queryString}");
+            }
+            else if (!string.IsNullOrEmpty(result.Token))
+            {
+                await LocalStorage.SetItemAsync("authToken", result.Token);
+                if (result.User != null)
+                {
+                    await LocalStorage.SetItemAsync("user", result.User);
+                    if (AuthStateProvider is CustomAuthStateProvider authProvider)
+                        await authProvider.MarkUserAsAuthenticated(result.Token);
+                    await HandleRedirectAfterLogin();
+                }
+                else
+                {
+                    ErrorMessage = "Failed to get user information.";
+                    StateHasChanged();
+                }
+            }
+            else
+            {
+                ErrorMessage = "Google authentication failed.";
+                StateHasChanged();
+            }
+        }
+        catch (Exception ex)
+        {
+            ErrorMessage = "Google authentication failed: " + ex.Message;
             StateHasChanged();
         }
     }
@@ -266,11 +326,6 @@
         }
     }
 
-    private void HandleGoogleLogin()
-    {
-        Navigation.NavigateTo("https://localhost:5191/auth/login-google", true);
-    }
-
     private void ToggleForgotPassword()
     {
         showForgotPassword = !showForgotPassword;
@@ -335,5 +390,8 @@
         StateHasChanged();
     }
 
-    public void Dispose() { }
+    public void Dispose()
+    {
+        dotNetHelper?.Dispose();
+    }
 }

@@ -1,6 +1,8 @@
 ﻿using System.Threading.Tasks;
+using Blazor_WebAssembly_Project.Models;
 using Blazor_WebAssembly.Models.Auth;
 using Blazor_WebAssembly_Project.Models.Auth;
+using Blazor_WebAssembly_Project.Models;
 
 namespace Blazor_WebAssembly.Services.Interfaces
 {
@@ -18,5 +20,7 @@ namespace Blazor_WebAssembly.Services.Interfaces
         // ✅ חדש: מחזיר את הטוקן הנוכחי
         Task<string> GetTokenAsync();
         Task<bool> IsAuthenticatedAsync();
+        Task<bool> CompleteGoogleProfileAsync(Blazor_WebAssembly.Models.Auth.CompleteProfileModel model, string? token);
+        Task<AuthenticationResponse> LoginWithGoogleAsync(string credential);
     }
 }

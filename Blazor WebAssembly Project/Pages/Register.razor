@@ -2,9 +2,10 @@
 @using System.ComponentModel.DataAnnotations
 @using Blazor_WebAssembly.Services.Interfaces
 @using Blazor_WebAssembly_Project.Models.Auth
+@using Blazor_WebAssembly_Project.Components
 @inject IAuthService AuthService
-@inject NavigationManager Navigation
 @inject IJSRuntime JSRuntime
+@inject Blazored.LocalStorage.ILocalStorageService LocalStorage
 @implements IAsyncDisposable
 
 <link href="css/Login.css" rel="stylesheet">
@@ -90,6 +91,10 @@
                             <span class="password-info-icon">?</span>
                         </button>
                     </div>
+                    @if (!string.IsNullOrEmpty(registerModel.Password) && registerModel.Password.Length < 6)
+                    {
+                        <div class="text-warning small mt-1">מומלץ לבחור סיסמה באורך של לפחות 6 תווים (אותיות או מספרים)</div>
+                    }
                     @if (IsPasswordValid)
                     {
                         <div class="validation-indicator valid"></div>
@@ -124,23 +129,21 @@
                     }
                 </div>
             </EditForm>
-        </div>
-        <button type="submit" class="login-button" form="register-form" disabled="@(!IsFormValid || isSubmitting)" @onclick="HandleRegistration">
-            @if (isSubmitting)
-            {
-                <span>מתבצע רישום...</span>
-            }
-            else
-            {
-                <span>הרשמה</span>
-            }
-        </button>
-        <button class="google-oauth-btn" @onclick="HandleGoogleRegister" type="button">
-            <img src="images/google-logo.png" alt="Google" class="google-icon" />
-            Register with Google
-        </button>
-        <div class="signup">
-            <a href="/login">Already registered? Login now</a>
+
+            <button type="submit" class="login-button" form="register-form" disabled="@(!IsFormValid || isSubmitting)" @onclick="HandleRegistration">
+                @if (isSubmitting)
+                {
+                    <span>מתבצע רישום...</span>
+                }
+                else
+                {
+                    <span>הרשמה</span>
+                }
+            </button>
+            <div id="google-signup-btn"></div>
+            <div class="signup">
+                <a href="/login">Already registered? Login now</a>
+            </div>
         </div>
     </div>
 </div>
@@ -166,6 +169,7 @@
 }
 
 @code {
+    [Inject] public NavigationManager Navigation { get; set; }
     private RegisterModel registerModel = new()
     {
         Username = "",
@@ -183,7 +187,7 @@
     // Validation flags
     private bool IsUsernameValid { get; set; } = false;
     private bool IsEmailValid { get; set; } = false;
-    private bool IsPasswordValid { get; set; } = false;
+    private bool IsPasswordValid => !string.IsNullOrEmpty(registerModel.Password);
     private bool IsConfirmPasswordValid { get; set; } = false;
 
     // Password requirement flags
@@ -196,34 +200,21 @@
 
     private string formAnimationClass = "form-animate-down";
 
-    public async Task AnimateInDown()
-    {
-        formAnimationClass = "form-fade-out";
-        StateHasChanged();
-        await Task.Delay(400);
-        formAnimationClass = "form-animate-down";
-        StateHasChanged();
-    }
-
-    public async Task AnimateInUp()
-    {
-        formAnimationClass = "form-fade-out";
-        StateHasChanged();
-        await Task.Delay(400);
-        formAnimationClass = "form-animate-up";
-        StateHasChanged();
-    }
-
-    // Object reference for JS interop
-    private DotNetObjectReference<Register>? objRef;
-
-    // Methods to show and hide password requirements
-    private void ShowPasswordRequirements() => showPasswordRequirements = true;
-    private void HidePasswordRequirements() => showPasswordRequirements = false;
-    private void TogglePasswordRequirements() => showPasswordRequirements = !showPasswordRequirements;
-
     protected override async Task OnInitializedAsync()
     {
+        var uri = new Uri(Navigation.Uri);
+        var query = System.Web.HttpUtility.ParseQueryString(uri.Query);
+        var token = query["token"];
+        var isNew = query["new"];
+        var error = query["error"]?.ToLower();
+        var email = query["email"];
+        
+        if ((error == "google" || error == "missing-user-info") || 
+            (!string.IsNullOrEmpty(isNew) && isNew == "true" && !string.IsNullOrEmpty(token)))
+        {
+            Navigation.NavigateTo($"/complete-profile?token={token}&email={email}");
+            return;
+        }
         await base.OnInitializedAsync();
     }
 
@@ -231,21 +222,9 @@
     {
         if (firstRender)
         {
-            try
-            {
-                // Initialize JS functions
-                await InitializeJavaScriptFunctions();
-
-                // Create and store object reference
-                objRef = DotNetObjectReference.Create(this);
-
-                // Add event listener for ESC key to close the requirements modal
-                await JSRuntime.InvokeVoidAsync("registerPageFunctions.addEscKeyListener", objRef);
-            }
-            catch (Exception ex)
-            {
-                Console.WriteLine($"Error setting up JavaScript functions: {ex.Message}");
-            }
+            await JSRuntime.InvokeVoidAsync("googleAuthInterop.initialize", "157978226290-21smsb9rka7244tf6jbe5k7bceaicfp6.apps.googleusercontent.com", "OnGoogleLogin");
+            await JSRuntime.InvokeVoidAsync("googleAuthInterop.renderButton", "google-signin-btn");
+            await JSRuntime.InvokeVoidAsync("googleAuthInterop.setDotNetHelper", DotNetObjectReference.Create(this));
         }
     }
 
@@ -253,17 +232,14 @@
     {
         try
         {
-            // Define all the necessary JavaScript functions
             await JSRuntime.InvokeVoidAsync("eval", @"
                 window.registerPageFunctions = {
-                    // Email validation function
                     validateEmail: function(email) {
                         if (!email) return false;
                         const regex = /^[a-zA-Z0-9._%+-]+@[a-zA-Z0-9.-]+\.[a-zA-Z]{2,}$/;
                         return regex.test(email);
                     },
 
-                    // Password validation function
                     validatePassword: function(password) {
                         if (!password) {
                             return {
@@ -280,40 +256,7 @@
                             hasNumber: /[0-9]/.test(password),
                             hasSpecialChar: /[^A-Za-z0-9]/.test(password)
                         };
-                    },
-
-                    // ESC key listener
-                    addEscKeyListener: function(dotnetRef) {
-                        window._registerEscHandler = function(e) {
-                            if (e.key === 'Escape') {
-                                dotnetRef.invokeMethodAsync('ClosePasswordRequirements');
-                            }
-                        };
-                        document.addEventListener('keydown', window._registerEscHandler);
-                    },
-
-                    // Remove ESC key listener
-                    removeEscKeyListener: function() {
-                        if (window._registerEscHandler) {
-                            document.removeEventListener('keydown', window._registerEscHandler);
-                            window._registerEscHandler = null;
-                        }
                     }
-                };
-
-                // Backward compatibility for existing code
-                window.formValidation = window.formValidation || {};
-                window.formValidation.validateEmail = window.registerPageFunctions.validateEmail;
-                window.formValidation.validatePassword = window.registerPageFunctions.validatePassword;
-
-                window.addEscKeyListener = window.registerPageFunctions.addEscKeyListener;
-                window.removeEscKeyListener = window.registerPageFunctions.removeEscKeyListener;
-
-                // Google auth redirect
-                window.handleGoogleAuthRedirect = function() {
-                    console.log('Google auth redirect requested');
-                    // This would be implemented to handle Google authentication
-                    alert('Google authentication is not configured. This is a placeholder.');
                 };
             ");
         }
@@ -333,7 +276,6 @@
     private async Task ValidateUsername(ChangeEventArgs e)
     {
         var username = e.Value?.ToString();
-        // Check if username contains both first and last name
         IsUsernameValid = !string.IsNullOrWhiteSpace(username) && 
                          username.Contains(" ") && 
                          username.Split(' ').Length >= 2 &&
@@ -356,7 +298,6 @@
 
         try
         {
-            // Try to use JS validation if available
             IsEmailValid = await JSRuntime.InvokeAsync<bool>("registerPageFunctions.validateEmail", email);
             if (!IsEmailValid)
             {
@@ -369,7 +310,6 @@
         }
         catch
         {
-            // Fallback to basic validation
             IsEmailValid = !string.IsNullOrWhiteSpace(email) &&
                 email.Contains("@") &&
                 email.Contains(".") &&
@@ -397,7 +337,6 @@
 
         try
         {
-            // Try to use JS validation
             var result = await JSRuntime.InvokeAsync<Dictionary<string, bool>>("registerPageFunctions.validatePassword", password);
 
             HasMinLength = result["hasMinLength"];
@@ -405,25 +344,14 @@
             HasNumber = result["hasNumber"];
             HasSpecialChar = result["hasSpecialChar"];
 
-            IsPasswordValid = HasMinLength && HasUpperCase && HasNumber && HasSpecialChar;
-            
-            if (!IsPasswordValid)
-            {
-                errorMessage = "הסיסמה אינה עומדת בדרישות המינימום";
-            }
-            else
-            {
-                errorMessage = string.Empty;
-            }
+            StateHasChanged();
         }
         catch (Exception ex)
         {
-            // Fallback to C# validation
             Console.WriteLine($"JS password validation failed, using fallback: {ex.Message}");
 
             if (string.IsNullOrWhiteSpace(password))
             {
-                IsPasswordValid = false;
                 HasMinLength = false;
                 HasUpperCase = false;
                 HasNumber = false;
@@ -437,20 +365,10 @@
                 HasNumber = password.Any(char.IsDigit);
                 HasSpecialChar = password.Any(c => !char.IsLetterOrDigit(c));
 
-                IsPasswordValid = HasMinLength && HasUpperCase && HasNumber && HasSpecialChar;
-                
-                if (!IsPasswordValid)
-                {
-                    errorMessage = "הסיסמה אינה עומדת בדרישות המינימום";
-                }
-                else
-                {
-                    errorMessage = string.Empty;
-                }
+                StateHasChanged();
             }
         }
 
-        // Also validate confirm password if it's not empty
         if (!string.IsNullOrWhiteSpace(registerModel.ConfirmPassword))
         {
             ValidateConfirmPassword(new ChangeEventArgs { Value = registerModel.ConfirmPassword });
@@ -492,7 +410,6 @@
             successMessage = string.Empty;
             StateHasChanged();
 
-            // Additional validation before submission
             if (string.IsNullOrWhiteSpace(registerModel.Username) || 
                 string.IsNullOrWhiteSpace(registerModel.Email) || 
                 string.IsNullOrWhiteSpace(registerModel.Password))
@@ -501,20 +418,19 @@
                 return;
             }
 
-            // Ensure Role is set before submitting
             if (string.IsNullOrEmpty(registerModel.Role))
             {
                 registerModel.Role = "User";
             }
 
-            Console.WriteLine("Attempting registration..."); // Debug log
+            Console.WriteLine("Attempting registration...");
             var result = await AuthService.RegisterAsync(registerModel);
-            Console.WriteLine($"Registration result: {result}"); // Debug log
+            Console.WriteLine($"Registration result: {result}");
 
             if (result)
             {
                 successMessage = "נרשמת בהצלחה!";
-                await Task.Delay(1500); // Show success message briefly
+                await Task.Delay(1500);
                 Navigation.NavigateTo("/login?registered=true");
             }
             else
@@ -524,7 +440,7 @@
         }
         catch (Exception ex)
         {
-            Console.WriteLine($"Registration error: {ex}"); // Debug log
+            Console.WriteLine($"Registration error: {ex}");
             if (ex.Message.Contains("Username is already taken") || ex.Message.Contains("Username already exists"))
             {
                 errorMessage = "שם המשתמש כבר תפוס. אנא בחר שם אחר.";
@@ -554,30 +470,35 @@
         }
     }
 
-    private async Task HandleGoogleRegister()
+    [JSInvokable]
+    public async Task OnGoogleLogin(string credential)
     {
-        try
+        var result = await AuthService.LoginWithGoogleAsync(credential);
+        if (result.NeedsProfile)
         {
-            errorMessage = string.Empty;
-            // Use the JavaScript handler for Google login that includes API discovery
-            await JSRuntime.InvokeVoidAsync("handleGoogleAuthRedirect");
+            Navigation.NavigateTo($"/complete-profile?token={result.Token}&email={result.Email}");
         }
-        catch (Exception ex)
+        else if (!string.IsNullOrEmpty(result.Token))
         {
-            errorMessage = $"אירעה שגיאה בהפניה להתחברות Google: {ex.Message}";
-            StateHasChanged();
+            await LocalStorage.SetItemAsync("authToken", result.Token);
+            await LocalStorage.SetItemAsync("user", result.User);
+            Navigation.NavigateTo("/user/dashboard");
+        }
+        else
+        {
+            Navigation.NavigateTo("/login?error=google-auth-failed");
         }
     }
+
+    private void ShowPasswordRequirements() => showPasswordRequirements = true;
+    private void HidePasswordRequirements() => showPasswordRequirements = false;
+    private void TogglePasswordRequirements() => showPasswordRequirements = !showPasswordRequirements;
 
     public async ValueTask DisposeAsync()
     {
         try
         {
-            // Remove the ESC key listener
             await JSRuntime.InvokeVoidAsync("registerPageFunctions.removeEscKeyListener");
-
-            // Dispose the object reference
-            objRef?.Dispose();
         }
         catch (Exception ex)
         {

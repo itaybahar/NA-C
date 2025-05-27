@@ -26,27 +26,62 @@ namespace Blazor_WebAssembly.Services
             string savedToken = string.Empty;
             try
             {
-                _logger.LogInformation("🔍 Checking token in local storage...");
+                _logger.LogInformation("🔍 Starting authentication state check...");
+                
+                // Check if token exists in storage
                 savedToken = await _localStorage.GetItemAsync<string>(TokenStorageKey);
-                _logger.LogDebug("Retrieved token: {TokenLength} chars", savedToken?.Length ?? 0);
-
-                if (string.IsNullOrWhiteSpace(savedToken) || await IsTokenExpired(savedToken))
+                _logger.LogInformation("Token from storage: {TokenExists}", !string.IsNullOrEmpty(savedToken));
+                
+                if (string.IsNullOrEmpty(savedToken))
                 {
-                    _logger.LogWarning("❌ Token is either missing or expired.");
-                    var anonymousPrincipal = new ClaimsPrincipal(new ClaimsIdentity());
-                    return new AuthenticationState(anonymousPrincipal);
+                    _logger.LogWarning("❌ No token found in storage");
+                    return new AuthenticationState(new ClaimsPrincipal(new ClaimsIdentity()));
+                }
+
+                // Log token details (safely)
+                _logger.LogInformation("Token length: {Length}, First 10 chars: {Preview}...", 
+                    savedToken.Length,
+                    savedToken.Substring(0, Math.Min(10, savedToken.Length)));
+
+                // Check token expiration
+                var isExpired = await IsTokenExpired(savedToken);
+                if (isExpired)
+                {
+                    _logger.LogWarning("❌ Token is expired");
+                    return new AuthenticationState(new ClaimsPrincipal(new ClaimsIdentity()));
                 }
 
                 _logger.LogInformation("✅ Token is valid, parsing claims...");
-                var claimsPrincipal = new ClaimsPrincipal(new ClaimsIdentity(ParseClaimsFromJwt(savedToken), "jwt"));
-                _logger.LogInformation("User roles: {Roles}", string.Join(", ", claimsPrincipal.Claims.Where(c => c.Type == ClaimTypes.Role).Select(c => c.Value)));
+                var claims = ParseClaimsFromJwt(savedToken);
+                var claimsPrincipal = new ClaimsPrincipal(new ClaimsIdentity(claims, "jwt"));
+                
+                // Log claims for debugging
+                foreach (var claim in claims)
+                {
+                    _logger.LogDebug("Claim: {Type} = {Value}", claim.Type, claim.Value);
+                }
+
+                // Log role claims specifically
+                var roleClaims = claimsPrincipal.Claims
+                    .Where(c => c.Type == ClaimTypes.Role || c.Type == "role")
+                    .Select(c => c.Value)
+                    .ToList();
+
+                _logger.LogInformation("Found {Count} role claims: {Roles}", 
+                    roleClaims.Count,
+                    string.Join(", ", roleClaims));
+
+                // Log authentication status
+                _logger.LogInformation("Authentication status: {IsAuthenticated}, Identity name: {Name}",
+                    claimsPrincipal.Identity?.IsAuthenticated,
+                    claimsPrincipal.Identity?.Name);
+                
                 return new AuthenticationState(claimsPrincipal);
             }
             catch (Exception ex)
             {
-                _logger.LogError(ex, "⚠️ Error loading authentication state");
-                var anonymousPrincipal = new ClaimsPrincipal(new ClaimsIdentity());
-                return new AuthenticationState(anonymousPrincipal);
+                _logger.LogError(ex, "⚠️ Error in GetAuthenticationStateAsync: {Message}", ex.Message);
+                return new AuthenticationState(new ClaimsPrincipal(new ClaimsIdentity()));
             }
         }
 
@@ -220,35 +255,74 @@ namespace Blazor_WebAssembly.Services
             try
             {
                 token ??= await _localStorage.GetItemAsync<string>(TokenStorageKey);
+                _logger.LogInformation("🔍 Checking token expiration...");
 
                 if (string.IsNullOrEmpty(token))
+                {
+                    _logger.LogWarning("❌ Token is null or empty");
                     return true;
+                }
+
+                var parts = token.Split('.');
+                if (parts.Length != 3)
+                {
+                    _logger.LogWarning("❌ Token does not have 3 parts, not a valid JWT");
+                    return true; // Not a valid JWT
+                }
 
                 var handler = new JwtSecurityTokenHandler();
                 if (handler.CanReadToken(token))
                 {
                     var jwtToken = handler.ReadJwtToken(token);
-                    // Add 30-second buffer to avoid edge cases
-                    return jwtToken.ValidTo <= DateTime.UtcNow.AddSeconds(30);
+                    var expirationTime = jwtToken.ValidTo;
+                    var currentTime = DateTime.UtcNow;
+                    var isExpired = expirationTime <= currentTime.AddSeconds(30);
+
+                    _logger.LogInformation(
+                        "Token expiration check - Expires: {ExpirationTime}, Current: {CurrentTime}, IsExpired: {IsExpired}",
+                        expirationTime,
+                        currentTime,
+                        isExpired);
+
+                    return isExpired;
                 }
 
+                _logger.LogWarning("⚠️ Could not read token as JWT, attempting manual parsing");
                 // Fallback to manual parsing
-                var payload = token.Split('.')[1];
-                var jsonBytes = ParseBase64WithoutPadding(payload);
-                var keyValuePairs = JsonSerializer.Deserialize<Dictionary<string, object>>(jsonBytes);
-
-                if (keyValuePairs != null && keyValuePairs.TryGetValue("exp", out var exp))
+                try
                 {
-                    var expirationTime = DateTimeOffset.FromUnixTimeSeconds(Convert.ToInt64(exp));
-                    // Add 30-second buffer to avoid edge cases
-                    return expirationTime <= DateTime.UtcNow.AddSeconds(30);
+                    var payload = token.Split('.')[1];
+                    var jsonBytes = ParseBase64WithoutPadding(payload);
+                    var keyValuePairs = JsonSerializer.Deserialize<Dictionary<string, object>>(jsonBytes);
+
+                    if (keyValuePairs != null && keyValuePairs.TryGetValue("exp", out var exp))
+                    {
+                        var expirationTime = DateTimeOffset.FromUnixTimeSeconds(Convert.ToInt64(exp));
+                        var currentTime = DateTimeOffset.UtcNow;
+                        var isExpired = expirationTime <= currentTime.AddSeconds(30);
+
+                        _logger.LogInformation(
+                            "Manual token expiration check - Expires: {ExpirationTime}, Current: {CurrentTime}, IsExpired: {IsExpired}",
+                            expirationTime,
+                            currentTime,
+                            isExpired);
+
+                        return isExpired;
+                    }
+                }
+                catch (Exception ex)
+                {
+                    _logger.LogError(ex, "⚠️ Error during manual JWT parsing");
+                    // If manual parsing fails, treat as expired
+                    return true;
                 }
 
+                _logger.LogWarning("❌ Could not determine token expiration");
                 return true; // Assume expired if we can't parse it
             }
             catch (Exception ex)
             {
-                _logger.LogError(ex, "Error checking token expiration");
+                _logger.LogError(ex, "⚠️ Error checking token expiration");
                 return true; // Assume expired if there's an error
             }
         }

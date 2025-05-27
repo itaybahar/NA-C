@@ -1,0 +1,18 @@
+@page "/complete-profile"
+
+<CompleteProfileForm Email="@Email" Token="@Token" OnSuccess="@HandleSuccess" />
+
+@code {
+    [Parameter]
+    [SupplyParameterFromQuery(Name = "email")]
+    public string? Email { get; set; }
+
+    [Parameter]
+    [SupplyParameterFromQuery(Name = "token")]
+    public string? Token { get; set; }
+
+    private async Task HandleSuccess()
+    {
+        // Handle success if needed
+    }
+} 

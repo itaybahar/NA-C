@@ -1,0 +1,235 @@
+@using System.ComponentModel.DataAnnotations
+@using Blazor_WebAssembly.Services.Interfaces
+@using Blazor_WebAssembly.Models
+@using Blazor_WebAssembly_Project.Models
+@inject NavigationManager Navigation
+@inject IAuthService AuthService
+@inject IJSRuntime JSRuntime
+
+<link href="css/Login.css" rel="stylesheet">
+
+<div class="login-card-wrapper">
+    <div class="login-card form-animate-down">
+        <div class="icon-wrapper">
+            <div class="icon-circle">
+                <img src="images/user-top.png" class="user-icon" alt="User Icon" />
+            </div>
+        </div>
+        <h2 class="mb-3 text-center">השלמת פרופיל / הרשמה</h2>
+        @if (!string.IsNullOrEmpty(ErrorMessage))
+        {
+            <div class="alert alert-danger text-center">@ErrorMessage</div>
+        }
+        @if (string.IsNullOrEmpty(Token))
+        {
+            <div class="alert alert-warning">Token is missing!</div>
+        }
+        <EditForm Model="@profileModel" OnValidSubmit="@HandleSubmit" id="complete-profile-form">
+            <DataAnnotationsValidator />
+            <div class="input-group">
+                <div class="input-wrapper">
+                    <div class="input-icon">
+                        <img src="images/email-icon.png" alt="Email Icon" />
+                    </div>
+                    <div class="input-separator"></div>
+                    <InputText @bind-Value="profileModel.Email" class="input-field" disabled />
+                </div>
+            </div>
+            <div class="input-group">
+                <div class="input-wrapper">
+                    <div class="input-icon">
+                        <img src="images/user-new-icon.png" alt="User Icon" />
+                    </div>
+                    <div class="input-separator"></div>
+                    <InputText @bind-Value="profileModel.FirstName" placeholder="שם פרטי" class="input-field" @oninput="ValidateUsername" />
+                </div>
+                <ValidationMessage For="@(() => profileModel.FirstName)" />
+            </div>
+            <div class="input-group">
+                <div class="input-wrapper">
+                    <div class="input-icon">
+                        <img src="images/user-new-icon.png" alt="User Icon" />
+                    </div>
+                    <div class="input-separator"></div>
+                    <InputText @bind-Value="profileModel.LastName" placeholder="שם משפחה" class="input-field" @oninput="ValidateUsername" />
+                </div>
+                <ValidationMessage For="@(() => profileModel.LastName)" />
+            </div>
+            <div class="input-group">
+                <div class="input-wrapper">
+                    <div class="input-icon">
+                        <img src="images/phone-icon.png" alt="Phone Icon" />
+                    </div>
+                    <div class="input-separator"></div>
+                    <InputText @bind-Value="profileModel.PhoneNumber" placeholder="מספר טלפון" class="input-field" @oninput="ValidatePhone" />
+                </div>
+                <ValidationMessage For="@(() => profileModel.PhoneNumber)" />
+            </div>
+            <div class="input-group">
+                <div class="input-wrapper">
+                    <div class="input-icon">
+                        <img src="images/lock-icon.png" alt="Lock Icon" />
+                    </div>
+                    <div class="input-separator"></div>
+                    <InputText @bind-Value="profileModel.Password" type="@(showPassword ? "text" : "password")" placeholder="סיסמה" class="input-field" @oninput="ValidatePassword" />
+                    <button type="button" class="show-password-btn" @onclick="ToggleShowPassword" tabindex="-1">
+                        <i class="bi @(showPassword ? "bi-eye-slash" : "bi-eye")"></i>
+                    </button>
+                </div>
+                <ValidationMessage For="@(() => profileModel.Password)" />
+                @if (!string.IsNullOrEmpty(profileModel.Password) && !IsPasswordValid(profileModel.Password))
+                {
+                    <div class="text-danger small mt-1">הסיסמה חייבת להכיל לפחות 6 תווים (אותיות או מספרים)</div>
+                }
+            </div>
+            <div class="input-group">
+                <div class="input-wrapper">
+                    <div class="input-icon">
+                        <img src="images/lock-icon.png" alt="Lock Icon" />
+                    </div>
+                    <div class="input-separator"></div>
+                    <InputText @bind-Value="profileModel.ConfirmPassword" type="@(showConfirmPassword ? "text" : "password")" placeholder="אימות סיסמה" class="input-field" @oninput="ValidateConfirmPassword" />
+                    <button type="button" class="show-password-btn" @onclick="ToggleShowConfirmPassword" tabindex="-1">
+                        <i class="bi @(showConfirmPassword ? "bi-eye-slash" : "bi-eye")"></i>
+                    </button>
+                </div>
+                <ValidationMessage For="@(() => profileModel.ConfirmPassword)" />
+                @if (!string.IsNullOrEmpty(profileModel.ConfirmPassword) && profileModel.Password != profileModel.ConfirmPassword)
+                {
+                    <div class="text-danger small mt-1">הסיסמאות אינן תואמות</div>
+                }
+            </div>
+            <button type="submit" class="login-floating-btn mt-3" disabled="@(!IsFormValid || IsSubmitting)">
+                @if (IsSubmitting)
+                {
+                    <span>מתבצע רישום...</span>
+                }
+                else
+                {
+                    <span>השלם הרשמה</span>
+                }
+            </button>
+        </EditForm>
+    </div>
+</div>
+
+@code {
+    [Parameter] public string? Email { get; set; }
+    [Parameter] public string? Token { get; set; }
+    [Parameter] public EventCallback OnSuccess { get; set; }
+
+    private CompleteProfileModel profileModel = new();
+    private string ErrorMessage = "";
+    private bool IsSubmitting = false;
+    private bool showPassword = false;
+    private bool showConfirmPassword = false;
+    private bool IsFormValid => 
+        !string.IsNullOrWhiteSpace(profileModel.FirstName) &&
+        !string.IsNullOrWhiteSpace(profileModel.LastName) &&
+        IsPhoneValid(profileModel.PhoneNumber) &&
+        IsPasswordValid(profileModel.Password) && 
+        profileModel.Password == profileModel.ConfirmPassword;
+
+    protected override void OnInitialized()
+    {
+        if (!string.IsNullOrEmpty(Email))
+        {
+            profileModel.Email = Email;
+        }
+    }
+
+    private void ToggleShowPassword() => showPassword = !showPassword;
+    private void ToggleShowConfirmPassword() => showConfirmPassword = !showConfirmPassword;
+
+    private bool IsPasswordValid(string? password)
+    {
+        return !string.IsNullOrEmpty(password) && password.Length >= 6;
+    }
+
+    private bool IsPhoneValid(string? phone)
+    {
+        return !string.IsNullOrEmpty(phone) && phone.Length >= 10;
+    }
+
+    private void ValidateUsername(ChangeEventArgs e)
+    {
+        StateHasChanged();
+    }
+
+    private void ValidatePhone(ChangeEventArgs e)
+    {
+        StateHasChanged();
+    }
+
+    private void ValidatePassword(ChangeEventArgs e)
+    {
+        StateHasChanged();
+    }
+
+    private void ValidateConfirmPassword(ChangeEventArgs e)
+    {
+        StateHasChanged();
+    }
+
+    private async Task HandleSubmit()
+    {
+        try
+        {
+            if (string.IsNullOrEmpty(Token))
+            {
+                ErrorMessage = "Authentication token is missing. Please try again.";
+                return;
+            }
+
+            if (!IsFormValid)
+            {
+                ErrorMessage = "Please fill in all required fields correctly.";
+                return;
+            }
+
+            IsSubmitting = true;
+            ErrorMessage = string.Empty;
+
+            // Set the token and email from parameters
+            profileModel.Token = Token;
+            profileModel.Email = Email ?? string.Empty;
+            profileModel.Username = $"{profileModel.FirstName} {profileModel.LastName}";
+
+            // Log the request for debugging
+            await JSRuntime.InvokeVoidAsync("console.log", "Submitting profile:", new { profileModel.Email, profileModel.Username, HasToken = !string.IsNullOrEmpty(profileModel.Token) });
+
+            var result = await AuthService.CompleteGoogleProfileAsync(profileModel, Token);
+
+            if (result)
+            {
+                await JSRuntime.InvokeVoidAsync("console.log", "Profile completion successful");
+                if (OnSuccess.HasDelegate)
+                {
+                    await OnSuccess.InvokeAsync();
+                }
+                else
+                {
+                    Navigation.NavigateTo("/login?registered=true");
+                }
+            }
+            else
+            {
+                ErrorMessage = "Failed to complete registration. Please try again.";
+            }
+        }
+        catch (Exception ex)
+        {
+            await JSRuntime.InvokeVoidAsync("console.error", "Profile completion error:", ex.Message);
+            ErrorMessage = ex.Message.Contains("Username is already taken") 
+                ? "שם המשתמש כבר תפוס. אנא בחר שם אחר."
+                : ex.Message.Contains("Email is already in use")
+                ? "כתובת המייל כבר בשימוש."
+                : "אירעה שגיאה בתהליך ההרשמה. אנא נסה שוב.";
+        }
+        finally
+        {
+            IsSubmitting = false;
+            StateHasChanged();
+        }
+    }
+} 

@@ -2,7 +2,7 @@
 <html lang="he" dir="rtl">
 <head>
     <meta charset="utf-8" />
-    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no" />
     <title>מחסן הנשיא</title>
     <base href="/" />
 
@@ -312,16 +312,37 @@
     <script>
         // Disable right-click
         document.addEventListener('contextmenu', event => event.preventDefault());
+    </script>
 
-        // Disable F12, Ctrl+Shift+I, Ctrl+Shift+J, Ctrl+U
-        document.onkeydown = function(e) {
-            if (
-                e.keyCode == 123 || // F12
-                (e.ctrlKey && e.shiftKey && (e.keyCode == 73 || e.keyCode == 74)) || // Ctrl+Shift+I/J
-                (e.ctrlKey && e.keyCode == 85) // Ctrl+U
-            ) {
-                return false;
-            }
+    <!-- Google Sign-In Script -->
+    <script src="https://accounts.google.com/gsi/client" async defer></script>
+    <script src="js/google-auth.js"></script>
+
+    <script>
+        window.initializeGoogleSignIn = (dotNetHelper) => {
+            google.accounts.id.initialize({
+                client_id: '157978226290-21smsb9rka7244tf6jbe5k7bceaicfp6.apps.googleusercontent.com',
+                callback: (response) => {
+                    if (response && response.credential) {
+                        dotNetHelper.invokeMethodAsync('OnGoogleLogin', response.credential);
+                    }
+                },
+                auto_select: false,
+                cancel_on_tap_outside: true
+            });
+
+            google.accounts.id.renderButton(
+                document.getElementById('g_id_signin'),
+                {
+                    type: 'standard',
+                    theme: 'outline',
+                    size: 'large',
+                    text: 'signin_with',
+                    shape: 'rectangular',
+                    logo_alignment: 'left',
+                    width: '250'
+                }
+            );
         };
     </script>
 </body>

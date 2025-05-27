@@ -24,6 +24,7 @@ using System.Text.Json;
 using System.Text.Json.Serialization;
 using System.Threading.RateLimiting;
 using Blazor_WebAssembly.Services;
+using Microsoft.AspNetCore.Authentication.Cookies;using Microsoft.AspNetCore.Authentication.Google;using Microsoft.AspNetCore.Authentication.OAuth;
 namespace API_Project
 {
     public class Program
@@ -35,6 +36,17 @@ namespace API_Project
         public static void Main(string[] args)
         {
             var builder = WebApplication.CreateBuilder(args);
+
+            // Add session support for better cookie handling
+            builder.Services.AddDistributedMemoryCache();
+            builder.Services.AddSession(options =>
+            {
+                options.IdleTimeout = TimeSpan.FromMinutes(30);
+                options.Cookie.HttpOnly = true;
+                options.Cookie.SameSite = SameSiteMode.None;
+                options.Cookie.SecurePolicy = CookieSecurePolicy.Always;
+                options.Cookie.IsEssential = true;
+            });
 
             // Configure logging before any other services
             ConfigureLogging(builder);
@@ -215,6 +227,35 @@ namespace API_Project
             }
             builder.Services.AddSingleton(authSettings);
 
+            // Configure JWT Authentication
+            builder.Services.AddAuthentication(options =>
+            {
+                options.DefaultAuthenticateScheme = JwtBearerDefaults.AuthenticationScheme;
+                options.DefaultChallengeScheme = JwtBearerDefaults.AuthenticationScheme;
+            })
+            .AddJwtBearer(options =>
+            {
+                options.TokenValidationParameters = new TokenValidationParameters
+                {
+                    ValidateIssuer = true,
+                    ValidateAudience = true,
+                    ValidateLifetime = true,
+                    ValidateIssuerSigningKey = true,
+                    ValidIssuer = authSettings.Issuer,
+                    ValidAudience = authSettings.Audience,
+                    IssuerSigningKey = authSettings.GetSymmetricSecurityKey(),
+                    ClockSkew = TimeSpan.Zero
+                };
+            });
+
+            // Add authorization
+            builder.Services.AddAuthorization(options =>
+            {
+                options.AddPolicy("RequireAdminRole", policy => policy.RequireRole("Admin"));
+                options.AddPolicy("RequireWarehouseManagerRole", policy => policy.RequireRole("WarehouseManager"));
+                options.AddPolicy("RequireWarehouseOperatorRole", policy => policy.RequireRole("WarehouseOperator"));
+            });
+
             // Configure controllers with conventions to fix route ambiguity
             builder.Services.AddControllers(options =>
             {
@@ -242,56 +283,6 @@ namespace API_Project
             ConfigureHealthChecks(builder);
             ConfigureSwagger(builder);
             ConfigureCors(builder);
-
-            // Add authentication with JWT as the default scheme for APIs
-            builder.Services.AddAuthentication(options =>
-            {
-                options.DefaultAuthenticateScheme = JwtBearerDefaults.AuthenticationScheme;
-                options.DefaultChallengeScheme = JwtBearerDefaults.AuthenticationScheme;
-                options.DefaultScheme = JwtBearerDefaults.AuthenticationScheme;
-            })
-            .AddJwtBearer(options =>
-            {
-                if (string.IsNullOrEmpty(authSettings.SecretKey))
-                {
-                    throw new InvalidOperationException("SecretKey is missing in AuthenticationSettings.");
-                }
-
-                options.TokenValidationParameters = new TokenValidationParameters
-                {
-                    ValidateIssuer = true,
-                    ValidateAudience = true,
-                    ValidateLifetime = true,
-                    ValidateIssuerSigningKey = true,
-                    IssuerSigningKey = new SymmetricSecurityKey(
-                                    Encoding.UTF8.GetBytes(authSettings.SecretKey))
-                };
-
-                // Add debugging
-                options.Events = new JwtBearerEvents
-                {
-                    OnMessageReceived = context =>
-                    {
-                        Console.WriteLine("JWT token received");
-                        return Task.CompletedTask;
-                    },
-                    OnTokenValidated = context =>
-                    {
-                        Console.WriteLine($"Token validated for: {context.Principal?.Identity?.Name}");
-                        return Task.CompletedTask;
-                    },
-                    OnAuthenticationFailed = context =>
-                    {
-                        Console.WriteLine($"Authentication failed: {context.Exception}");
-                        return Task.CompletedTask;
-                    },
-                    OnChallenge = context =>
-                    {
-                        Console.WriteLine($"Challenge occurred: {context.Error}");
-                        return Task.CompletedTask;
-                    }
-                };
-            });
 
             // Add port information endpoints
             builder.Services.AddSingleton<IServerPortProvider>(new ServerPortProvider(_activeHttpPort, _activeHttpsPort));
@@ -399,11 +390,24 @@ namespace API_Project
             builder.Services.AddScoped<IBlacklistRepository, BlacklistRepository>();
 
 
-            builder.Services.AddScoped<Services.AuthenticationService>();
+            // Register AuthenticationService with its dependencies
+            builder.Services.AddScoped<Services.AuthenticationService>(sp =>
+            {
+                var userRepo = sp.GetRequiredService<IUserRepository>();
+                var authSettings = sp.GetRequiredService<Configuration.AuthenticationSettings>();
+                var emailService = sp.GetRequiredService<IEmailService>();
+                var httpClientFactory = sp.GetRequiredService<IHttpClientFactory>();
+                var logger = sp.GetRequiredService<ILogger<Services.AuthenticationService>>();
+                return new Services.AuthenticationService(userRepo, authSettings, emailService, httpClientFactory, logger);
+            });
+
+            // Register AuthenticationServiceAdapter as the implementation of IAuthenticationService
             builder.Services.AddScoped<Domain_Project.Interfaces.IAuthenticationService>(sp =>
-                new AuthenticationServiceAdapter(
-                    sp.GetRequiredService<Services.AuthenticationService>(),
-                    sp.GetRequiredService<IHttpClientFactory>().CreateClient("Auth")));
+            {
+                var authService = sp.GetRequiredService<Services.AuthenticationService>();
+                var userRepo = sp.GetRequiredService<IUserRepository>();
+                return new Services.AuthenticationServiceAdapter(authService, userRepo);
+            });
 
             builder.Services.AddScoped<IRoleRequestService, RoleRequestService>();
             builder.Services.AddScoped<ITeamService, TeamService>();
@@ -559,81 +563,71 @@ namespace API_Project
 
         private static void ConfigureCors(WebApplicationBuilder builder)
         {
-            // Include all possible port combinations for client (Blazor WebAssembly) connectivity
-            var allowedOrigins = new List<string>
-            {
-                // Basic localhost origins
-                "https://localhost:5001", "http://localhost:5000",
-                "https://localhost:7176", "http://localhost:5176",
-                "https://localhost:7177", "http://localhost:5177",
-                "https://localhost:7178", "http://localhost:5178",
-                "https://localhost:7179", "http://localhost:5179",
-                "https://localhost:7180", "http://localhost:5180",
-                
-                // Additional origins for VS2022 and other tools
-                "https://localhost:44300", "http://localhost:44300",
-                "https://localhost:44301", "http://localhost:44301",
-                "https://localhost:44302", "http://localhost:44302",
-                "https://localhost:44303", "http://localhost:44303",
-                
-                // Common .NET dev ports
-                "https://localhost:5000", "http://localhost:5000",
-                "https://localhost:5001", "http://localhost:5001",
-                "https://localhost:5002", "http://localhost:5002",
-                "https://localhost:5003", "http://localhost:5003",
-                "https://localhost:5004", "http://localhost:5004",
-                "https://localhost:5005", "http://localhost:5005",
-                "https://localhost:5010", "http://localhost:5010",
-                "https://localhost:5011", "http://localhost:5011",
-                "https://localhost:5012", "http://localhost:5012",
-                "https://localhost:5013", "http://localhost:5013",
-                "https://localhost:5014", "http://localhost:5014",
-                "https://localhost:5015", "http://localhost:5015",
-                
-                // Common ranges used by Visual Studio
-                "https://localhost:7000", "http://localhost:7000",
-                "https://localhost:7001", "http://localhost:7001",
-                "https://localhost:7002", "http://localhost:7002",
-                "https://localhost:7003", "http://localhost:7003",
-                
-                // IIS Express ranges
-                "https://localhost:44300", "http://localhost:44300",
-                "https://localhost:44301", "http://localhost:44301",
-                "https://localhost:44302", "http://localhost:44302",
-            };
-
-            // Add ports from config if available
-            var configOrigins = builder.Configuration.GetSection("CorsSettings:AllowedOrigins").Get<string[]>();
-            if (configOrigins != null)
-            {
-                allowedOrigins.AddRange(configOrigins);
-            }
-
-            // Add dynamic origins based on active ports
-            allowedOrigins.Add($"https://localhost:{_activeHttpsPort}");
-            allowedOrigins.Add($"http://localhost:{_activeHttpPort}");
-
+            // Configure CORS
             builder.Services.AddCors(options =>
             {
                 options.AddDefaultPolicy(policy =>
                 {
-                    policy.WithOrigins(allowedOrigins.ToArray())
+                    policy.WithOrigins("https://localhost:7176") // Blazor WebAssembly URL
                           .AllowAnyMethod()
                           .AllowAnyHeader()
-                          .AllowCredentials();
-                });
-
-                options.AddPolicy("AllowAll", builder =>
-                {
-                    builder.AllowAnyOrigin()
-                           .AllowAnyMethod()
-                           .AllowAnyHeader();
+                          .AllowCredentials()
+                          .WithExposedHeaders("Set-Cookie");
                 });
             });
         }
 
         private static void ConfigurePipeline(WebApplication app)
         {
+            // IMPORTANT: Cookie policy must be configured BEFORE any other middleware
+            // This ensures cookies work for OAuth state validation
+            app.UseCookiePolicy(new CookiePolicyOptions
+            {
+                MinimumSameSitePolicy = SameSiteMode.None,
+                Secure = CookieSecurePolicy.Always,
+                HttpOnly = HttpOnlyPolicy.Always,
+                OnAppendCookie = cookieContext => {
+                    cookieContext.CookieOptions.SameSite = SameSiteMode.None;
+                    cookieContext.CookieOptions.Secure = true;
+                    cookieContext.CookieOptions.HttpOnly = true;
+                    cookieContext.CookieOptions.Path = "/";
+                },
+                OnDeleteCookie = cookieContext => {
+                    cookieContext.CookieOptions.SameSite = SameSiteMode.None;
+                    cookieContext.CookieOptions.Secure = true;
+                    cookieContext.CookieOptions.HttpOnly = true;
+                    cookieContext.CookieOptions.Path = "/";
+                }
+            });
+
+            // Add session middleware - must be before UseMvc
+            app.UseSession();
+
+            // Add test cookie endpoint
+            app.MapGet("/api/test-cookies", (HttpContext context) => {
+                // Set test cookie with standard options
+                context.Response.Cookies.Append(
+                    "TestCookie", 
+                    $"Test-{DateTime.Now:HH:mm:ss}",
+                    new CookieOptions {
+                        SameSite = SameSiteMode.None,
+                        Secure = true,
+                        HttpOnly = true,
+                        Expires = DateTimeOffset.UtcNow.AddMinutes(5)
+                    }
+                );
+                
+                return Results.Ok(new { 
+                    message = "Test cookie set. Check your browser.",
+                    cookieDetails = new {
+                        name = "TestCookie",
+                        sameSite = "None",
+                        secure = true,
+                        httpOnly = true
+                    }
+                });
+            }).AllowAnonymous();
+
             // Add global exception handling middleware
             app.UseExceptionHandler(appError =>
             {
@@ -687,8 +681,11 @@ namespace API_Project
             }
 
             // CORS configuration - IMPORTANT: Configure CORS before other middleware
-            app.UseCors("AllowAll"); // Apply the permissive CORS policy for development
             app.UseCors(); // Apply the default policy
+
+            // Add authentication and authorization middleware
+            app.UseAuthentication();
+            app.UseAuthorization();
 
             // Health check endpoints with improved response
             app.MapHealthChecks("/health", new HealthCheckOptions
@@ -798,17 +795,19 @@ namespace API_Project
             app.UseStaticFiles();
             app.UseRouting();
 
-            app.UseRateLimiter();
-
-            app.UseCookiePolicy(new CookiePolicyOptions
+            // Add security headers
+            app.Use(async (context, next) =>
             {
-                MinimumSameSitePolicy = SameSiteMode.None,
-                Secure = CookieSecurePolicy.Always,
-                HttpOnly = HttpOnlyPolicy.Always
+                // Allow popups for Google Sign-In
+                context.Response.Headers.Add("Cross-Origin-Opener-Policy", "same-origin-allow-popups");
+                // Allow embedding of resources
+                context.Response.Headers.Add("Cross-Origin-Embedder-Policy", "require-corp");
+                // Allow credentials
+                context.Response.Headers.Add("Access-Control-Allow-Credentials", "true");
+                await next();
             });
 
-            app.UseAuthentication();
-            app.UseAuthorization();
+            app.UseRateLimiter();
 
             // Detailed request/response logging for troubleshooting
             if (app.Environment.IsDevelopment())
@@ -902,11 +901,15 @@ namespace API_Project
             // Configure API route groups
             var authGroup = app.MapGroup("/auth");
             authGroup.MapControllers()
-                .AllowAnonymous(); // Allow anonymous access to auth endpoints during development
+                .AllowAnonymous(); // Allow anonymous access to auth endpoints
 
-            var equipmentCheckoutGroup = app.MapGroup("/api/equipmentcheckout");
-            equipmentCheckoutGroup.MapControllers()
-                .AllowAnonymous(); // Allow anonymous access during development
+            // Add specific routes for troubleshooting
+            app.MapGet("/auth/test", () => "Auth test endpoint working")
+               .AllowAnonymous();
+
+            // Also add a root level test endpoint
+            app.MapGet("/test", () => "Root test endpoint working")
+               .AllowAnonymous();
 
             // Regular controllers
             app.MapControllers();
@@ -917,6 +920,14 @@ namespace API_Project
             var addresses = app.Urls.Select(url => new Uri(url));
             Console.WriteLine("Server running at: " + string.Join(", ", addresses.Select(addr => addr.ToString())));
 
+            // Fallback: redirect any unknown route to the Blazor app
+            app.MapFallback(context => {
+                context.Response.Redirect("https://localhost:7176");
+                return Task.CompletedTask;
+            });
+
+            app.UseCors("AllowBlazorDev");
+    
             app.Run();
         }
 

@@ -2,62 +2,239 @@
 @inject NavigationManager NavigationManager
 @inject IJSRuntime JSRuntime
 
-<!-- Qwilr-Inspired Home Page - Enhanced and Spiced Up -->
-<div class="page-fade-in" style="min-height: 100vh; background: #f8fafc;">
-    <!-- Top Bar -->
-    <div class="d-flex justify-content-end align-items-center px-4 py-4" style="max-width: 1600px; margin: 0 auto;">
-        <div class="d-flex align-items-center" style="gap: 0.5rem;">
-            <a class="btn btn-white border-0 fw-semibold d-inline-flex align-items-center" style="color: #222; font-size: 1.1rem;" @onclick='() => NavigationManager.NavigateTo("/register")'>
-                <i class="bi bi-person-plus me-1"></i> Register
-            </a>
-            <span style="width: 1px; height: 28px; background: #e0e0e0; margin: 0 0.5rem;"></span>
-            <a class="btn btn-white border-0 fw-semibold d-inline-flex align-items-center" style="color: #222; font-size: 1.1rem;" @onclick='() => NavigationManager.NavigateTo("/contact")'>
-                <i class="bi bi-envelope me-1"></i> Contact
-            </a>
-            <span style="width: 1px; height: 28px; background: #e0e0e0; margin: 0 0.5rem;"></span>
-            <a class="btn btn-white border-0 fw-semibold d-inline-flex align-items-center" style="color: #222; font-size: 1.1rem;" @onclick='() => NavigationManager.NavigateTo("/guide")'>
-                <i class="bi bi-journal-text me-1"></i> Guide
-            </a>
-            <span style="width: 1px; height: 28px; background: #e0e0e0; margin: 0 0.5rem;"></span>
-            <a class="btn btn-danger fw-semibold d-inline-flex align-items-center px-4" style="color: #fff; font-size: 1.1rem;" @onclick='() => FadeNavigate("/login")'>
-                <i class="bi bi-box-arrow-in-right me-1"></i> Login
-            </a>
+<!-- Modern Home Page with Photo Carousel Background -->
+<div class="home-container" style="min-height: 100vh; background: linear-gradient(135deg, #000000 0%, #1a1a1a 50%, #000000 100%); overflow: hidden; position: relative; direction: rtl;">
+    <!-- Photo Carousel Background (no blur/dark overlay) -->
+    <div class="photo-carousel-container" style="position: absolute; top: 0; left: 0; width: 100%; height: 100%; z-index: 1;">
+        <div class="photo-carousel" id="photoCarousel">
+            <div class="carousel-slide active" style="background-image: url('images/gruppic1.jpg');"></div>
+            <div class="carousel-slide" style="background-image: url('images/gruppic2.jpg');"></div>
+            <div class="carousel-slide" style="background-image: url('images/gruppic3.jpg');"></div>
+            <div class="carousel-slide" style="background-image: url('images/gruppic4.jpg');"></div>
+            <div class="carousel-slide" style="background-image: url('images/gruppic5.jpg');"></div>
+            <div class="carousel-slide" style="background-image: url('images/gruppic6.jpg');"></div>
+            <div class="carousel-slide" style="background-image: url('images/gruppic7.jpg');"></div>
+        </div>
+        <!-- Vignette overlay for darkened edges -->
+        <div class="vignette-overlay"></div>
+        <!-- Dark gray translucent overlay -->
+        <div class="dark-overlay"></div>
+    </div>
+
+    <!-- Transparent Modern Navigation Bar -->
+    <nav class="navbar navbar-expand-lg" style="position: relative; z-index: 10; background: transparent !important; border: none !important; box-shadow: none !important;">
+        <div class="container-fluid d-flex flex-row align-items-center justify-content-start" style="max-width: 1400px; gap: 2rem;">
+            <!-- Logo and Site Name on the far left (visual left in RTL) -->
+            <div class="d-flex align-items-center gap-2">
+                <img src="images/logo_png.png" alt="Logo" width="44" height="44" style="filter: brightness(1.2); border-radius: 8px;" />
+                <span style="color: #fff; font-weight: 800; font-size: 1.5rem; letter-spacing: -1px;">מחסן הנשיא</span>
+            </div>
+            <!-- Nav Buttons -->
+            <div class="d-flex flex-row align-items-center gap-4">
+                <button class="btn btn-danger btn-glow fw-semibold px-4 py-2" @onclick='() => FadeNavigate("/login")' style="border-radius: 20px;">התחברות</button>
+                <a class="nav-link text-white fw-semibold hover-glow" @onclick='() => NavigationManager.NavigateTo("/guide")' style="cursor: pointer;">מדריך</a>
+                <a class="nav-link text-white fw-semibold hover-glow" @onclick='() => NavigationManager.NavigateTo("/contact")' style="cursor: pointer;">צור קשר</a>
+                <a class="nav-link text-white fw-semibold hover-glow" @onclick='() => NavigationManager.NavigateTo("/register")' style="cursor: pointer;">הרשמה</a>
+            </div>
+        </div>
+    </nav>
+
+    <!-- Main Hero Content - text floats over images -->
+    <div class="hero-content d-flex align-items-center justify-content-center" style="position: relative; z-index: 5; min-height: calc(100vh - 80px);">
+        <div class="container d-flex flex-column align-items-start justify-content-center" style="max-width: 900px; margin-top: 3rem; margin-bottom: 2rem; margin-right: 0; padding-right: 5vw; background: none !important; box-shadow: none !important; border-radius: 0 !important;">
+            <h1 class="fw-bold mb-3 text-white hero-title floating-text" style="font-size: clamp(2.5rem, 6vw, 4rem); letter-spacing: -2px; text-shadow: 0 4px 24px #000, 0 1px 2px #000;">מחסן הנשיא</h1>
+            <h2 class="fw-semibold mb-4 text-white floating-text" style="font-size: clamp(1.3rem, 3vw, 2rem); opacity: 0.97; text-shadow: 0 2px 12px #000;">מחסן הנשיא האינטראקטיבי</h2>
+            <p class="lead mb-5 text-white-50 floating-text" style="font-size: 1.1rem; opacity: 0.92; text-shadow: 0 2px 8px #000;">תוכל לבדוק: רשימה שחורה, ציוד זמין ועוד מכל מקום ומתי שתרצה/י</p>
+            <div class="d-flex flex-column flex-md-row gap-3 justify-content-start align-items-center mb-4 floating-text">
+                <button class="btn btn-danger btn-lg px-5 py-3 fw-semibold shadow pulse-button" @onclick='() => NavigationManager.NavigateTo("/register")' style="border-radius: 30px; font-size: 1.15rem;">התחילו עכשיו</button>
+                <button class="btn btn-outline-light btn-lg px-5 py-3 fw-semibold" @onclick='() => NavigationManager.NavigateTo("/guide")' style="border-radius: 30px; font-size: 1.15rem;">למדו עוד</button>
+            </div>
         </div>
     </div>
 
-    <!-- Main Content -->
-    <div class="container-fluid" style="max-width: 1600px;">
-        <div class="row align-items-center justify-content-center" style="min-height: 75vh;">
-            <!-- Left: Illustration or Logo on Huge Red Circle -->
-            <div class="col-lg-6 d-flex justify-content-center align-items-center position-relative" style="min-height: 600px;">
-                <div style="position: relative; width: 100%; height: 600px; display: flex; align-items: center; justify-content: center;">
-                    <!-- Massive Red Circle - more cornered and downward -->
-                    <div style="background: #e53935; border-radius: 50%; width: 900px; height: 900px; position: absolute; left: 70%; top: 70%; transform: translate(-50%, -50%); z-index: 0; opacity: 0.22;"></div>
-                    <!-- Logo with transparent background, positioned on the circle -->
-                    <img src="images/logo_png.png" alt="Logo" width="260" height="260" style="position: absolute; left: 70%; top: 70%; transform: translate(-50%, -50%); z-index: 1;" />
-                </div>
-            </div>
-            <!-- Right: Headline and CTA -->
-            <div class="col-lg-6 py-5 d-flex flex-column align-items-center align-items-lg-start justify-content-center">
-                <h1 class="display-2 fw-bold mb-3 text-center text-lg-start" style="line-height: 1.1; letter-spacing: -2px;">
-                    <span style="font-family: inherit;">מחסן הנשיא</span> <br />Welcome to
-                </h1>
-                <h2 class="fw-semibold mb-3 text-center text-lg-start" style="color: #444; font-size: 2rem;">Documents that get results.</h2>
-                <p class="lead mb-4 text-center text-lg-start" style="max-width: 520px; color: #666;">
-                    Manage your equipment easily, quickly, and beautifully.<br />
-                    Your one-stop solution for equipment management.
-                </p>
-                <button class="btn btn-danger btn-lg px-5 py-3 fw-semibold shadow d-inline-flex align-items-center mt-2" style="font-size: 1.2rem;" @onclick='() => NavigationManager.NavigateTo("/register")'>
-                    <i class="bi bi-arrow-right-circle me-2"></i> Get Started
-                </button>
-            </div>
-        </div>
+    <!-- Progress Indicators -->
+    <div class="carousel-indicators d-flex justify-content-center align-items-center gap-2" style="position: absolute; bottom: 30px; right: 50%; transform: translateX(50%); z-index: 10;">
+        @for (int i = 0; i < 8; i++)
+        {
+            int index = i;
+            <button class="indicator @(index == 0 ? "active" : "")" type="button" @onclick="() => SetActiveSlide(index)" style="width: 12px; height: 12px; border-radius: 50%; border: 2px solid #fff; background: @(index == 0 ? "#dc3545" : "transparent"); transition: all 0.3s ease; cursor: pointer;"></button>
+        }
+    </div>
+
+    <!-- Centered white rectangle behind the search bar -->
+    <div class="search-bar-bg-centered" style="position: fixed; left: 50%; transform: translateX(-50%); bottom: 2.5rem; width: 740px; max-width: 98vw; height: 74px; background: #fff; box-shadow: 0 2px 16px rgba(0,0,0,0.10); border-radius: 18px; z-index: 50;"></div>
+    <!-- Floating search bar above the centered white rectangle -->
+    <div class="floating-search-bar" style="position: fixed; left: 0; right: 0; bottom: 2.5rem; z-index: 60; display: flex; justify-content: center; align-items: center; pointer-events: none;">
+        <form class="search-bar-modern d-flex flex-column flex-md-row gap-2 justify-content-center align-items-center floating-search-form" style="background: none; border-radius: 0; box-shadow: none; max-width: 700px; width: 100%; margin: 0 2vw; padding: 0.7rem 1.2rem; pointer-events: auto;">
+            <input type="text" class="form-control form-control-lg" placeholder="חיפוש פריט, קטגוריה או תיאור" style="min-width: 220px; border-radius: 12px; border: none; margin-bottom: 0; background: none;" />
+            <input type="text" class="form-control form-control-lg" placeholder="שם קבוצה או אחראי" style="min-width: 180px; border-radius: 12px; border: none; margin-bottom: 0; background: none;" />
+            <button type="submit" class="btn btn-danger btn-lg px-4 fw-semibold" style="border-radius: 12px; min-width: 120px;">חפש</button>
+        </form>
     </div>
 </div>
+
+<!-- Custom Styles -->
+<style>
+    .photo-carousel-container {
+        overflow: hidden;
+    }
+    .carousel-slide {
+        position: absolute;
+        top: 0;
+        left: 0;
+        width: 100%;
+        height: 100%;
+        background-size: cover;
+        background-position: center;
+        background-repeat: no-repeat;
+        opacity: 0;
+        transition: opacity 2s ease-in-out;
+    }
+    .carousel-slide.active {
+        opacity: 1;
+    }
+    .hover-glow:hover {
+        background: rgba(220,53,69,0.2) !important;
+        box-shadow: 0 0 15px rgba(220,53,69,0.3);
+        transform: translateY(-2px);
+    }
+    .btn-glow:hover {
+        background: linear-gradient(45deg, #e74c3c, #dc3545) !important;
+        box-shadow: 0 0 30px rgba(220,53,69,0.7) !important;
+        transform: translateY(-3px);
+    }
+    .pulse-button {
+        animation: pulse 2s infinite;
+    }
+    @@keyframes pulse {
+        0% { box-shadow: 0 8px 25px rgba(220,53,69,0.4); }
+        50% { box-shadow: 0 8px 35px rgba(220,53,69,0.6); }
+        100% { box-shadow: 0 8px 25px rgba(220,53,69,0.4); }
+    }
+    .hero-title {
+        animation: fadeInUp 1s ease-out 0.2s both;
+    }
+    .indicator.active {
+        background: #dc3545 !important;
+        box-shadow: 0 0 10px rgba(220,53,69,0.5);
+    }
+    .indicator:hover {
+        background: rgba(220,53,69,0.7) !important;
+        transform: scale(1.2);
+    }
+    .hero-text-modern {
+        background: none !important;
+        border-radius: 0 !important;
+        box-shadow: none !important;
+    }
+    .floating-text {
+        text-shadow: 0 4px 24px #000, 0 1px 2px #000;
+    }
+    .search-bar-bg-centered {
+        display: block;
+    }
+    .search-bar-modern input.form-control {
+        font-size: 1.1rem;
+        background: rgba(255,255,255,0.85);
+        color: #222;
+        box-shadow: 0 1px 4px rgba(0,0,0,0.07);
+    }
+    .search-bar-modern input.form-control:focus {
+        outline: none;
+        box-shadow: 0 0 0 2px #dc3545;
+        border: none;
+    }
+    .search-bar-modern button {
+        font-size: 1.1rem;
+        box-shadow: 0 1px 4px rgba(220,53,69,0.10);
+    }
+    .vignette-overlay {
+        pointer-events: none;
+        position: absolute;
+        top: 0; left: 0; width: 100%; height: 100%;
+        z-index: 3;
+        background: radial-gradient(ellipse at center, rgba(0,0,0,0) 60%, rgba(0,0,0,0.35) 100%);
+    }
+    .dark-overlay {
+        pointer-events: none;
+        position: absolute;
+        top: 0; left: 0; width: 100%; height: 100%;
+        z-index: 4;
+        background: rgba(30,30,30,0.45);
+    }
+    .floating-search-bar {
+        pointer-events: none;
+    }
+    .floating-search-form {
+        pointer-events: auto;
+    }
+    @@media (max-width: 768px) {
+        .hero-content {
+            padding: 2rem 1rem;
+        }
+        .navbar-nav {
+            gap: 0.5rem !important;
+        }
+        .nav-link {
+            font-size: 0.9rem;
+        }
+        .hero-text-modern {
+            padding: 1.5rem 0.5rem !important;
+        }
+        .floating-search-bar {
+            bottom: 7.5rem !important;
+        }
+        .search-bar-bg-centered {
+            height: 120px !important;
+        }
+        .floating-search-form {
+            flex-direction: column !important;
+        }
+    }
+</style>
+
+<!-- JavaScript for Carousel -->
+<script>
+    let currentSlide = 0;
+    const slides = document.querySelectorAll('.carousel-slide');
+    const indicators = document.querySelectorAll('.indicator');
+    const totalSlides = slides.length;
+
+    function showSlide(index) {
+        slides.forEach(slide => slide.classList.remove('active'));
+        indicators.forEach(indicator => indicator.classList.remove('active'));
+        if (slides[index]) {
+            slides[index].classList.add('active');
+        }
+        if (indicators[index]) {
+            indicators[index].classList.add('active');
+        }
+    }
+
+    function nextSlide() {
+        currentSlide = (currentSlide + 1) % totalSlides;
+        showSlide(currentSlide);
+    }
+
+    function SetActiveSlide(index) {
+        currentSlide = index;
+        showSlide(currentSlide);
+    }
+
+    setInterval(nextSlide, 4000);
+    document.addEventListener('DOMContentLoaded', function() {
+        showSlide(0);
+    });
+</script>
 
 @code {
     private async Task FadeNavigate(string url)
     {
         await JSRuntime.InvokeVoidAsync("navigateWithFade", url);
+    }
+    
+    private async Task SetActiveSlide(int index)
+    {
+        await JSRuntime.InvokeVoidAsync("SetActiveSlide", index);
     }
 }

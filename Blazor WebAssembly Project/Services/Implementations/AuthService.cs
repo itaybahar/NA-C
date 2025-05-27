@@ -3,6 +3,7 @@ using Blazored.LocalStorage;
 using Blazor_WebAssembly.Models.Auth;
 using Blazor_WebAssembly_Project.Models.Auth;
 using Blazor_WebAssembly.Services.Interfaces;
+using Blazor_WebAssembly_Project.Models;
 
 namespace Blazor_WebAssembly.Services.Implementations
 {
@@ -144,6 +145,68 @@ namespace Blazor_WebAssembly.Services.Implementations
         public async Task<string> GetTokenAsync()
         {
             return await _localStorage.GetItemAsync<string>("authToken") ?? string.Empty;
+        }
+
+        public async Task<bool> CompleteGoogleProfileAsync(Blazor_WebAssembly.Models.Auth.CompleteProfileModel model, string? token)
+        {
+            try
+            {
+                using var client = new HttpClient();
+                client.BaseAddress = new Uri(_apiBaseUrl);
+
+                if (!string.IsNullOrEmpty(token))
+                {
+                    client.DefaultRequestHeaders.Authorization = new System.Net.Http.Headers.AuthenticationHeaderValue("Bearer", token);
+                }
+
+                var request = new
+                {
+                    Email = model.Email,
+                    Username = model.Username,
+                    Password = model.Password,
+                    ConfirmPassword = model.ConfirmPassword,
+                    Token = token
+                };
+
+                var response = await client.PostAsJsonAsync("auth/complete-google-profile", request);
+                if (response.IsSuccessStatusCode)
+                {
+                    var result = await response.Content.ReadFromJsonAsync<AuthenticationResponse>();
+                    if (result != null && !string.IsNullOrEmpty(result.Token))
+                    {
+                        await _localStorage.SetItemAsync("authToken", result.Token);
+                        if (result.User != null)
+                        {
+                            await _localStorage.SetItemAsync("user", result.User);
+                        }
+                        return true;
+                    }
+                }
+                return false;
+            }
+            catch (Exception ex)
+            {
+                Console.WriteLine($"Error completing Google profile: {ex.Message}");
+                return false;
+            }
+        }
+
+        public async Task<AuthenticationResponse> LoginWithGoogleAsync(string credential)
+        {
+            using var client = new HttpClient();
+            client.BaseAddress = new Uri(_apiBaseUrl);
+            var response = await client.PostAsJsonAsync("auth/google-jwt-login", credential);
+            if (response.IsSuccessStatusCode)
+            {
+                var result = await response.Content.ReadFromJsonAsync<AuthenticationResponse>();
+                if (result != null)
+                {
+                    await _localStorage.SetItemAsync("authToken", result.Token);
+                    await _localStorage.SetItemAsync("user", result.User);
+                    return result;
+                }
+            }
+            return new AuthenticationResponse { Token = string.Empty, User = null! };
         }
     }
 }
