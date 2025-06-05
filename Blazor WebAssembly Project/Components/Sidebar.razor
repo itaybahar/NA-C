@@ -11,8 +11,13 @@
 <div>
     <!-- Sidebar Drawer (collapsible) -->
     <div class="sidebar-drawer @(IsCollapsed ? "collapsed" : "") @(IsDark ? "dark" : "light")" @onclick:stopPropagation>
+        <!-- כפתור סגירה -->
+        <button class="sidebar-close" @onclick="@(async () => await CloseSidebar())" title="סגור סיידבר">
+            <i class="bi bi-x-lg"></i>
+        </button>
+
         <!-- כפתור קריסה עגול -->
-        <button class="sidebar-toggle" @onclick="ToggleCollapse" title="הסתר/הצג סיידבר">
+        <button class="sidebar-toggle" @onclick="@(async () => await ToggleCollapse())" title="הסתר/הצג סיידבר">
             <i class="bi @(IsCollapsed ? "bi-chevron-left" : "bi-chevron-right")"></i>
         </button>
 
@@ -62,41 +67,38 @@
 
         <!-- תחתית: Logout + מתג מצב כהה/בהיר -->
         <div class="sidebar-footer">
-            <a class="nav-link logout-btn" href="#" @onclick="Logout">
-                <i class="bi bi-box-arrow-right"></i>
-                @if (!IsCollapsed) { <span>התנתק</span> }
-            </a>
             <div class="theme-toggle-switch">
-                <span class="theme-label @(IsDark ? "" : "active")">בהיר</span>
+                @if (!IsCollapsed)
+                {
+                    <span class="theme-label @(!IsDark ? "active" : "")">בהיר</span>
+                }
                 <button class="toggle-switch" @onclick="ToggleThemeAsync" aria-label="החלף מצב כהה">
-                    <span class="switch-thumb">
-                        @if (IsDark)
-                        {
-                            <span class="moon">
-                                <svg width="20" height="20" viewBox="0 0 20 20"><path fill="#fff" d="M13.61 2.39A8 8 0 1 0 17.66 17.66 8 8 0 0 1 13.61 2.39z"/><circle fill="#fff" cx="15" cy="7" r="1"/><circle fill="#fff" cx="17" cy="10" r="0.5"/><circle fill="#fff" cx="13" cy="5" r="0.5"/></svg>
-                            </span>
-                        }
-                        else
-                        {
-                            <span class="sun">
-                                <svg width="20" height="20" viewBox="0 0 20 20">
-                                    <circle fill="#FFD600" cx="10" cy="10" r="5"/>
-                                    <circle fill="#FFD600" cx="15" cy="10" r="1"/>
-                                    <circle fill="#FFD600" cx="5" cy="10" r="1"/>
-                                    <circle fill="#FFD600" cx="10" cy="5" r="1"/>
-                                    <circle fill="#FFD600" cx="10" cy="15" r="1"/>
-                                </svg>
-                            </span>
-                        }
-                    </span>
+                    @if (IsDark)
+                    {
+                        <i class="bi bi-moon-fill"></i>
+                    }
+                    else
+                    {
+                        <i class="bi bi-sun-fill"></i>
+                    }
                 </button>
-                <span class="theme-label @(IsDark ? "active" : "")">כהה</span>
+                @if (!IsCollapsed)
+                {
+                    <span class="theme-label @(IsDark ? "active" : "")">כהה</span>
+                }
             </div>
+            <a class="logout-btn" href="#" @onclick="Logout">
+                <i class="bi bi-box-arrow-right"></i>
+                @if (!IsCollapsed)
+                {
+                    <span>התנתק</span>
+                }
+            </a>
         </div>
     </div>
     @if (SidebarOpen)
     {
-        <div class="sidebar-overlay" @onclick="ToggleSidebar"></div>
+        <div class="sidebar-overlay" @onclick="@(async () => await CloseSidebar())"></div>
     }
 </div>
 
@@ -149,14 +151,10 @@
         // כאן תוכל להוסיף קריאה ל־AuthService.Logout או ניתוב לדף התחברות
     }
 
-    private void ToggleSidebar()
+    private async Task ToggleCollapse()
     {
-        SidebarOpenChanged.InvokeAsync(!SidebarOpen);
-    }
-
-    private void ToggleCollapse()
-    {
-        OnCollapseChanged.InvokeAsync(!IsCollapsed);
+        await OnCollapseChanged.InvokeAsync(!IsCollapsed);
+        StateHasChanged();
     }
 
     private async Task ToggleThemeAsync()
@@ -212,6 +210,18 @@
         showAboutModal = false;
         showHistoryModal = false;
         ActiveTab = "";
+    }
+
+    private async Task CloseSidebar()
+    {
+        // First collapse the sidebar
+        if (!IsCollapsed)
+        {
+            await OnCollapseChanged.InvokeAsync(true);
+        }
+        // Then close it
+        await SidebarOpenChanged.InvokeAsync(false);
+        StateHasChanged();
     }
 }
 

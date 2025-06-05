@@ -1,33 +1,51 @@
+/* ============================
+   DASHBOARD-SHARED.CSS - Shared Dashboard Components
+   
+   Shared styling for dashboard components with enhanced
+   async dark/light theme support and responsive design.
+   ============================ */
+
+/* Import helpers.css for theme variables */
+@import url('helpers.css');
+
+/* ============================
+   SHARED THEME VARIABLES
+   ============================ */
+
 :root {
-    --background: #1a1a1a;
-    --primary-red: #d32f2f;
-    --white: #ffffff;
-    --grey: #cccccc;
-    --content-bg: #2a2a2a;
+    /* App-specific variables using theme system */
     --navbar-height: 70px;
+    --content-bg: var(--surface);
+    --sidebar-width: 250px;
+    --sidebar-width-collapsed: 60px;
 }
 
-/* Full page layout */
+/* ============================
+   FULL PAGE LAYOUT
+   ============================ */
+
 .app-layout {
     display: flex;
-    flex-direction: column;
     min-height: 100vh;
-    background: var(--background);
-    color: var(--white);
-    font-family: 'Segoe UI', sans-serif;
-    direction: rtl;
+    background-color: var(--background);
+    color: var(--text);
 }
 
-/* Top navbar with logo and tabs */
+/* ============================
+   TOP NAVBAR
+   ============================ */
+
 .top-navbar {
-    background-color: #1a1a1a;
+    background-color: var(--surface);
     height: var(--navbar-height);
     position: fixed;
     top: 0;
     left: 0;
     right: 0;
-    z-index: 100;
-    box-shadow: 0 2px 5px rgba(0,0,0,0.2);
+    z-index: var(--z-sticky);
+    box-shadow: var(--shadow-md);
+    border-bottom: 1px solid var(--border);
+    transition: background-color var(--transition-theme), border-color var(--transition-theme);
 }
 
 .navbar-container {
@@ -36,26 +54,32 @@
     height: 100%;
     display: flex;
     align-items: center;
-    padding: 0 20px;
+    padding: 0 var(--space-5);
 }
 
 .navbar-branding {
     display: flex;
     align-items: center;
-    margin-left: 20px;
+    margin-left: var(--space-5);
 }
 
 .navbar-logo {
     height: 40px;
-    margin-left: 10px;
+    margin-left: var(--space-3);
+    transition: height var(--transition-theme);
 }
 
 .navbar-title {
-    color: var(--primary-red);
-    font-weight: bold;
-    font-size: 18px;
+    color: var(--primary);
+    font-weight: var(--font-bold);
+    font-size: var(--text-lg);
     white-space: nowrap;
+    transition: color var(--transition-theme);
 }
+
+/* ============================
+   NAVBAR TABS
+   ============================ */
 
 .navbar-tabs {
     display: flex;
@@ -64,146 +88,324 @@
     overflow-x: auto;
     white-space: nowrap;
     flex-grow: 1;
+    -ms-overflow-style: none;
+    scrollbar-width: none;
 }
 
+    .navbar-tabs::-webkit-scrollbar {
+        display: none;
+    }
+
 .nav-tab {
-    padding: 0 15px;
+    padding: 0 var(--space-4);
     height: 100%;
     background: none;
     border: none;
-    color: var(--white);
+    color: var(--text);
     cursor: pointer;
-    font-weight: bold;
-    transition: 0.3s;
+    font-weight: var(--font-bold);
+    transition: all var(--transition-theme);
     border-bottom: 3px solid transparent;
     display: flex;
     align-items: center;
+    position: relative;
 }
 
 .nav-tab.active {
-    border-bottom: 3px solid var(--primary-red);
-    color: var(--primary-red);
+    border-bottom: 3px solid var(--primary);
+    color: var(--primary);
 }
 
 .nav-tab:hover:not(.active) {
-    background-color: rgba(255,255,255,0.05);
+    background-color: var(--surface-variant);
+    color: var(--primary-light);
 }
 
-/* Content area */
+/* ============================
+   CONTENT AREA
+   ============================ */
+
 .content-container {
-    margin-top: var(--navbar-height);
-    flex-grow: 1;
-    background: var(--background);
-    padding: 20px;
+    background-color: var(--surface);
+    border-radius: 12px;
+    padding: 1.5rem;
+    margin-bottom: 2rem;
+    box-shadow: 0 2px 4px rgba(0, 0, 0, 0.1);
+    color: var(--text);
 }
 
 .content-area {
-    background-color: var(--content-bg);
-    border-radius: 8px;
-    padding: 25px;
-    min-height: calc(100vh - var(--navbar-height) - 40px);
-    box-shadow: 0 0 15px rgba(0,0,0,0.3);
+    flex: 1;
+    padding: 2rem;
+    margin-right: 280px; /* Match sidebar width */
+    min-height: 100vh;
+    background-color: var(--background);
+    color: var(--text);
+    transition: margin 0.3s ease;
 }
 
-/* Component styling overrides */
+/* When sidebar is collapsed */
+.sidebar-collapsed .content-area {
+    margin-right: 40px;
+}
+
+/* RTL Support */
+[dir="ltr"] .content-area {
+    margin-right: 0;
+    margin-left: 280px;
+}
+
+[dir="ltr"] .sidebar-collapsed .content-area {
+    margin-left: 40px;
+}
+
+/* Responsive adjustments */
+@media (max-width: 768px) {
+    .content-area {
+        margin-right: 0;
+        padding: 1rem;
+    }
+
+    [dir="ltr"] .content-area {
+        margin-left: 0;
+    }
+
+    .sidebar-collapsed .content-area {
+        margin-right: 0;
+    }
+
+    [dir="ltr"] .sidebar-collapsed .content-area {
+        margin-left: 0;
+    }
+}
+
+/* Content styling */
+.content-area h1,
+.content-area h2,
+.content-area h3,
+.content-area h4,
+.content-area h5,
+.content-area h6 {
+    color: var(--text);
+    margin-bottom: 1rem;
+}
+
+.content-area p {
+    color: var(--text);
+    line-height: 1.6;
+}
+
+/* Form controls with better contrast */
+.content-area input,
+.content-area select,
+.content-area textarea {
+    background-color: var(--surface);
+    color: var(--text);
+    border: 1px solid var(--border);
+    padding: 0.5rem;
+    border-radius: 4px;
+}
+
+.content-area input:focus,
+.content-area select:focus,
+.content-area textarea:focus {
+    border-color: var(--primary);
+    outline: none;
+    box-shadow: 0 0 0 2px rgba(255, 58, 68, 0.2);
+}
+
+/* Table styling with better contrast */
+.content-area table {
+    width: 100%;
+    border-collapse: collapse;
+    margin-bottom: 1rem;
+    background-color: var(--surface);
+    color: var(--text);
+}
+
+.content-area th,
+.content-area td {
+    padding: 0.75rem;
+    border-bottom: 1px solid var(--border);
+    text-align: left;
+}
+
+.content-area th {
+    font-weight: 600;
+    background-color: var(--surface-variant);
+}
+
+/* Links with better contrast */
+.content-area a {
+    color: var(--primary);
+    text-decoration: none;
+}
+
+.content-area a:hover {
+    text-decoration: underline;
+}
+
+/* ============================
+   COMPONENT STYLING OVERRIDES
+   ============================ */
+
 .content-area :deep(*) {
-    color: var(--white);
+    color: var(--text);
+    transition: color var(--transition-theme);
 }
 
 .content-area :deep(input),
 .content-area :deep(select),
 .content-area :deep(textarea) {
-    background-color: #333;
-    border: 1px solid #555;
-    color: var(--white);
-    border-radius: 6px;
-    padding: 8px;
+    background-color: var(--surface-variant);
+    border: 1px solid var(--border);
+    color: var(--text);
+    border-radius: var(--radius-md);
+    padding: var(--space-2);
+    transition: 
+        background-color var(--transition-theme),
+        border-color var(--transition-theme),
+        color var(--transition-theme);
 }
+
+    .content-area :deep(input):focus,
+    .content-area :deep(select):focus,
+    .content-area :deep(textarea):focus {
+        border-color: var(--primary);
+        box-shadow: 0 0 0 0.2rem rgba(255, 58, 68, 0.25);
+        outline: 0;
+    }
 
 .content-area :deep(button) {
-    background-color: var(--primary-red);
-    color: white;
+    background-color: var(--primary);
+    color: var(--text-light);
     border: none;
-    border-radius: 6px;
-    padding: 8px 16px;
+    border-radius: var(--radius-md);
+    padding: var(--space-2) var(--space-4);
     cursor: pointer;
-    font-weight: bold;
+    font-weight: var(--font-bold);
+    transition: all var(--transition-theme);
 }
 
-.content-area :deep(button:hover) {
-    background-color: #b71c1c;
-}
+    .content-area :deep(button:hover) {
+        background-color: var(--primary-dark);
+        transform: translateY(-1px);
+        box-shadow: var(--shadow-md);
+    }
+
+    .content-area :deep(button:active) {
+        transform: translateY(0);
+    }
+
+/* ============================
+   TABLE STYLING
+   ============================ */
 
 .content-area :deep(table) {
     width: 100%;
     border-collapse: collapse;
+    background: var(--surface);
+    border-radius: var(--radius-lg);
+    overflow: hidden;
+    box-shadow: var(--shadow-sm);
 }
 
 .content-area :deep(th),
 .content-area :deep(td) {
-    padding: 12px;
+    padding: var(--space-3);
     text-align: right;
-    border-bottom: 1px solid #555;
+    border-bottom: 1px solid var(--border);
+    transition: border-color var(--transition-theme);
 }
 
 .content-area :deep(th) {
-    background-color: #333;
+    background-color: var(--surface-variant);
+    font-weight: var(--font-semibold);
+    color: var(--text-secondary);
+    transition: 
+        background-color var(--transition-theme),
+        color var(--transition-theme);
 }
 
 .content-area :deep(tr:hover) {
-    background-color: #3a3a3a;
+    background-color: var(--surface-variant);
 }
 
-/* Dashboard specific styles */
+.content-area :deep(tr:last-child td) {
+    border-bottom: none;
+}
+
+/* ============================
+   DASHBOARD WRAPPER
+   ============================ */
+
 .dashboard-wrapper {
     display: flex;
     min-height: 100vh;
     background: var(--background);
-    transition: all 0.3s ease;
+    transition: all var(--transition-theme);
 }
 
 .dashboard-wrapper.sidebar-collapsed {
-    padding-right: 60px;
+    padding-right: var(--sidebar-width-collapsed);
 }
 
 .dashboard-wrapper:not(.sidebar-collapsed) {
-    padding-right: 250px;
+    padding-right: var(--sidebar-width);
 }
 
+/* ============================
+   ADMIN COMPONENTS
+   ============================ */
+
 .admin-header {
-    background: rgba(0, 0, 0, 0.2);
-    padding: 1rem;
-    border-radius: 8px;
-    margin-bottom: 1rem;
+    background: var(--surface-variant);
+    padding: var(--space-4);
+    border-radius: var(--radius-lg);
+    margin-bottom: var(--space-4);
+    border: 1px solid var(--border);
+    transition: 
+        background-color var(--transition-theme),
+        border-color var(--transition-theme);
 }
 
 .admin-navbar {
     display: flex;
-    gap: 0.5rem;
+    gap: var(--space-2);
     overflow-x: auto;
-    padding-bottom: 0.5rem;
+    padding-bottom: var(--space-2);
+    -ms-overflow-style: none;
+    scrollbar-width: none;
 }
+
+    .admin-navbar::-webkit-scrollbar {
+        display: none;
+    }
 
 .dashboard-tab {
     display: flex;
     align-items: center;
-    gap: 0.5rem;
-    padding: 0.75rem 1rem;
+    gap: var(--space-2);
+    padding: var(--space-3) var(--space-4);
     background: transparent;
     border: none;
-    color: var(--white);
-    border-radius: 6px;
-    transition: all 0.3s ease;
+    color: var(--text);
+    border-radius: var(--radius-md);
+    transition: all var(--transition-theme);
     white-space: nowrap;
+    cursor: pointer;
+    border: 1px solid transparent;
 }
 
 .dashboard-tab:hover {
-    background: rgba(255, 255, 255, 0.1);
+    background: var(--surface-variant);
+    border-color: var(--border);
 }
 
 .dashboard-tab.active {
-    background: var(--primary-red);
-    color: white;
+    background: var(--primary);
+    color: var(--text-light);
+    box-shadow: var(--shadow-sm);
 }
 
 .dashboard-tab i {
@@ -211,40 +413,76 @@
 }
 
 .admin-content {
-    padding: 1rem;
+    padding: var(--space-4);
 }
 
 .admin-content-container {
-    background: rgba(0, 0, 0, 0.2);
-    border-radius: 8px;
-    padding: 1.5rem;
+    background: var(--surface-variant);
+    border-radius: var(--radius-lg);
+    padding: var(--space-6);
+    border: 1px solid var(--border);
+    transition: 
+        background-color var(--transition-theme),
+        border-color var(--transition-theme);
 }
+
+/* ============================
+   CARD COMPONENTS
+   ============================ */
 
 .dashboard-card {
-    background: rgba(255, 255, 255, 0.05);
-    border-radius: 8px;
+    background: var(--surface);
+    border-radius: var(--radius-lg);
     overflow: hidden;
+    border: 1px solid var(--border);
+    box-shadow: var(--shadow-sm);
+    transition: 
+        background-color var(--transition-theme),
+        border-color var(--transition-theme),
+        box-shadow var(--transition-theme);
 }
 
+    .dashboard-card:hover {
+        box-shadow: var(--shadow-md);
+        transform: translateY(-2px);
+    }
+
 .card-header {
-    background: rgba(0, 0, 0, 0.2);
-    padding: 1rem 1.5rem;
+    background: var(--surface-variant);
+    padding: var(--space-4) var(--space-6);
+    border-bottom: 1px solid var(--border);
+    transition: 
+        background-color var(--transition-theme),
+        border-color var(--transition-theme);
 }
 
 .card-header h3 {
     margin: 0;
-    color: var(--white);
-    font-size: 1.25rem;
+    color: var(--text);
+    font-size: var(--text-xl);
+    font-weight: var(--font-semibold);
+    transition: color var(--transition-theme);
 }
 
 .card-content {
-    padding: 1.5rem;
+    padding: var(--space-6);
 }
 
-/* Responsive adjustments */
+/* ============================
+   RESPONSIVE DESIGN
+   ============================ */
+
 @media (max-width: 768px) {
     .dashboard-wrapper {
         padding-right: 0 !important;
+    }
+
+    .navbar-container {
+        padding: 0 var(--space-3);
+    }
+
+    .content-container {
+        padding: var(--space-3);
     }
 
     .admin-navbar {
@@ -252,7 +490,46 @@
     }
 
     .dashboard-tab {
-        flex: 1 1 calc(50% - 0.5rem);
+        flex: 1 1 calc(50% - var(--space-2));
         justify-content: center;
+        min-width: 120px;
+    }
+
+    .navbar-branding {
+        margin-left: var(--space-3);
+    }
+
+    .navbar-logo {
+        height: 36px;
+        margin-left: var(--space-2);
+    }
+
+    .navbar-title {
+        font-size: var(--text-base);
+    }
+}
+
+@media (max-width: 480px) {
+    .content-area {
+        padding: var(--space-4);
+        border-radius: var(--radius-md);
+    }
+
+    .admin-header {
+        padding: var(--space-3);
+        margin-bottom: var(--space-3);
+    }
+
+    .admin-content-container {
+        padding: var(--space-4);
+    }
+
+    .navbar-title {
+        display: none;
+    }
+
+    .dashboard-tab {
+        padding: var(--space-2) var(--space-3);
+        font-size: var(--text-sm);
     }
 } 

@@ -20,6 +20,7 @@ namespace API_Project.Services
         private readonly IEquipmentRepository _equipmentRepository;
         private readonly IUnitOfWork _unitOfWork;
         private readonly ILogger<CheckoutService> _logger;
+        private readonly IBlacklistService _blacklistService;
 
         public CheckoutService(
             ICheckoutRepository checkoutRepository,
@@ -27,7 +28,8 @@ namespace API_Project.Services
             IBlacklistRepository blacklistRepository,
             IEquipmentRepository equipmentRepository,
             IUnitOfWork unitOfWork,
-            ILogger<CheckoutService> logger)
+            ILogger<CheckoutService> logger,
+            IBlacklistService blacklistService)
         {
             _checkoutRepository = checkoutRepository;
             _teamRepository = teamRepository;
@@ -35,6 +37,7 @@ namespace API_Project.Services
             _equipmentRepository = equipmentRepository;
             _unitOfWork = unitOfWork;
             _logger = logger;
+            _blacklistService = blacklistService;
         }
 
         public async Task<List<EquipmentCheckout>> GetAllCheckoutsAsync()
@@ -637,7 +640,7 @@ namespace API_Project.Services
                     }
 
                     _logger.LogInformation("Team {TeamName} (ID: {TeamId}) found. Current blacklist status: {IsBlacklisted}",
-                        team.TeamName, team.TeamID, team.IsBlacklisted ? "Blacklisted" : "Not Blacklisted");
+                        team.TeamName, team.TeamID, team.IsBlacklisted);
 
                     if (!team.IsBlacklisted)
                     {
@@ -828,14 +831,14 @@ namespace API_Project.Services
                     {
                         _logger.LogInformation("Team {TeamId} has no overdue equipment, un-blacklisting", teamId);
 
-                        // Get the blacklist entry
-                        var blacklistEntry = await _blacklistRepository.GetByTeamIdAsync(teamId);
-                        if (blacklistEntry != null)
+                        // Use the BlacklistService to properly remove from blacklist
+                        try
                         {
-                            // Update the blacklist entry to mark it as removed
-                            blacklistEntry.RemovalDate = DateTime.UtcNow;
-                            blacklistEntry.RemovedBy = checkout.UserID; // Use the same user who's returning the equipment
-                            blacklistEntry.Notes = $"Auto-removed from blacklist after returning equipment ID {checkout.EquipmentId} (Checkout ID: {checkout.CheckoutID})";
+                            await _blacklistService.RemoveFromBlacklistAsync(
+                                teamId, 
+                                checkout.UserID, 
+                                $"Auto-removed from blacklist after returning equipment ID {checkout.EquipmentId} (Checkout ID: {checkout.CheckoutID})"
+                            );
 
                             // Update team status
                             team.IsBlacklisted = false;
@@ -846,6 +849,13 @@ namespace API_Project.Services
                             // Log message that would have been returned - now we just log it
                             _logger.LogInformation("Team un-blacklisted message: {Message}",
                                 $"צוות {team.TeamName} הוסר מהרשימה השחורה וכעת רשאי לשאול ציוד נוסף");
+                        }
+                        catch (KeyNotFoundException)
+                        {
+                            // Team wasn't in blacklist table, just update team status
+                            _logger.LogWarning("Team {TeamId} not found in blacklist table, only updating team status", teamId);
+                            team.IsBlacklisted = false;
+                            await _teamRepository.UpdateAsync(team);
                         }
                     }
                     else

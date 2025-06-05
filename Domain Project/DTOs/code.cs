@@ -26,6 +26,7 @@ namespace Domain_Project.DTOs
         public string? UserRole { get; set; }
         public DateTime? CheckedOutAt { get; set; }
         public DateTime? ReturnedAt { get; set; }
+        public DateTime? ExpectedReturnDate { get; set; }
         public int Quantity { get; set; } = 1; // Default to 1 if not specified
         public string ItemCondition { get; set; } = "Good";
         public string ItemNotes { get; set; } = string.Empty;

@@ -81,6 +81,25 @@
         ActiveTab = tab;
     }
 
-    private void ToggleSidebarFromDashboard(bool open = true) => sidebarOpen = open ? !sidebarOpen : sidebarOpen;
-    private void OnSidebarCollapseChanged(bool collapsed) => sidebarCollapsed = collapsed;
+    private void ToggleSidebarFromDashboard(bool open)
+    {
+        sidebarOpen = open;
+        if (!open)
+        {
+            // When closing, ensure we're in collapsed state
+            sidebarCollapsed = true;
+        }
+        StateHasChanged();
+    }
+
+    private void OnSidebarCollapseChanged(bool collapsed)
+    {
+        sidebarCollapsed = collapsed;
+        // If we're expanding from collapsed state, ensure sidebar is open
+        if (!collapsed && !sidebarOpen)
+        {
+            sidebarOpen = true;
+        }
+        StateHasChanged();
+    }
 } 

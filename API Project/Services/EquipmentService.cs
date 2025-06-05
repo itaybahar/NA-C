@@ -371,10 +371,16 @@ namespace API_Project.Services
                     return false;
                 }
 
-                // Get the current in-use quantity
+                // Get the current in-use quantity (items currently checked out)
                 var inUseQuantity = await _dbContext.EquipmentCheckouts
                     .Where(c => c.EquipmentId == equipmentDto.Id && c.Status != "Returned")
                     .SumAsync(c => c.Quantity);
+
+                // Log the before state
+                var oldTotalQuantity = existingEquipment.Quantity;
+                var oldAvailableQuantity = Math.Max(0, oldTotalQuantity - inUseQuantity);
+                
+                _logger.LogInformation($"BEFORE UPDATE - Equipment ID {equipmentDto.Id}: Total={oldTotalQuantity}, In-Use={inUseQuantity}, Available={oldAvailableQuantity}");
 
                 // Check if new quantity is less than in-use quantity
                 if (equipmentDto.Quantity < inUseQuantity)
@@ -382,6 +388,10 @@ namespace API_Project.Services
                     _logger.LogWarning($"Cannot reduce quantity below in-use amount. Current in-use: {inUseQuantity}, Requested: {equipmentDto.Quantity}");
                     throw new InvalidOperationException($"Cannot reduce quantity below in-use amount ({inUseQuantity} items currently checked out)");
                 }
+
+                // Calculate the quantity difference and what the new available quantity will be
+                var quantityDifference = equipmentDto.Quantity - oldTotalQuantity;
+                var newAvailableQuantity = Math.Max(0, equipmentDto.Quantity - inUseQuantity);
 
                 // Update equipment properties
                 existingEquipment.Name = equipmentDto.Name;
@@ -404,6 +414,15 @@ namespace API_Project.Services
 
                 _dbContext.Equipment.Update(existingEquipment);
                 await _dbContext.SaveChangesAsync();
+
+                // Log the after state to confirm the logic is working as expected
+                _logger.LogInformation($"AFTER UPDATE - Equipment ID {equipmentDto.Id}: Total={equipmentDto.Quantity}, In-Use={inUseQuantity}, Available={newAvailableQuantity}");
+                
+                if (quantityDifference != 0)
+                {
+                    var availableDifference = newAvailableQuantity - oldAvailableQuantity;
+                    _logger.LogInformation($"QUANTITY CHANGE - Equipment ID {equipmentDto.Id}: Total changed by {quantityDifference}, Available changed by {availableDifference} (preserving {inUseQuantity} checked out items)");
+                }
 
                 _logger.LogInformation($"Successfully updated equipment ID: {equipmentDto.Id}. New quantity: {equipmentDto.Quantity}, Status: {existingEquipment.Status}");
                 return true;

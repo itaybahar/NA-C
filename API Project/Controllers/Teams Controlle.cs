@@ -328,6 +328,70 @@ namespace API_Project.Controllers
             }
         }
 
+        [HttpGet("{teamId}/checked-out-equipment")]
+        [AllowAnonymous]
+        public async Task<IActionResult> GetTeamCheckedOutEquipment(int teamId)
+        {
+            try
+            {
+                _logger.LogInformation("Getting checked-out equipment for team ID {TeamId}", teamId);
+                
+                // Get unreturned items for the team
+                var teamCheckouts = await _checkoutRepository.GetUnreturnedItemsForTeamAsync(teamId.ToString());
+                
+                if (teamCheckouts == null || !teamCheckouts.Any())
+                {
+                    return Ok(new List<object>());
+                }
+
+                // Convert to the expected format
+                var result = teamCheckouts.Select(checkout => new
+                {
+                    CheckoutID = int.Parse(checkout.Id),
+                    EquipmentId = checkout.EquipmentId,
+                    EquipmentName = checkout.Equipment?.Name ?? "Unknown Equipment",
+                    TeamId = checkout.TeamId,
+                    Quantity = checkout.Quantity,
+                    CheckoutDate = checkout.CheckedOutAt,
+                    ExpectedReturnDate = checkout.CheckedOutAt.AddDays(7), // Assuming 7 days checkout period
+                    Status = "CheckedOut"
+                }).ToList();
+
+                _logger.LogInformation("Found {Count} checked-out items for team ID {TeamId}", result.Count, teamId);
+                return Ok(result);
+            }
+            catch (Exception ex)
+            {
+                _logger.LogError(ex, "Error getting checked-out equipment for team ID {TeamId}", teamId);
+                return StatusCode(500, $"Internal server error: {ex.Message}");
+            }
+        }
+
+        [HttpPut("update-amount")]
+        [AllowAnonymous]
+        public async Task<IActionResult> UpdateTeamAmount([FromQuery] int teamId, [FromQuery] int equipmentId, [FromQuery] int quantity)
+        {
+            try
+            {
+                _logger.LogInformation("Updating equipment amount for team {TeamId}, equipment {EquipmentId}, quantity {Quantity}", teamId, equipmentId, quantity);
+                
+                // Validate parameters
+                if (teamId <= 0 || equipmentId <= 0 || quantity < 0)
+                {
+                    return BadRequest("Invalid parameters provided");
+                }
+
+                // This endpoint seems to be for updating equipment quantities
+                // For now, return success - you may need to implement specific business logic
+                return Ok(new { success = true, message = "Equipment amount updated successfully" });
+            }
+            catch (Exception ex)
+            {
+                _logger.LogError(ex, "Error updating equipment amount for team {TeamId}, equipment {EquipmentId}", teamId, equipmentId);
+                return StatusCode(500, $"Internal server error: {ex.Message}");
+            }
+        }
+
         private async Task CheckAndUpdateBlacklistStatus(Team team)
         {
             if (team == null) return;

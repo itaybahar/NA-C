@@ -101,7 +101,7 @@ namespace Blazor_WebAssembly.Services.Implementations
                 // First try API route if available
                 try
                 {
-                    var result = await _httpClient.GetFromJsonAsync<List<EquipmentModel>>($"teams/{teamId}/checked-out-equipment");
+                    var result = await _httpClient.GetFromJsonAsync<List<EquipmentModel>>($"api/teams/{teamId}/checked-out-equipment");
                     if (result != null && result.Count > 0)
                     {
                         return result;

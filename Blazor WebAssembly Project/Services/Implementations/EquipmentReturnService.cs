@@ -406,7 +406,7 @@ namespace Blazor_WebAssembly.Services.Implementations
 
                 var requestContent = new { Quantity = quantity };
 
-                var response = await httpClient.PutAsJsonAsync($"api/team/update-amount?teamId={teamId}&equipmentId={equipmentId}&quantity={quantity}", requestContent);
+                var response = await httpClient.PutAsJsonAsync($"api/teams/update-amount?teamId={teamId}&equipmentId={equipmentId}&quantity={quantity}", requestContent);
 
                 if (response.IsSuccessStatusCode)
                 {

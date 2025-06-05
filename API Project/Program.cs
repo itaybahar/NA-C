@@ -440,7 +440,8 @@ namespace API_Project
                 sp.GetRequiredService<IBlacklistRepository>(),
                 sp.GetRequiredService<IEquipmentRepository>(),
                 sp.GetRequiredService<IUnitOfWork>(),
-                sp.GetRequiredService<ILogger<API_Project.Services.CheckoutService>>()
+                sp.GetRequiredService<ILogger<API_Project.Services.CheckoutService>>(),
+                sp.GetRequiredService<IBlacklistService>()
                 )
             );
         }
@@ -922,12 +923,20 @@ namespace API_Project
             var addresses = app.Urls.Select(url => new Uri(url));
             Console.WriteLine("Server running at: " + string.Join(", ", addresses.Select(addr => addr.ToString())));
 
-            // Fallback: redirect any unknown route to the Blazor app
+            // Fallback: redirect non-API routes to the Blazor app, return 404 for unmatched API routes
             app.MapFallback(context => {
+                // Don't redirect API routes - let them return 404
+                if (context.Request.Path.StartsWithSegments("/api"))
+                {
+                    context.Response.StatusCode = 404;
+                    return context.Response.WriteAsync("API endpoint not found");
+                }
+                
+                // Redirect non-API routes to the Blazor app
                 context.Response.Redirect("https://localhost:7176");
                 return Task.CompletedTask;
             });
-
+    
             app.Run();
         }
 

@@ -5,12 +5,15 @@
 @using System.Security.Claims
 @using Blazor_WebAssembly.Models.Checkout
 @using Domain_Project.DTOs
+@using System.Text.Json
+@using Microsoft.Extensions.Logging
 
 @inject ICheckoutService CheckoutService
 @inject IEquipmentService EquipmentService
 @inject ILogger<EquipmentList> Logger
 @inject AuthenticationStateProvider AuthenticationStateProvider
 @inject IJSRuntime JSRuntime
+@inject IHttpClientFactory HttpClientFactory
 @using Blazor_WebAssembly.Services.Api
 @inject ApiErrorHandler ApiErrorHandler
 @inject Blazored.LocalStorage.ILocalStorageService LocalStorageService
@@ -592,70 +595,91 @@ else if (ActiveTab == "history")
     if (showRecordDetailsModal && selectedRecordDetails != null)
     {
         <div class="modal-overlay">
-            <div class="modal-content">
+            <div class="modal-content calendar-view">
                 <button class="modal-close" @onclick="CloseRecordDetailsModal">×</button>
-                <h3 class="text-center text-xl font-bold mb-4">פרטי רשומה</h3>
+                <h3 class="text-center text-xl font-bold mb-4">פרטי השאלת ציוד</h3>
 
-                <div class="record-details">
-                    <div class="detail-row">
-                        <div class="detail-label">צוות:</div>
-                        <div class="detail-value">@selectedRecordDetails.TeamName</div>
+                <!-- Equipment Info Header -->
+                <div class="equipment-info-header">
+                    <h4>@selectedRecordDetails.EquipmentName</h4>
+                    <div class="quantity-badge">
+                        כמות: @selectedRecordDetails.Quantity
                     </div>
-                    <div class="detail-row">
-                        <div class="detail-label">ציוד:</div>
-                        <div class="detail-value">@selectedRecordDetails.EquipmentName</div>
-                    </div>
-                    <div class="detail-row">
-                        <div class="detail-label">כמות:</div>
-                        <div class="detail-value">@selectedRecordDetails.Quantity</div>
-                    </div>
-                    <div class="detail-row">
-                        <div class="detail-label">מזהה רשומה:</div>
-                        <div class="detail-value">@selectedRecordDetails.Id</div>
-                    </div>
-                    <div class="detail-row">
-                        <div class="detail-label">תאריך הוצאה:</div>
-                        <div class="detail-value">@(selectedRecordDetails.CheckedOutAt?.ToString("dd/MM/yyyy HH:mm:ss") ?? "-")</div>
-                    </div>
-                    <div class="detail-row">
-                        <div class="detail-label">תאריך החזרה:</div>
-                        <div class="detail-value">@(selectedRecordDetails.ReturnedAt?.ToString("dd/MM/yyyy HH:mm:ss") ?? "-")</div>
-                    </div>
-                    <div class="detail-row">
-                        <div class="detail-label">סטטוס:</div>
-                        <div class="detail-value">
-                            <span class="status-badge @(selectedRecordDetails.ReturnedAt.HasValue ? "returned-badge" : "checked-out-badge")">
-                                @(selectedRecordDetails.ReturnedAt.HasValue ? "הוחזר" : "לא הוחזר")
-                            </span>
+                </div>
+
+                <!-- Calendar View -->
+                <div class="calendar-container">
+                    <div class="calendar-header">
+                        <div class="date-range">
+                            <div class="date-block checkout">
+                                <label>תאריך הוצאה</label>
+                                <div class="date">@(selectedRecordDetails.CheckedOutAt?.ToString("dd/MM/yyyy"))</div>
+                                <div class="time">@(selectedRecordDetails.CheckedOutAt?.ToString("HH:mm"))</div>
+                            </div>
+                            
+                            <div class="date-block expected">
+                                <label>תאריך החזרה צפוי</label>
+                                <div class="date">@(selectedRecordDetails.ExpectedReturnDate?.ToString("dd/MM/yyyy") ?? "-")</div>
+                                <div class="time">@(selectedRecordDetails.ExpectedReturnDate?.ToString("HH:mm") ?? "-")</div>
+                            </div>
+                            
+                            <div class="date-block actual">
+                                <label>תאריך החזרה בפועל</label>
+                                <div class="date">@(selectedRecordDetails.ReturnedAt?.ToString("dd/MM/yyyy") ?? "-")</div>
+                                <div class="time">@(selectedRecordDetails.ReturnedAt?.ToString("HH:mm") ?? "-")</div>
+                            </div>
                         </div>
                     </div>
-                    <div class="detail-row">
-                        <div class="detail-label">כמות זמינה אחרי:</div>
-                        <div class="detail-value">@selectedRecordDetails.AvailableAfterOperation</div>
+
+                    <div class="timeline">
+                        <div class="timeline-line"></div>
+                        <div class="timeline-point checkout" style="left: 0%">
+                            <div class="point"></div>
+                            <label>הוצאה</label>
+                        </div>
+                        @if (selectedRecordDetails.ExpectedReturnDate.HasValue)
+                        {
+                            <div class="timeline-point expected" style="left: 50%">
+                                <div class="point"></div>
+                                <label>צפוי</label>
+                            </div>
+                        }
+                        @if (selectedRecordDetails.ReturnedAt.HasValue)
+                        {
+                            <div class="timeline-point actual" style="left: 100%">
+                                <div class="point"></div>
+                                <label>הוחזר</label>
+                            </div>
+                        }
+                    </div>
+                </div>
+
+                <!-- Additional Details -->
+                <div class="details-grid">
+                    <div class="detail-item">
+                        <label>צוות</label>
+                        <div>@selectedRecordDetails.TeamName</div>
+                    </div>
+                    <div class="detail-item">
+                        <label>משתמש</label>
+                        <div>@(string.IsNullOrEmpty(selectedRecordDetails.UserName) ? "לא ידוע" : selectedRecordDetails.UserName)</div>
                     </div>
                     @if (selectedRecordDetails.ReturnedAt.HasValue)
                     {
-                        <div class="detail-row">
-                            <div class="detail-label">מצב הציוד:</div>
-                            <div class="detail-value">
-                                <span class="status-badge @GetConditionBadgeClass(selectedRecordDetails.ItemCondition)">
-                                    @GetConditionText(selectedRecordDetails.ItemCondition)
-                                </span>
+                        <div class="detail-item">
+                            <label>מצב בהחזרה</label>
+                            <div class="status-badge @GetConditionBadgeClass(selectedRecordDetails.ItemCondition)">
+                                @GetConditionText(selectedRecordDetails.ItemCondition)
                             </div>
                         </div>
                     }
-                    <div class="detail-row">
-                        <div class="detail-label">משתמש:</div>
-                        <div class="detail-value">@(string.IsNullOrEmpty(selectedRecordDetails.UserName) ? "לא ידוע" : selectedRecordDetails.UserName)</div>
-                    </div>
-                    <div class="detail-row">
-                        <div class="detail-label">תפקיד:</div>
-                        <div class="detail-value">@FormatUserRole(selectedRecordDetails.UserRole)</div>
-                    </div>
-                    <div class="detail-row">
-                        <div class="detail-label">הערות:</div>
-                        <div class="detail-value">@(string.IsNullOrEmpty(selectedRecordDetails.ItemNotes) ? "-" : selectedRecordDetails.ItemNotes)</div>
-                    </div>
+                    @if (!string.IsNullOrEmpty(selectedRecordDetails.ItemNotes))
+                    {
+                        <div class="detail-item full-width">
+                            <label>הערות</label>
+                            <div class="notes">@selectedRecordDetails.ItemNotes</div>
+                        </div>
+                    }
                 </div>
 
                 <div class="form-actions mt-4">
@@ -664,77 +688,144 @@ else if (ActiveTab == "history")
             </div>
         </div>
 
+        <style>
+            .calendar-view {
+                max-width: 800px;
+                width: 90%;
+            }
+
+            .equipment-info-header {
+                display: flex;
+                justify-content: space-between;
+                align-items: center;
+                margin-bottom: 1.5rem;
+                padding: 1rem;
+                background: var(--surface-variant);
+                border-radius: 8px;
+            }
+
+            .quantity-badge {
+                background: var(--surface-2);
+                padding: 0.5rem 1rem;
+                border-radius: 20px;
+                font-weight: bold;
+            }
+
+            .calendar-container {
+                background: var(--surface);
+                border-radius: 8px;
+                padding: 1.5rem;
+                margin-bottom: 1.5rem;
+            }
+
+            .calendar-header {
+                margin-bottom: 2rem;
+            }
+
+            .date-range {
+                display: flex;
+                justify-content: space-between;
+                gap: 1rem;
+            }
+
+            .date-block {
+                flex: 1;
+                text-align: center;
+                padding: 1rem;
+                background: var(--surface-variant);
+                border-radius: 8px;
+                transition: all 0.3s ease;
+            }
+
+            .date-block:hover {
+                transform: translateY(-2px);
+                box-shadow: 0 4px 6px rgba(0,0,0,0.1);
+            }
+
+            .date-block label {
+                display: block;
+                margin-bottom: 0.5rem;
+                color: var(--text-muted);
+            }
+
+            .date-block .date {
+                font-size: 1.25rem;
+                font-weight: bold;
+                margin-bottom: 0.25rem;
+            }
+
+            .date-block .time {
+                color: var(--text-secondary);
+            }
+
+            .timeline {
+                position: relative;
+                height: 60px;
+                margin: 2rem 0;
+            }
+
+            .timeline-line {
+                position: absolute;
+                top: 50%;
+                left: 0;
+                right: 0;
+                height: 2px;
+                background: var(--border);
+            }
+
+            .timeline-point {
+                position: absolute;
+                top: 50%;
+                transform: translate(-50%, -50%);
+                text-align: center;
+            }
+
+            .timeline-point .point {
+                width: 12px;
+                height: 12px;
+                border-radius: 50%;
+                background: var(--status-success);
+                margin: 0 auto 8px;
+            }
+
+            .timeline-point label {
+                font-size: 0.875rem;
+                color: var(--text-muted);
+            }
+
+            .timeline-point.checkout .point { background: var(--status-info); }
+            .timeline-point.expected .point { background: var(--status-warning); }
+            .timeline-point.actual .point { background: var(--status-success); }
+
+            .details-grid {
+                display: grid;
+                grid-template-columns: repeat(auto-fit, minmax(200px, 1fr));
+                gap: 1rem;
+                margin-top: 2rem;
+            }
+
+            .detail-item {
+                background: var(--surface-variant);
+                padding: 1rem;
+                border-radius: 8px;
+            }
+
+            .detail-item label {
+                display: block;
+                color: var(--text-muted);
+                margin-bottom: 0.5rem;
+            }
+
+            .detail-item.full-width {
+                grid-column: 1 / -1;
+            }
+
+            .notes {
+                white-space: pre-wrap;
+                color: var(--text-secondary);
+            }
+        </style>
     }
-    <style>
-        /* Existing styles... */
-
-        .record-details {
-            display: flex;
-            flex-direction: column;
-            gap: 10px;
-        }
-
-        .detail-row {
-            display: flex;
-            border-bottom: 1px solid #eee;
-            padding-bottom: 8px;
-        }
-
-        .detail-label {
-            font-weight: bold;
-            width: 130px;
-            color: #555;
-        }
-
-        .detail-value {
-            flex: 1;
-        }
-
-        .role-badge {
-            background-color: #e2e8f0;
-            padding: 2px 8px;
-            border-radius: 4px;
-            font-size: 0.85rem;
-        }
-
-        .availability {
-            font-weight: bold;
-        }
-
-        .out-of-stock {
-            color: #dc3545;
-        }
-
-            .out-of-stock::before {
-                content: "";
-                display: inline-block;
-                width: 8px;
-                height: 8px;
-                border-radius: 50%;
-                background-color: #dc3545;
-                margin-right: 5px;
-            }
-
-        .availability {
-            font-weight: bold;
-        }
-
-        .out-of-stock {
-            color: #dc3545;
-        }
-
-            .out-of-stock::before {
-                content: "";
-                display: inline-block;
-                width: 8px;
-                height: 8px;
-                border-radius: 50%;
-                background-color: #dc3545;
-                margin-right: 5px;
-            }
-    </style>
-
-
 }
 
 @code {
@@ -742,6 +833,7 @@ else if (ActiveTab == "history")
     private int? CurrentUserId; // To store the current user ID
     private List<EquipmentModel> equipmentList = new List<EquipmentModel>();
     private string? errorMessage;
+    private string? successMessage; // Added declaration
     private bool isLoading = false;
     private string searchTerm = string.Empty;
     private string statusFilter = string.Empty;
@@ -1161,43 +1253,14 @@ else if (ActiveTab == "history")
         }
     }
 
-    private async Task SaveEquipment()
+    private async Task HandleEditSubmit()
     {
-        if (editingEquipment == null)
-        {
-            return;
-        }
+        if (editingEquipment == null) return;
 
         try
         {
-            isLoading = true;
-            showEditModal = false;
-            StateHasChanged();
-
-            Logger.LogInformation($"Saving equipment: {editingEquipment.Name} (ID: {editingEquipment.EquipmentID})");
-
-            // Find the original equipment to compare changes
             var originalEquipment = equipmentList.FirstOrDefault(e => e.EquipmentID == editingEquipment.EquipmentID);
-            int quantityChange = originalEquipment != null ? (editingEquipment.Quantity - originalEquipment.Quantity) : 0;
-
-            // Generate change note
-            string changeNote = "עריכת פריט: ";
-
-            if (originalEquipment != null)
-            {
-                // Detect and log key changes
-                if (editingEquipment.Name != originalEquipment.Name)
-                    changeNote += $"שם שונה מ'{originalEquipment.Name}' ל'{editingEquipment.Name}'. ";
-
-                if (editingEquipment.Quantity != originalEquipment.Quantity)
-                    changeNote += $"כמות שונתה מ'{originalEquipment.Quantity}' ל'{editingEquipment.Quantity}'. ";
-
-                if (editingEquipment.Status != originalEquipment.Status)
-                    changeNote += $"סטטוס שונה מ'{GetStatusText(originalEquipment.Status)}' ל'{GetStatusText(editingEquipment.Status)}'. ";
-
-                if (editingEquipment.StorageLocation != originalEquipment.StorageLocation)
-                    changeNote += $"מיקום שונה מ'{originalEquipment.StorageLocation}' ל'{editingEquipment.StorageLocation}'. ";
-            }
+            var quantityChange = originalEquipment != null ? editingEquipment.Quantity - originalEquipment.Quantity : 0;
 
             // Call the API to update the equipment
             bool success = await EquipmentService.UpdateEquipmentAsync(editingEquipment);
@@ -1211,8 +1274,41 @@ else if (ActiveTab == "history")
                     equipmentList[index] = editingEquipment;
                 }
 
-                // Refresh available quantities
+                // Refresh available quantities and get detailed quantity info for logging
                 await UpdateAvailableQuantityForEquipment(editingEquipment.EquipmentID, editingEquipment.Quantity);
+                
+                // If quantity was changed, show explicit feedback about available quantity
+                if (originalEquipment != null && editingEquipment.Quantity != originalEquipment.Quantity)
+                {
+                    try
+                    {
+                        // Call the new quantity-info endpoint to get detailed information
+                        var httpClient = HttpClientFactory.CreateClient("API");
+                        var response = await httpClient.GetFromJsonAsync<dynamic>($"api/equipment/{editingEquipment.EquipmentID}/quantity-info");
+                        
+                        if (response != null)
+                        {
+                            var totalQty = response.GetProperty("totalQuantity").GetInt32();
+                            var inUseQty = response.GetProperty("inUseQuantity").GetInt32();
+                            var availableQty = response.GetProperty("availableQuantity").GetInt32();
+                            
+                            Logger.LogInformation($"Equipment quantity updated - ID: {editingEquipment.EquipmentID}, Total: {totalQty}, In-Use: {inUseQty}, Available: {availableQty}");
+                            
+                            // Show detailed success message to user
+                            successMessage = $"הפריט עודכן בהצלחה! כמות כוללת: {totalQty}, בשימוש: {inUseQty}, זמין: {availableQty}";
+                        }
+                    }
+                    catch (Exception ex)
+                    {
+                        Logger.LogWarning(ex, "Could not retrieve detailed quantity info, but update was successful");
+                    }
+                }
+
+                // Set default success message if not already set
+                if (string.IsNullOrEmpty(successMessage))
+                {
+                    successMessage = "הפריט עודכן בהצלחה!";
+                }
 
                 // Add history record for the edit if there was a quantity change
                 if (quantityChange != 0)
@@ -1227,49 +1323,19 @@ else if (ActiveTab == "history")
                     if (!historyCreated)
                     {
                         Logger.LogWarning($"Failed to create history record for equipment update: {editingEquipment.Name} (ID: {editingEquipment.EquipmentID})");
-
-                        // Wait a moment and try again
-                        await Task.Delay(1000);
-
-                        historyCreated = await CreateAdminHistoryRecord(
-                            editingEquipment.EquipmentID,
-                            "עדכון",
-                            quantityChange,
-                            changeNote + " (ניסיון שני)");
-
-                        if (historyCreated)
-                        {
-                            Logger.LogInformation("Second attempt to create history record succeeded");
-                        }
                     }
-
-                    // Force refresh history tab data regardless of current tab
-                    await LoadHistory();
                 }
 
-
                 Logger.LogInformation($"Equipment updated successfully: {editingEquipment.Name} (ID: {editingEquipment.EquipmentID})");
-            }
-            else
-            {
-                errorMessage = "שגיאה בעדכון הציוד";
-                Logger.LogError($"Failed to update equipment: {editingEquipment.Name} (ID: {editingEquipment.EquipmentID})");
             }
         }
         catch (Exception ex)
         {
-            errorMessage = $"שגיאה בעדכון הציוד: {ex.Message}";
-            Logger.LogError(ex, $"Error updating equipment: {editingEquipment.Name} (ID: {editingEquipment.EquipmentID})");
-        }
-        finally
-        {
-            editingEquipment = null;
-            isLoading = false;
-
-            // Make sure we refresh the UI
-            StateHasChanged();
+            Logger.LogError(ex, $"Error updating equipment: {editingEquipment?.Name} (ID: {editingEquipment?.EquipmentID})");
+            errorMessage = $"שגיאה בעדכון הפריט: {ex.Message}";
         }
     }
+
     private async Task<(int TeamId, string TeamName)> GetRelevantTeamForEquipment(int equipmentId)
     {
         try
@@ -1316,132 +1382,46 @@ else if (ActiveTab == "history")
     {
         try
         {
-            Logger.LogInformation($"Creating admin history record for equipment ID {equipmentId}, action: {action}, quantity change: {quantityChanged}");
+            // Get system team info for admin actions
+            var (systemTeamId, systemTeamName) = GetSystemTeamInfo();
 
-            // Get current user info for the history record
-            var authStateProvider = await AuthenticationStateProvider.GetAuthenticationStateAsync();
-            var userIdValue = authStateProvider.User.FindFirst(ClaimTypes.NameIdentifier)?.Value;
-            var userNameValue = authStateProvider.User.Identity?.Name;
-
-            Logger.LogInformation($"Current user: {userNameValue} (ID: {userIdValue})");
-            // Check authentication first
-            var authState = await AuthenticationStateProvider.GetAuthenticationStateAsync();
-            
-            // Get user ID with better fallback mechanism
-            if (!CurrentUserId.HasValue)
+            // Create the history record
+            var historyRecord = new
             {
-                var nameIdentifierClaim = authState.User.FindFirst(ClaimTypes.NameIdentifier);
-                var userIdClaim = authState.User.FindFirst("UserID") ??
-                                  authState.User.FindFirst("userId") ??
-                                  authState.User.FindFirst("sub");
+                EquipmentId = equipmentId,
+                TeamId = systemTeamId,
+                Action = action,
+                QuantityChange = quantityChanged,
+                Note = notes
+            };
 
-                if (nameIdentifierClaim != null && int.TryParse(nameIdentifierClaim.Value, out int parsedId))
-                {
-                    CurrentUserId = parsedId;
-                    Logger.LogInformation($"Using NameIdentifier claim for user ID: {parsedId}");
-                }
-                else if (userIdClaim != null && int.TryParse(userIdClaim.Value, out parsedId))
-                {
-                    CurrentUserId = parsedId;
-                    Logger.LogInformation($"Using custom UserID claim for user ID: {parsedId}");
-                }
-                else
-                {
-                    // Last resort fallback for testing
-                    CurrentUserId = 1;
-                    Logger.LogWarning("No user ID found in claims. Using default ID 1 for testing");
-                }
-            }
-            // Make sure we have a valid equipment name
-            var equipment = equipmentList.FirstOrDefault(e => e.EquipmentID == equipmentId);
-            if (equipment == null)
+            // Send the request to create history record
+            var httpClient = HttpClientFactory.CreateClient("API");
+            var response = await httpClient.PostAsJsonAsync("api/history/admin", historyRecord);
+
+            if (response.IsSuccessStatusCode)
             {
-                Logger.LogWarning($"Cannot find equipment with ID {equipmentId} in local list");
-                await LoadEquipment();
-                equipment = equipmentList.FirstOrDefault(e => e.EquipmentID == equipmentId);
-
-                if (equipment == null)
-                {
-                    Logger.LogError($"Still cannot find equipment with ID {equipmentId} after refresh");
-                    return false;
-                }
-            }
-
-            // Create a history record using the equipment info passed to this method
-            string itemNote = notes;
-            if (string.IsNullOrEmpty(itemNote))
-            {
-                itemNote = $"{action} פריט: {equipment.Name} (מזהה: {equipment.EquipmentID}) - כמות: {quantityChanged}";
-            }
-
-            // Parse user ID
-            int userId = 0;
-            if (!string.IsNullOrEmpty(userIdValue) && int.TryParse(userIdValue, out var id))
-            {
-                userId = id;
-            }
-
-        
-            var (systemTeamId, systemTeamName) = GetSystemTeam();
-
-            // Use positive quantity for checkout
-            int checkoutQuantity = Math.Abs(quantityChanged);
-
-            var checkoutResult = await CheckoutService.CheckoutEquipmentAsync(
-                 systemTeamId,  // Always use system team with ID 0
-                 equipmentId,
-                 userId,
-                 checkoutQuantity);
-
-            bool checkoutSuccess = checkoutResult.Success;
-
-
-            if (!checkoutSuccess)
-            {
-                Logger.LogError($"Failed to create checkout for admin history record. Equipment ID: {equipmentId}");
-                return false;
-            }
-
-            // We need to immediately return the checkout to complete the operation
-            // Get the checkout ID from the active checkouts
-            var activeCheckouts = await CheckoutService.GetActiveCheckoutsAsync();
-
-            // Note the property name is TeamID (uppercase ID) not TeamId
-            var newCheckout = activeCheckouts
-                .Where(c => c.EquipmentId == equipmentId && c.TeamID == systemTeamId)
-                .OrderByDescending(c => c.CheckoutDate)
-                .FirstOrDefault();
-
-            if (newCheckout != null)
-            {
-                // Return the equipment to complete the history record
-                bool returnSuccess = await CheckoutService.ReturnEquipmentAsync(newCheckout.CheckoutID);
-                if (!returnSuccess)
-                {
-                    Logger.LogError($"Failed to return equipment for admin history record. Checkout ID: {newCheckout.CheckoutID}");
-                    return false;
-                }
-
-                // Successfully created history record
-                Logger.LogInformation($"Successfully created admin history record for equipment ID {equipmentId} with system team");
-
-                // Reload history data
-                await LoadHistory();
+                Logger.LogInformation($"Created admin history record for equipment {equipmentId}: {action}");
                 return true;
             }
             else
             {
-                Logger.LogError($"Could not find newly created checkout for equipment ID {equipmentId}");
+                var error = await response.Content.ReadAsStringAsync();
+                Logger.LogWarning($"Failed to create admin history record: {error}");
                 return false;
             }
         }
         catch (Exception ex)
         {
-            Logger.LogError(ex, $"Error creating admin history record for equipment ID {equipmentId}");
-            errorMessage = $"שגיאה ביצירת רשומת היסטוריה: {ex.Message}";
-            StateHasChanged();
+            Logger.LogError(ex, "Error creating admin history record");
             return false;
         }
+    }
+
+    private (int TeamId, string TeamName) GetSystemTeamInfo()
+    {
+        // Return system team info (you may want to make this configurable)
+        return (1, "System Administration");
     }
 
     // Make sure the filter method handles empty values correctly
@@ -1835,7 +1815,7 @@ else if (ActiveTab == "history")
                 string addNote = $"פריט חדש נוסף למערכת: {newlyAddedEquipment.Name} (מזהה: {newlyAddedEquipment.EquipmentID})";
 
                 // Get system team info
-                var (systemTeamId, systemTeamName) = GetSystemTeam();
+                var (systemTeamId, systemTeamName) = GetSystemTeamInfo();
 
                 await CreateAdminHistoryRecord(
                     newlyAddedEquipment.EquipmentID,
@@ -1893,7 +1873,7 @@ else if (ActiveTab == "history")
                 try
                 {
                     // Get system team info
-                    var (systemTeamId, systemTeamName) = GetSystemTeam();
+                    var (systemTeamId, systemTeamName) = GetSystemTeamInfo();
 
                     // Create a record DTO directly
                     var adminRecord = new CheckoutRecordDto
@@ -2139,6 +2119,115 @@ else if (ActiveTab == "history")
     private void CloseAddEquipmentModal()
     {
         showAddEquipmentModal = false;
+    }
+
+    private string? changeNote = string.Empty; // Added missing variable
+
+    private async Task SaveEquipment()
+    {
+        if (editingEquipment == null) return;
+
+        try
+        {
+            var originalEquipment = equipmentList.FirstOrDefault(e => e.EquipmentID == editingEquipment.EquipmentID);
+            var quantityChange = originalEquipment != null ? editingEquipment.Quantity - originalEquipment.Quantity : 0;
+
+            // Call the API to update the equipment
+            bool success = await EquipmentService.UpdateEquipmentAsync(editingEquipment);
+
+            if (success)
+            {
+                // Update the local list with the edited equipment
+                var index = equipmentList.FindIndex(e => e.EquipmentID == editingEquipment.EquipmentID);
+                if (index >= 0)
+                {
+                    equipmentList[index] = editingEquipment;
+                }
+
+                // Refresh available quantities and get detailed quantity info for logging
+                await UpdateAvailableQuantityForEquipment(editingEquipment.EquipmentID, editingEquipment.Quantity);
+                
+                // If quantity was changed, show explicit feedback about available quantity
+                if (originalEquipment != null && editingEquipment.Quantity != originalEquipment.Quantity)
+                {
+                    try
+                    {
+                        // Call the new quantity-info endpoint to get detailed information
+                        var httpClient = HttpClientFactory.CreateClient("API");
+                        var response = await httpClient.GetFromJsonAsync<dynamic>($"api/equipment/{editingEquipment.EquipmentID}/quantity-info");
+                        
+                        if (response != null)
+                        {
+                            var totalQty = response.GetProperty("totalQuantity").GetInt32();
+                            var inUseQty = response.GetProperty("inUseQuantity").GetInt32();
+                            var availableQty = response.GetProperty("availableQuantity").GetInt32();
+                            
+                            Logger.LogInformation($"Equipment quantity updated - ID: {editingEquipment.EquipmentID}, Total: {totalQty}, In-Use: {inUseQty}, Available: {availableQty}");
+                            
+                            // Show detailed success message to user
+                            successMessage = $"הפריט עודכן בהצלחה! כמות כוללת: {totalQty}, בשימוש: {inUseQty}, זמין: {availableQty}";
+                        }
+                    }
+                    catch (Exception ex)
+                    {
+                        Logger.LogWarning(ex, "Could not retrieve detailed quantity info, but update was successful");
+                        // Set a basic success message
+                        successMessage = "הפריט עודכן בהצלחה!";
+                    }
+                }
+                else
+                {
+                    // Set default success message if not already set
+                    successMessage = "הפריט עודכן בהצלחה!";
+                }
+
+                // Add history record for the edit if there was a quantity change
+                if (quantityChange != 0)
+                {
+                    try
+                    {
+                        // For equipment updates, we'll get the most relevant team
+                        bool historyCreated = await CreateAdminHistoryRecord(
+                            editingEquipment.EquipmentID,
+                            "עדכון",
+                            quantityChange,  // Use the quantity change as the "transaction" amount
+                            changeNote ?? "עדכון כמות");
+
+                        if (!historyCreated)
+                        {
+                            Logger.LogWarning($"Failed to create history record for equipment update: {editingEquipment.Name} (ID: {editingEquipment.EquipmentID})");
+                        }
+                    }
+                    catch (Exception ex)
+                    {
+                        Logger.LogError(ex, "Failed to create history record, but equipment was updated successfully");
+                    }
+                }
+
+                // Close the modal and clear editing state
+                showEditModal = false;
+                editingEquipment = null;
+
+                Logger.LogInformation($"Equipment updated successfully: {editingEquipment.Name} (ID: {editingEquipment.EquipmentID})");
+                
+                // Refresh the equipment list
+                await LoadEquipment();
+            }
+            else
+            {
+                errorMessage = "שגיאה בעדכון הפריט";
+                Logger.LogError($"Failed to update equipment: {editingEquipment.Name} (ID: {editingEquipment.EquipmentID})");
+            }
+        }
+        catch (Exception ex)
+        {
+            Logger.LogError(ex, $"Error updating equipment: {editingEquipment?.Name} (ID: {editingEquipment?.EquipmentID})");
+            errorMessage = $"שגיאה בעדכון הפריט: {ex.Message}";
+        }
+        finally
+        {
+            StateHasChanged();
+        }
     }
 
 }

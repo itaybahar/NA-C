@@ -173,14 +173,15 @@ namespace API_Project.Repositories
             // Convert the CheckoutRecord to an EquipmentCheckout
             var equipmentCheckout = new EquipmentCheckout
             {
-                EquipmentId = record.EquipmentId, // Changed from EquipmentID to EquipmentId
+                EquipmentId = record.EquipmentId,
                 TeamID = record.TeamId,
                 UserID = record.UserId,
                 CheckoutDate = record.CheckedOutAt,
-                ExpectedReturnDate = record.CheckedOutAt.AddDays(7), // Default to 7 days
+                ExpectedReturnDate = record.CheckedOutAt.AddDays(7), // Default to 7 days from checkout
                 ActualReturnDate = record.ReturnedAt,
                 Status = record.ReturnedAt.HasValue ? "Returned" : "CheckedOut",
-                Quantity = 1 // Default to 1 if not explicitly set
+                Quantity = record.Quantity,
+                Notes = "Created from CheckoutRecord"
             };
 
             await _dbContext.EquipmentCheckouts.AddAsync(equipmentCheckout);
@@ -208,6 +209,7 @@ namespace API_Project.Repositories
                 ec.UserID AS UserId,
                 ec.CheckoutDate AS CheckedOutAt,
                 ec.ActualReturnDate AS ReturnedAt,
+                ec.ExpectedReturnDate,
                 COALESCE(ec.Quantity, 1) AS Quantity
             FROM EquipmentCheckouts ec
             INNER JOIN Equipment e ON ec.EquipmentID = e.Id
@@ -243,6 +245,8 @@ namespace API_Project.Repositories
                             Convert.ToDateTime(reader["CheckedOutAt"]) : null,
                         ReturnedAt = reader["ReturnedAt"] != DBNull.Value ?
                             Convert.ToDateTime(reader["ReturnedAt"]) : null,
+                        ExpectedReturnDate = reader["ExpectedReturnDate"] != DBNull.Value ?
+                            Convert.ToDateTime(reader["ExpectedReturnDate"]) : null,
                         Quantity = reader["Quantity"] != DBNull.Value ?
                             Convert.ToInt32(reader["Quantity"]) : 1
                     });
@@ -317,6 +321,7 @@ namespace API_Project.Repositories
                 ec.UserID,
                 ec.CheckoutDate AS CheckedOutAt,
                 ec.ActualReturnDate AS ReturnedAt,
+                ec.ExpectedReturnDate,
                 e.Name AS EquipmentName,
                 t.TeamName,
                 u.FirstName,
@@ -351,6 +356,7 @@ namespace API_Project.Repositories
                         UserId = Convert.ToInt32(reader["UserID"]),
                         CheckedOutAt = reader["CheckedOutAt"] != DBNull.Value ? Convert.ToDateTime(reader["CheckedOutAt"]) : null,
                         ReturnedAt = reader["ReturnedAt"] != DBNull.Value ? Convert.ToDateTime(reader["ReturnedAt"]) : null,
+                        ExpectedReturnDate = reader["ExpectedReturnDate"] != DBNull.Value ? Convert.ToDateTime(reader["ExpectedReturnDate"]) : null,
                         EquipmentName = reader["EquipmentName"] != DBNull.Value ? reader["EquipmentName"].ToString() : null,
                         TeamName = reader["TeamName"] != DBNull.Value ? reader["TeamName"].ToString() : null,
                         UserName = $"{reader["FirstName"]} {reader["LastName"]}",

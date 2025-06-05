@@ -1,4 +1,4 @@
-﻿// theme.js - Robust dark/light mode management for Blazor WebAssembly
+﻿// theme.js - Core theme system for Blazor WebAssembly
 
 // Theme management constants
 const themeKey = 'app-theme';
@@ -31,23 +31,25 @@ function initializeTheme() {
 
     // Listen for system preference changes
     const mediaQuery = window.matchMedia('(prefers-color-scheme: dark)');
+    const handleChange = () => {
+        if (getSavedTheme() === THEME_AUTO) {
+            applyTheme(THEME_AUTO, false);
+        }
+    };
 
     // Use proper method based on browser support
     if (mediaQuery.addEventListener) {
-        mediaQuery.addEventListener('change', () => {
-            // Only update if using auto theme
-            if (getSavedTheme() === THEME_AUTO) {
-                applyTheme(THEME_AUTO, false);
-            }
-        });
+        mediaQuery.addEventListener('change', handleChange);
     } else if (mediaQuery.addListener) {
-        // Fallback for older browsers
-        mediaQuery.addListener(() => {
-            // Only update if using auto theme
-            if (getSavedTheme() === THEME_AUTO) {
-                applyTheme(THEME_AUTO, false);
-            }
-        });
+        mediaQuery.addListener(handleChange);
+    }
+
+    // Notify themeManager and themeToggle if they exist
+    if (window.themeManager) {
+        window.themeManager.refreshTheme();
+    }
+    if (window.themeToggle) {
+        window.themeToggle.initialize();
     }
 }
 
@@ -65,16 +67,21 @@ function getSavedTheme() {
 function saveTheme(theme) {
     try {
         localStorage.setItem(themeKey, theme);
+        // Notify other theme components
+        if (window.themeManager) {
+            window.themeManager.refreshTheme();
+        }
+        if (window.themeToggle) {
+            window.themeToggle.updateToggleUI(theme);
+        }
     } catch (e) {
         console.warn("Could not save theme to localStorage", e);
     }
 }
 
-// Apply the theme to the document
+// Apply the theme to the document with smooth transitions
 function applyTheme(theme, isInitialLoad = false) {
-    // Prevent recursive calls and event dispatches
     if (isApplyingTheme) {
-        console.warn("Already applying theme, skipping recursive call");
         return;
     }
 
@@ -85,140 +92,100 @@ function applyTheme(theme, isInitialLoad = false) {
         const isDarkMode = theme === THEME_DARK || (theme === THEME_AUTO && prefersDark);
         const effectiveTheme = isDarkMode ? THEME_DARK : THEME_LIGHT;
 
-        // Remove all theme classes first
-        document.documentElement.classList.remove('dark', 'light', DARK_THEME_CLASS, LIGHT_THEME_CLASS);
-        document.body.classList.remove('dark', 'light', DARK_THEME_CLASS, LIGHT_THEME_CLASS);
-
-        // Add the correct theme classes
-        document.documentElement.classList.add(isDarkMode ? 'dark' : 'light');
-        document.body.classList.add(isDarkMode ? 'dark' : 'light');
-        document.documentElement.classList.add(isDarkMode ? DARK_THEME_CLASS : LIGHT_THEME_CLASS);
-        document.body.classList.add(isDarkMode ? DARK_THEME_CLASS : LIGHT_THEME_CLASS);
-
-        // Update data attribute for CSS variable targeting
-        document.documentElement.setAttribute('data-theme', effectiveTheme);
-
-        // Update any theme toggle UI elements
-        updateAllToggleUI(theme);
-        updateAllThemeToggles(effectiveTheme);
-
-        // Dispatch custom event for any components that need to react to theme changes
-        if (!isInitialLoad && !document.hidden) {
-            try {
-                const newEvent = new CustomEvent(themeChangeEvent, { bubbles: true });
-                document.dispatchEvent(newEvent);
-            } catch (e) {
-                console.warn("Could not dispatch theme change event", e);
-            }
+        // Add transition class for smooth theme changes
+        if (!isInitialLoad) {
+            document.documentElement.classList.add('theme-transition-root');
+            document.body.classList.add('theme-transition');
         }
+
+        // Create or update the transition overlay
+        let overlay = document.querySelector('.theme-overlay');
+        if (!overlay) {
+            overlay = document.createElement('div');
+            overlay.className = 'theme-overlay';
+            document.body.appendChild(overlay);
+        }
+
+        // Set the overlay color based on the theme
+        const overlayColor = isDarkMode ? 'rgba(0, 0, 0, 0.8)' : 'rgba(255, 255, 255, 0.8)';
+        document.documentElement.style.setProperty('--theme-overlay-color', overlayColor);
+
+        // Add switching class to trigger overlay animation
+        document.documentElement.classList.add('theme-switching');
+
+        // Update theme classes with a slight delay for smooth transition
+        setTimeout(() => {
+            // Update theme classes
+            document.documentElement.classList.remove(DARK_THEME_CLASS, LIGHT_THEME_CLASS);
+            document.body.classList.remove(DARK_THEME_CLASS, LIGHT_THEME_CLASS);
+            
+            const themeClass = isDarkMode ? DARK_THEME_CLASS : LIGHT_THEME_CLASS;
+            document.documentElement.classList.add(themeClass);
+            document.body.classList.add(themeClass);
+
+            // Update data attribute for CSS targeting
+            document.documentElement.setAttribute('data-theme', effectiveTheme);
+
+            // Dispatch theme change event
+            if (!isInitialLoad && !document.hidden) {
+                const event = new CustomEvent(themeChangeEvent, {
+                    detail: { 
+                        theme: effectiveTheme, 
+                        isDark: isDarkMode,
+                        isAnimated: true 
+                    },
+                    bubbles: true
+                });
+                document.dispatchEvent(event);
+            }
+        }, 50);
+
+        // Remove transition classes after animation
+        setTimeout(() => {
+            document.documentElement.classList.remove('theme-switching');
+            if (!isInitialLoad) {
+                document.documentElement.classList.remove('theme-transition-root');
+                document.body.classList.remove('theme-transition');
+            }
+        }, 500);
+
     } finally {
         isApplyingTheme = false;
     }
 }
 
-// Update all theme toggle UI elements across the application
-function updateAllToggleUI(theme) {
-    try {
-        const themeToggles = document.querySelectorAll('[data-theme-toggle]');
-        themeToggles.forEach(toggle => {
-            const targetTheme = toggle.getAttribute('data-theme-toggle');
-            if (targetTheme === theme) {
-                toggle.classList.add('active');
-            } else {
-                toggle.classList.remove('active');
-            }
-        });
-    } catch (e) {
-        console.warn("Error updating theme toggle UI", e);
-    }
-}
-
-// Update the visual state of all theme toggle containers
-function updateAllThemeToggles(effectiveTheme) {
-    try {
-        const themeToggles = document.querySelectorAll('.theme-toggle');
-        themeToggles.forEach(toggle => {
-            toggle.setAttribute('data-theme', effectiveTheme);
-        });
-    } catch (e) {
-        console.warn("Error updating theme toggles", e);
-    }
-}
-
-// Force reapplication of theme throughout the app
-function forceThemeReapplication() {
-    const currentTheme = getSavedTheme();
-    // Add a small delay to ensure DOM is ready
-    setTimeout(() => applyTheme(currentTheme, false), 0);
-}
-
-// Public theme management API
-window.themeManager = {
+// Public API
+window.theme = {
     getCurrentTheme: getSavedTheme,
-
-    setTheme: function (theme) {
-        // Validate theme
+    setTheme: function(theme) {
         const validTheme = [THEME_LIGHT, THEME_DARK, THEME_AUTO].includes(theme)
             ? theme
             : defaultTheme;
-
         saveTheme(validTheme);
-
-        // Add transition class for smooth animations
-        document.body.classList.add('theme-transition');
-
-        // Apply the theme
         applyTheme(validTheme);
-
-        // Remove transition class after animation completes
-        setTimeout(() => {
-            document.body.classList.remove('theme-transition');
-        }, 1000);
-
         return validTheme;
     },
-
-    // Force refresh theme state (useful after routing/navigation)
-    refreshTheme: function () {
-        setTimeout(() => forceThemeReapplication(), 0);
+    isDarkMode: function() {
+        return document.documentElement.classList.contains(DARK_THEME_CLASS);
     },
-
-    // Check if currently in dark mode (regardless of theme setting)
-    isDarkMode: function () {
-        return document.documentElement.classList.contains(DARK_THEME_CLASS) || document.documentElement.classList.contains('dark');
+    toggleTheme: function() {
+        const currentTheme = getSavedTheme();
+        const newTheme = currentTheme === THEME_DARK ? THEME_LIGHT : THEME_DARK;
+        return this.setTheme(newTheme);
+    },
+    addThemeChangeListener: function(callback) {
+        document.addEventListener(themeChangeEvent, callback);
+        return () => document.removeEventListener(themeChangeEvent, callback);
     }
 };
 
-// Auto-refresh theme when page visibility changes (for tab switching)
+// Handle visibility and navigation events
 document.addEventListener('visibilitychange', () => {
     if (document.visibilityState === 'visible') {
-        setTimeout(() => forceThemeReapplication(), 100);
+        setTimeout(() => applyTheme(getSavedTheme(), false), 100);
     }
 });
 
-// Handle Blazor navigation events
 document.addEventListener('blazorNavigated', () => {
-    setTimeout(() => forceThemeReapplication(), 100);
+    setTimeout(() => applyTheme(getSavedTheme(), false), 100);
 });
-
-// Initialize when loaded as a module
-if (typeof module !== 'undefined' && module.exports) {
-    module.exports = window.themeManager;
-}
-
-window.getTheme = function () {
-    // Return the current theme from your theme manager, or fallback to localStorage
-    if (window.themeManager && typeof window.themeManager.getCurrentTheme === 'function') {
-        return window.themeManager.getCurrentTheme();
-    }
-    return localStorage.getItem('app-theme') || 'light';
-};
-
-window.setTheme = function(theme) {
-    if (window.themeManager && typeof window.themeManager.setTheme === 'function') {
-        return window.themeManager.setTheme(theme);
-    }
-    // fallback: just store in localStorage and reload
-    localStorage.setItem('app-theme', theme);
-    location.reload();
-};

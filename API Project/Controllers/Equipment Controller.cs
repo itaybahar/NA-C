@@ -422,5 +422,51 @@ namespace API_Project.Controllers
                 return StatusCode(500, $"Internal server error: {ex.Message}");
             }
         }
+
+        // GET: api/equipment/5/quantity-info
+        [HttpGet("{id}/quantity-info")]
+        [AllowAnonymous]
+        public async Task<ActionResult<object>> GetEquipmentQuantityInfo(int id)
+        {
+            try
+            {
+                _logger.LogInformation($"Getting quantity information for equipment ID: {id}");
+
+                // Check if equipment exists
+                var equipment = await _dbContext.Equipment.FindAsync(id);
+                if (equipment == null)
+                {
+                    return NotFound($"Equipment with ID {id} not found");
+                }
+
+                // Calculate in-use quantity (items currently checked out)
+                var inUseQuantity = await _dbContext.EquipmentCheckouts
+                    .Where(c => c.EquipmentId == id && c.Status != "Returned")
+                    .SumAsync(c => c.Quantity);
+
+                // Calculate available quantity
+                var availableQuantity = Math.Max(0, equipment.Quantity - inUseQuantity);
+
+                var result = new
+                {
+                    equipmentId = id,
+                    equipmentName = equipment.Name,
+                    totalQuantity = equipment.Quantity,
+                    inUseQuantity = inUseQuantity,
+                    availableQuantity = availableQuantity,
+                    status = equipment.Status,
+                    storageLocation = equipment.StorageLocation,
+                    lastUpdated = equipment.LastUpdatedDate
+                };
+
+                _logger.LogInformation($"Equipment ID {id} quantity info: Total={equipment.Quantity}, In-Use={inUseQuantity}, Available={availableQuantity}");
+                return Ok(result);
+            }
+            catch (Exception ex)
+            {
+                _logger.LogError(ex, $"Error retrieving quantity information for equipment ID: {id}");
+                return StatusCode(500, $"Internal server error: {ex.Message}");
+            }
+        }
     }
 }
