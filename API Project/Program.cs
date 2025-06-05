@@ -685,7 +685,12 @@ namespace API_Project
             // CORS configuration - IMPORTANT: Configure CORS before other middleware
             app.UseCors(); // Apply the default policy
 
-            // Add authentication and authorization middleware
+            // Standard middleware pipeline - IMPORTANT: UseRouting must come before auth
+            app.UseHttpsRedirection();
+            app.UseStaticFiles();
+            app.UseRouting();
+
+            // Add authentication and authorization middleware - MUST come after UseRouting()
             app.UseAuthentication();
             app.UseAuthorization();
 
@@ -791,11 +796,6 @@ namespace API_Project
                 }
             })
             .AllowAnonymous(); // Allow anonymous access during development
-
-            // Standard middleware pipeline
-            app.UseHttpsRedirection();
-            app.UseStaticFiles();
-            app.UseRouting();
 
             // Add security headers
             app.Use(async (context, next) =>
@@ -928,8 +928,6 @@ namespace API_Project
                 return Task.CompletedTask;
             });
 
-            app.UseCors("AllowBlazorDev");
-    
             app.Run();
         }
 

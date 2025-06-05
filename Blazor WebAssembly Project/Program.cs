@@ -163,7 +163,14 @@ namespace Blazor_WebAssembly_Project
                 return new Blazor_WebAssembly.Services.Implementations.AuthService(httpClient, localStorage);
             });
             _builder.Services.AddScoped<Domain_Project.Interfaces.IEquipmentRepository, ClientSideEquipmentRepository>();
-            _builder.Services.AddScoped<Blazor_WebAssembly.Services.Interfaces.IEquipmentService, Blazor_WebAssembly.Services.Implementations.EquipmentService>();
+            _builder.Services.AddScoped<Blazor_WebAssembly.Services.Interfaces.IEquipmentService>(sp =>
+            {
+                var httpClient = sp.GetRequiredService<IHttpClientFactory>().CreateClient("API");
+                var logger = sp.GetRequiredService<ILogger<EquipmentService>>();
+                var jsRuntime = sp.GetRequiredService<IJSRuntime>();
+                var localStorage = sp.GetRequiredService<Blazor_WebAssembly.Services.Interfaces.ILocalStorageService>();
+                return new Blazor_WebAssembly.Services.Implementations.EquipmentService(httpClient, logger, jsRuntime, null, localStorage);
+            });
             _builder.Services.AddScoped<IEquipmentRequestService>(sp =>
             {
                 var httpClient = sp.GetRequiredService<IHttpClientFactory>().CreateClient("API");
