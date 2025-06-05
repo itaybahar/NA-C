@@ -1,0 +1,156 @@
+@page "/auth-debug"
+@using Microsoft.AspNetCore.Components.Authorization
+@using System.Security.Claims
+@inject AuthenticationStateProvider AuthStateProvider
+@inject IJSRuntime JS
+
+<h3>🔍 Authentication Debug Page</h3>
+
+<div style="background: #f0f0f0; padding: 20px; margin: 20px 0; border-radius: 5px;">
+    <button class="btn btn-primary" @onclick="RefreshAuthState">🔄 Refresh Auth State</button>
+    <button class="btn btn-warning" @onclick="ClearStorage">🧹 Clear Storage</button>
+    <button class="btn btn-success" @onclick="NavigateToLogin">🔐 Go to Login</button>
+</div>
+
+@if (authState != null)
+{
+    <div style="background: #e8f5e8; padding: 15px; margin: 10px 0; border-radius: 5px;">
+        <h4>✅ Authentication State</h4>
+        <p><strong>Is Authenticated:</strong> @authState.User.Identity.IsAuthenticated</p>
+        <p><strong>Authentication Type:</strong> @authState.User.Identity.AuthenticationType</p>
+        <p><strong>Identity Name:</strong> @(authState.User.Identity.Name ?? "null")</p>
+        <p><strong>Total Claims Count:</strong> @authState.User.Claims.Count()</p>
+    </div>
+
+    @if (authState.User.Claims.Any())
+    {
+        <div style="background: #fff3cd; padding: 15px; margin: 10px 0; border-radius: 5px;">
+            <h4>📋 All Claims</h4>
+            <table class="table table-sm">
+                <thead>
+                    <tr>
+                        <th>Claim Type</th>
+                        <th>Value</th>
+                        <th>Issuer</th>
+                    </tr>
+                </thead>
+                <tbody>
+                    @foreach (var claim in authState.User.Claims.OrderBy(c => c.Type))
+                    {
+                        <tr style="background: @(claim.Type.Contains("role") ? "#ffebe6" : "transparent")">
+                            <td><code>@claim.Type</code></td>
+                            <td><strong>@claim.Value</strong></td>
+                            <td>@claim.Issuer</td>
+                        </tr>
+                    }
+                </tbody>
+            </table>
+        </div>
+
+        <div style="background: #d1ecf1; padding: 15px; margin: 10px 0; border-radius: 5px;">
+            <h4>🔐 Role Checks</h4>
+            <div class="row">
+                <div class="col-md-6">
+                    <h5>Role Claims Found:</h5>
+                    @{
+                        var roleClaims = authState.User.Claims
+                            .Where(c => c.Type.Contains("role", StringComparison.OrdinalIgnoreCase))
+                            .ToList();
+                    }
+                    @if (roleClaims.Any())
+                    {
+                        <ul>
+                            @foreach (var roleClaim in roleClaims)
+                            {
+                                <li><strong>@roleClaim.Type:</strong> @roleClaim.Value</li>
+                            }
+                        </ul>
+                    }
+                    else
+                    {
+                        <p style="color: red;">❌ No role claims found!</p>
+                    }
+                </div>
+                <div class="col-md-6">
+                    <h5>IsInRole Tests:</h5>
+                    <ul>
+                        <li>IsInRole("Admin"): <strong style="color: @(authState.User.IsInRole("Admin") ? "green" : "red")">@authState.User.IsInRole("Admin")</strong></li>
+                        <li>IsInRole("admin"): <strong style="color: @(authState.User.IsInRole("admin") ? "green" : "red")">@authState.User.IsInRole("admin")</strong></li>
+                        <li>IsInRole("Administrator"): <strong style="color: @(authState.User.IsInRole("Administrator") ? "green" : "red")">@authState.User.IsInRole("Administrator")</strong></li>
+                        <li>IsInRole("WarehouseManager"): <strong style="color: @(authState.User.IsInRole("WarehouseManager") ? "green" : "red")">@authState.User.IsInRole("WarehouseManager")</strong></li>
+                    </ul>
+                </div>
+            </div>
+        </div>
+    }
+    else
+    {
+        <div style="background: #f8d7da; padding: 15px; margin: 10px 0; border-radius: 5px;">
+            <h4>❌ No Claims Found</h4>
+            <p>The user is authenticated but has no claims.</p>
+        </div>
+    }
+}
+else
+{
+    <div style="background: #f8d7da; padding: 15px; margin: 10px 0; border-radius: 5px;">
+        <h4>❌ Not Authenticated</h4>
+        <p>No authentication state available.</p>
+    </div>
+}
+
+<div style="background: #e2e3e5; padding: 15px; margin: 10px 0; border-radius: 5px;">
+    <h4>💾 Local Storage</h4>
+    <p><strong>Token exists:</strong> @hasToken</p>
+    @if (!string.IsNullOrEmpty(tokenPreview))
+    {
+        <p><strong>Token preview:</strong> <code>@tokenPreview</code></p>
+    }
+</div>
+
+@code {
+    private AuthenticationState? authState;
+    private bool hasToken = false;
+    private string tokenPreview = string.Empty;
+
+    protected override async Task OnInitializedAsync()
+    {
+        await RefreshAuthState();
+    }
+
+    private async Task RefreshAuthState()
+    {
+        try
+        {
+            authState = await AuthStateProvider.GetAuthenticationStateAsync();
+            
+            // Check token in localStorage
+            var token = await JS.InvokeAsync<string>("localStorage.getItem", "authToken");
+            hasToken = !string.IsNullOrEmpty(token);
+            
+            if (hasToken && token.Length > 20)
+            {
+                tokenPreview = token.Substring(0, 20) + "...";
+            }
+            
+            StateHasChanged();
+        }
+        catch (Exception ex)
+        {
+            Console.WriteLine($"Error refreshing auth state: {ex.Message}");
+        }
+    }
+
+    private async Task ClearStorage()
+    {
+        await JS.InvokeVoidAsync("localStorage.clear");
+        await RefreshAuthState();
+    }
+
+    private void NavigateToLogin()
+    {
+        Navigation.NavigateTo("/login");
+    }
+}
+
+@inject NavigationManager Navigation 

@@ -7,6 +7,7 @@ using Blazor_WebAssembly.Models.Auth;
 using Blazor_WebAssembly_Project.Models;
 using Blazor_WebAssembly.Services.Interfaces;
 using Blazor_WebAssembly_Project.Models.Auth;
+using Domain_Project.DTOs;
 
 namespace Blazor_WebAssembly.Services
 {
@@ -21,7 +22,7 @@ namespace Blazor_WebAssembly.Services
             _localStorage = localStorage;
         }
 
-        public async Task<bool> CompleteGoogleProfileAsync(CompleteProfileModel model, string? token)
+        public async Task<bool> CompleteGoogleProfileAsync(Blazor_WebAssembly.Models.Auth.CompleteProfileModel model, string? token)
         {
             try
             {

@@ -118,7 +118,7 @@
     [Parameter] public string? Token { get; set; }
     [Parameter] public EventCallback OnSuccess { get; set; }
 
-    private CompleteProfileModel profileModel = new();
+    private Blazor_WebAssembly.Models.Auth.CompleteProfileModel profileModel = new();
     private string ErrorMessage = "";
     private bool IsSubmitting = false;
     private bool showPassword = false;

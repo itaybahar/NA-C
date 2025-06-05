@@ -82,7 +82,11 @@ namespace Blazor_WebAssembly_Project
 
             // Add an empty memory configuration provider first
             _builder.Configuration.AddInMemoryCollection();
-            _builder.Services.AddScoped<Blazor_WebAssembly.Services.Interfaces.IBlacklistService, Blazor_WebAssembly.Services.Implementations.BlacklistService>();
+            _builder.Services.AddScoped<Blazor_WebAssembly.Services.Interfaces.IBlacklistService>(sp =>
+            {
+                var httpClient = sp.GetRequiredService<IHttpClientFactory>().CreateClient("API");
+                return new Blazor_WebAssembly.Services.Implementations.BlacklistService(httpClient);
+            });
 
             // Use resilient API detection with retries
             string apiBaseUrl = await DetectApiServerWithRetryAsync(possibleApiUrls);
@@ -160,14 +164,44 @@ namespace Blazor_WebAssembly_Project
             });
             _builder.Services.AddScoped<Domain_Project.Interfaces.IEquipmentRepository, ClientSideEquipmentRepository>();
             _builder.Services.AddScoped<Blazor_WebAssembly.Services.Interfaces.IEquipmentService, Blazor_WebAssembly.Services.Implementations.EquipmentService>();
-            _builder.Services.AddScoped<IEquipmentRequestService, EquipmentRequestService>();
+            _builder.Services.AddScoped<IEquipmentRequestService>(sp =>
+            {
+                var httpClient = sp.GetRequiredService<IHttpClientFactory>().CreateClient("API");
+                var checkoutService = sp.GetRequiredService<ICheckoutService>();
+                var equipmentService = sp.GetRequiredService<Blazor_WebAssembly.Services.Interfaces.IEquipmentService>();
+                return new EquipmentRequestService(httpClient, checkoutService, equipmentService);
+            });
             _builder.Services.AddScoped<IEquipmentReturnService, EquipmentReturnService>();
-            _builder.Services.AddScoped<ICheckoutService, CheckoutService>();
-            _builder.Services.AddScoped<ITeamService, TeamService>();
-            _builder.Services.AddScoped<IAuditLogService, AuditLogService>();
-            _builder.Services.AddScoped<Blazor_WebAssembly.Services.Interfaces.IUserService, Blazor_WebAssembly.Services.UserService>();
+            _builder.Services.AddScoped<ICheckoutService>(sp =>
+            {
+                var httpClient = sp.GetRequiredService<IHttpClientFactory>().CreateClient("API");
+                var authStateProvider = sp.GetRequiredService<AuthenticationStateProvider>();
+                var httpClientFactory = sp.GetRequiredService<IHttpClientFactory>();
+                return new CheckoutService(httpClient, authStateProvider, httpClientFactory);
+            });
+            _builder.Services.AddScoped<ITeamService>(sp =>
+            {
+                var httpClient = sp.GetRequiredService<IHttpClientFactory>().CreateClient("API");
+                var authService = sp.GetRequiredService<IAuthService>();
+                var jsRuntime = sp.GetRequiredService<IJSRuntime>();
+                return new TeamService(httpClient, authService, jsRuntime);
+            });
+            _builder.Services.AddScoped<IAuditLogService>(sp =>
+            {
+                var httpClient = sp.GetRequiredService<IHttpClientFactory>().CreateClient("API");
+                var logger = sp.GetRequiredService<ILogger<AuditLogService>>();
+                return new AuditLogService(httpClient, logger);
+            });
+            _builder.Services.AddScoped<Blazor_WebAssembly.Services.Interfaces.IUserService>(sp =>
+            {
+                var httpClient = sp.GetRequiredService<IHttpClientFactory>().CreateClient("API");
+                return new Blazor_WebAssembly.Services.UserService(httpClient);
+            });
             _builder.Services.AddScoped<IJSRuntimeService, JSRuntimeService>();
             _builder.Services.AddScoped<IJavaScriptInitializer, JavaScriptInitializer>();
+            
+            // Add missing ApiErrorHandler service
+            _builder.Services.AddScoped<Blazor_WebAssembly.Services.Api.ApiErrorHandler>();
         }
 
         private static void ConfigureLogging()
@@ -615,231 +649,5 @@ namespace Blazor_WebAssembly_Project
 
             return client;
         }
-    }
-
-    public class ApiErrorHandler
-    {
-        private readonly ILogger<ApiErrorHandler> _logger;
-        private readonly JsonSerializerOptions _jsonOptions;
-
-        public ApiErrorHandler(ILogger<ApiErrorHandler> logger)
-        {
-            _logger = logger;
-            _jsonOptions = new JsonSerializerOptions
-            {
-                PropertyNameCaseInsensitive = true,
-                PropertyNamingPolicy = JsonNamingPolicy.CamelCase,
-                DefaultIgnoreCondition = JsonIgnoreCondition.WhenWritingNull
-            };
-        }
-
-        public async Task<ApiResponse<T>> HandleRequestAsync<T>(Func<Task<T>> apiCall, string operationName)
-        {
-            try
-            {
-                _logger.LogInformation($"Executing API operation: {operationName}");
-                var result = await apiCall();
-                return ApiResponse<T>.Success(result);
-            }
-            catch (HttpRequestException ex)
-            {
-                _logger.LogError(ex, $"HTTP request failed during {operationName}: Status={ex.StatusCode}");
-
-                string userMessage = ex.StatusCode switch
-                {
-                    System.Net.HttpStatusCode.NotFound => "The requested resource was not found.",
-                    System.Net.HttpStatusCode.Unauthorized => "Your session has expired. Please sign in again.",
-                    System.Net.HttpStatusCode.Forbidden => "You don't have permission to access this resource.",
-                    System.Net.HttpStatusCode.BadRequest => "The request contained invalid data.",
-                    System.Net.HttpStatusCode.InternalServerError => "A server error occurred. The team has been notified.",
-                    System.Net.HttpStatusCode.BadGateway => "The server is temporarily unavailable. Please try again.",
-                    System.Net.HttpStatusCode.ServiceUnavailable => "The server is currently unavailable. Please try again later.",
-                    System.Net.HttpStatusCode.GatewayTimeout => "The request timed out. Please check your connection and try again.",
-                    System.Net.HttpStatusCode.RequestTimeout => "The request timed out. Please try again.",
-                    _ => "A connection error occurred. Please check your network and try again."
-                };
-
-                // Try to extract more detailed error message from response if available
-                if (ex.Data.Contains("ResponseContent"))
-                {
-                    try
-                    {
-                        var responseContent = ex.Data["ResponseContent"] as string;
-                        if (!string.IsNullOrEmpty(responseContent))
-                        {
-                            var errorResponse = JsonSerializer.Deserialize<ErrorResponse>(responseContent, _jsonOptions);
-                            if (!string.IsNullOrEmpty(errorResponse?.Message))
-                            {
-                                userMessage = errorResponse.Message;
-                            }
-                        }
-                    }
-                    catch
-                    {
-                        // Ignore parsing errors for error responses
-                    }
-                }
-
-                return ApiResponse<T>.Failure(userMessage, (int?)ex.StatusCode ?? 500);
-            }
-            catch (JsonException ex)
-            {
-                _logger.LogError(ex, $"JSON parsing error during {operationName}");
-                return ApiResponse<T>.Failure("Error processing data from the server.", 422);
-            }
-            catch (TaskCanceledException ex)
-            {
-                _logger.LogWarning(ex, $"Request timeout during {operationName}");
-                return ApiResponse<T>.Failure("The request timed out. Please check your connection and try again.", 408);
-            }
-            catch (InvalidOperationException ex) when (ex.Message.Contains("JSON"))
-            {
-                _logger.LogError(ex, $"Invalid JSON response during {operationName}");
-                return ApiResponse<T>.Failure("Error processing data from the server.", 422);
-            }
-            catch (Exception ex)
-            {
-                _logger.LogError(ex, $"Unexpected error during {operationName}");
-                return ApiResponse<T>.Failure("An unexpected error occurred. Please try again later.", 500);
-            }
-        }
-
-        // Helper method to handle common API responses
-        public async Task<ApiResponse<T>> HandleResponseAsync<T>(HttpResponseMessage response, string operationName)
-        {
-            try
-            {
-                _logger.LogInformation($"Processing response for operation: {operationName}, Status: {response.StatusCode}");
-
-                if (response.IsSuccessStatusCode)
-                {
-                    if (typeof(T) == typeof(bool))
-                    {
-                        // Special case for boolean results
-                        return ApiResponse<T>.Success((T)(object)true);
-                    }
-
-                    var content = await response.Content.ReadAsStringAsync();
-
-                    if (string.IsNullOrEmpty(content))
-                    {
-                        if (typeof(T) == typeof(bool))
-                        {
-                            return ApiResponse<T>.Success((T)(object)true);
-                        }
-                        else if (typeof(T) == typeof(string))
-                        {
-                            return ApiResponse<T>.Success((T)(object)string.Empty);
-                        }
-
-                        // For collections, return empty instance
-                        if (typeof(T).IsGenericType && typeof(T).GetGenericTypeDefinition() == typeof(List<>))
-                        {
-                            var instance = Activator.CreateInstance(typeof(T));
-                            return instance != null
-                                ? ApiResponse<T>.Success((T)instance)
-                                : ApiResponse<T>.Success(default!);
-                        }
-
-                        // For value types, return default value
-                        if (typeof(T).IsValueType)
-                        {
-                            return ApiResponse<T>.Success(default!);
-                        }
-
-                        // For reference types, try creating a new instance
-                        try
-                        {
-                            var instance = Activator.CreateInstance<T>();
-                            return ApiResponse<T>.Success(instance);
-                        }
-                        catch
-                        {
-                            return ApiResponse<T>.Success(default!);
-                        }
-                    }
-
-                    try
-                    {
-                        var result = JsonSerializer.Deserialize<T>(content, _jsonOptions);
-                        return ApiResponse<T>.Success(result!);
-                    }
-                    catch (JsonException ex)
-                    {
-                        _logger.LogError(ex, $"JSON parsing error during {operationName}");
-                        return ApiResponse<T>.Failure("Error processing data from the server.", 422);
-                    }
-                }
-                else
-                {
-                    var errorContent = await response.Content.ReadAsStringAsync();
-                    _logger.LogWarning($"API error in {operationName}: {response.StatusCode}, Content: {errorContent}");
-
-                    string userMessage = response.StatusCode switch
-                    {
-                        HttpStatusCode.NotFound => "The requested resource was not found.",
-                        HttpStatusCode.Unauthorized => "Your session has expired. Please sign in again.",
-                        HttpStatusCode.Forbidden => "You don't have permission to access this resource.",
-                        HttpStatusCode.BadRequest => "The request contained invalid data.",
-                        HttpStatusCode.InternalServerError => "A server error occurred. The team has been notified.",
-                        _ => "An error occurred while communicating with the server."
-                    };
-
-                    // Try to extract more detailed error message from response if available
-                    if (!string.IsNullOrEmpty(errorContent))
-                    {
-                        try
-                        {
-                            var errorResponse = JsonSerializer.Deserialize<ErrorResponse>(errorContent, _jsonOptions);
-                            if (!string.IsNullOrEmpty(errorResponse?.Message))
-                            {
-                                userMessage = errorResponse.Message;
-                            }
-                        }
-                        catch
-                        {
-                            // Ignore parsing errors for error responses
-                        }
-                    }
-
-                    return ApiResponse<T>.Failure(userMessage, (int)response.StatusCode);
-                }
-            }
-            catch (Exception ex)
-            {
-                _logger.LogError(ex, $"Error handling response for {operationName}");
-                return ApiResponse<T>.Failure("An error occurred while processing the server response.", 500);
-            }
-        }
-
-        // Internal class to deserialize error responses
-        private class ErrorResponse
-        {
-            // Fix CS8618 by making properties nullable
-            public string? Message { get; set; }
-            public string? Error { get; set; }
-            public int? StatusCode { get; set; }
-
-            // Handle property name variations
-            [JsonPropertyName("error_description")]
-            public string? ErrorDescription { get; set; }
-
-            [JsonPropertyName("error_message")]
-            public string? ErrorMessage { get; set; }
-        }
-    }
-
-    public class ApiResponse<T>
-    {
-        public bool IsSuccess { get; private set; }
-        public T? Data { get; private set; }
-        public string? ErrorMessage { get; private set; }
-        public int? StatusCode { get; private set; }
-
-        public static ApiResponse<T> Success(T data) =>
-            new ApiResponse<T> { IsSuccess = true, Data = data };
-
-        public static ApiResponse<T> Failure(string errorMessage, int statusCode) =>
-            new ApiResponse<T> { IsSuccess = false, ErrorMessage = errorMessage, StatusCode = statusCode };
     }
 }

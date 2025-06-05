@@ -71,7 +71,7 @@ namespace Blazor_WebAssembly.Configuration
             });
 
             builder.Services.AddScoped<AuthenticationStateProvider, CustomAuthStateProvider>();
-            builder.Services.AddScoped<IAuthService, AuthService>();
+            builder.Services.AddScoped<IAuthService, Services.AuthService>();
 
             // Configure service for handling JSON Web Tokens
             builder.Services.AddScoped<IJSRuntimeService, JSRuntimeService>();

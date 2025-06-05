@@ -1,4 +1,5 @@
-﻿using Blazor_WebAssembly.Models.Equipment;
+﻿using Blazor_WebAssembly.Auth;
+using Blazor_WebAssembly.Models.Equipment;
 using Blazor_WebAssembly.Services.Interfaces;
 using Domain_Project.DTOs;
 using Domain_Project.Models;

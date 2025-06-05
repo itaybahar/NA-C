@@ -110,7 +110,41 @@ namespace Blazor_WebAssembly.Services
             {
                 _logger.LogDebug("Parsing JWT using JwtSecurityTokenHandler");
                 var token = handler.ReadJwtToken(jwt);
-                return token.Claims;
+                var tokenClaims = token.Claims.ToList();
+                
+                // Add all claims from the token
+                claims.AddRange(tokenClaims);
+                
+                // Ensure role claims are properly mapped
+                var roleClaims = tokenClaims.Where(c => 
+                    c.Type.Equals("role", StringComparison.OrdinalIgnoreCase) ||
+                    c.Type.Equals("roles", StringComparison.OrdinalIgnoreCase) ||
+                    c.Type == ClaimTypes.Role).ToList();
+                
+                foreach (var roleClaim in roleClaims)
+                {
+                    // Add role claim with standard ClaimTypes.Role if not already using it
+                    if (roleClaim.Type != ClaimTypes.Role)
+                    {
+                        claims.Add(new Claim(ClaimTypes.Role, roleClaim.Value));
+                        _logger.LogInformation("Mapped role claim: {Type} -> {StandardType} = {Value}", 
+                            roleClaim.Type, ClaimTypes.Role, roleClaim.Value);
+                    }
+                }
+                
+                // Ensure username/name claims are properly mapped
+                var usernameClaim = tokenClaims.FirstOrDefault(c => 
+                    c.Type.Equals("username", StringComparison.OrdinalIgnoreCase) ||
+                    c.Type.Equals("unique_name", StringComparison.OrdinalIgnoreCase));
+                
+                if (usernameClaim != null && !tokenClaims.Any(c => c.Type == ClaimTypes.Name))
+                {
+                    claims.Add(new Claim(ClaimTypes.Name, usernameClaim.Value));
+                    _logger.LogInformation("Mapped name claim: {Type} -> {StandardType} = {Value}", 
+                        usernameClaim.Type, ClaimTypes.Name, usernameClaim.Value);
+                }
+                
+                return claims;
             }
             else
             {
@@ -168,52 +202,81 @@ namespace Blazor_WebAssembly.Services
 
                 // Map standard claims
                 MapStandardClaim(keyValuePairs, "sub", ClaimTypes.NameIdentifier, claims, addedClaims);
-                MapStandardClaim(keyValuePairs, "name", ClaimTypes.Name, claims, addedClaims);
+                
+                // Map username/name claims with multiple fallbacks
                 if (!MapStandardClaim(keyValuePairs, "unique_name", ClaimTypes.Name, claims, addedClaims))
                 {
-                    MapStandardClaim(keyValuePairs, "name", ClaimTypes.Name, claims, addedClaims);
+                    if (!MapStandardClaim(keyValuePairs, "username", ClaimTypes.Name, claims, addedClaims))
+                    {
+                        MapStandardClaim(keyValuePairs, "name", ClaimTypes.Name, claims, addedClaims);
+                    }
                 }
+                
                 MapStandardClaim(keyValuePairs, "email", ClaimTypes.Email, claims, addedClaims);
 
-                // Handle roles
-                if (keyValuePairs.TryGetValue("role", out var roles) || keyValuePairs.TryGetValue(ClaimTypes.Role, out roles))
+                // Handle roles - CRITICAL FIX for authorization
+                bool rolesProcessed = false;
+                
+                // Try different role claim keys
+                foreach (var roleKey in new[] { "role", "roles", ClaimTypes.Role, "http://schemas.microsoft.com/ws/2008/06/identity/claims/role" })
                 {
-                    if (roles is JsonElement element)
+                    if (keyValuePairs.TryGetValue(roleKey, out var roles))
                     {
-                        if (element.ValueKind == JsonValueKind.Array)
+                        _logger.LogInformation("Found roles under key '{RoleKey}': {Roles}", roleKey, roles);
+                        
+                        if (roles is JsonElement element)
                         {
-                            foreach (var role in element.EnumerateArray())
+                            if (element.ValueKind == JsonValueKind.Array)
                             {
-                                var roleValue = role.GetString() ?? string.Empty;
-                                var roleKey = $"{ClaimTypes.Role}:{roleValue}";
-                                if (!addedClaims.Contains(roleKey))
+                                foreach (var role in element.EnumerateArray())
+                                {
+                                    var roleValue = role.GetString() ?? string.Empty;
+                                    var roleClaimKey = $"{ClaimTypes.Role}:{roleValue}";
+                                    if (!addedClaims.Contains(roleClaimKey))
+                                    {
+                                        claims.Add(new Claim(ClaimTypes.Role, roleValue));
+                                        addedClaims.Add(roleClaimKey);
+                                        _logger.LogInformation("Added role claim: {Role}", roleValue);
+                                    }
+                                }
+                                rolesProcessed = true;
+                            }
+                            else if (element.ValueKind == JsonValueKind.String)
+                            {
+                                var roleValue = element.GetString() ?? string.Empty;
+                                var roleClaimKey = $"{ClaimTypes.Role}:{roleValue}";
+                                if (!addedClaims.Contains(roleClaimKey))
                                 {
                                     claims.Add(new Claim(ClaimTypes.Role, roleValue));
-                                    addedClaims.Add(roleKey);
+                                    addedClaims.Add(roleClaimKey);
+                                    _logger.LogInformation("Added role claim: {Role}", roleValue);
                                 }
+                                rolesProcessed = true;
                             }
                         }
                         else
                         {
-                            var roleValue = element.ToString() ?? string.Empty;
-                            var roleKey = $"{ClaimTypes.Role}:{roleValue}";
-                            if (!addedClaims.Contains(roleKey))
+                            var roleValue = roles.ToString()?.Trim() ?? string.Empty;
+                            if (!string.IsNullOrEmpty(roleValue))
                             {
-                                claims.Add(new Claim(ClaimTypes.Role, roleValue));
-                                addedClaims.Add(roleKey);
+                                var roleClaimKey = $"{ClaimTypes.Role}:{roleValue}";
+                                if (!addedClaims.Contains(roleClaimKey))
+                                {
+                                    claims.Add(new Claim(ClaimTypes.Role, roleValue));
+                                    addedClaims.Add(roleClaimKey);
+                                    _logger.LogInformation("Added role claim: {Role}", roleValue);
+                                }
+                                rolesProcessed = true;
                             }
                         }
+                        
+                        if (rolesProcessed) break; // Stop after first successful role processing
                     }
-                    else
-                    {
-                        var roleValue = roles.ToString()?.Trim() ?? string.Empty;
-                        var roleKey = $"{ClaimTypes.Role}:{roleValue}";
-                        if (!addedClaims.Contains(roleKey))
-                        {
-                            claims.Add(new Claim(ClaimTypes.Role, roleValue));
-                            addedClaims.Add(roleKey);
-                        }
-                    }
+                }
+                
+                if (!rolesProcessed)
+                {
+                    _logger.LogWarning("No role claims found in JWT token");
                 }
 
                 return claims;
@@ -347,6 +410,34 @@ namespace Blazor_WebAssembly.Services
             }
 
             return true;
+        }
+
+        public async Task LogoutAsync()
+        {
+            try
+            {
+                _logger.LogInformation("🚪 Starting logout process...");
+                
+                // Clear localStorage
+                await _localStorage.RemoveItemAsync("authToken");
+                await _localStorage.RemoveItemAsync("authTokenExpiry");
+                await _localStorage.RemoveItemAsync("userInfo");
+                await _localStorage.RemoveItemAsync("api_baseUrl");
+                
+                _logger.LogInformation("🧹 Cleared all authentication data from localStorage");
+                
+                // Create anonymous user
+                var anonymous = new ClaimsPrincipal(new ClaimsIdentity());
+                
+                // Notify all components that auth state changed
+                NotifyAuthenticationStateChanged(Task.FromResult(new AuthenticationState(anonymous)));
+                
+                _logger.LogInformation("✅ Logout completed successfully");
+            }
+            catch (Exception ex)
+            {
+                _logger.LogError(ex, "❌ Error during logout");
+            }
         }
     }
 }

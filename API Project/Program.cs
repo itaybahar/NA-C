@@ -24,7 +24,9 @@ using System.Text.Json;
 using System.Text.Json.Serialization;
 using System.Threading.RateLimiting;
 using Blazor_WebAssembly.Services;
-using Microsoft.AspNetCore.Authentication.Cookies;using Microsoft.AspNetCore.Authentication.Google;using Microsoft.AspNetCore.Authentication.OAuth;
+using Microsoft.AspNetCore.Authentication.Cookies;
+using Microsoft.AspNetCore.Authentication.Google;
+using Microsoft.AspNetCore.Authentication.OAuth;
 namespace API_Project
 {
     public class Program
@@ -799,11 +801,11 @@ namespace API_Project
             app.Use(async (context, next) =>
             {
                 // Allow popups for Google Sign-In
-                context.Response.Headers.Add("Cross-Origin-Opener-Policy", "same-origin-allow-popups");
+                context.Response.Headers.Append("Cross-Origin-Opener-Policy", "same-origin-allow-popups");
                 // Allow embedding of resources
-                context.Response.Headers.Add("Cross-Origin-Embedder-Policy", "require-corp");
+                context.Response.Headers.Append("Cross-Origin-Embedder-Policy", "require-corp");
                 // Allow credentials
-                context.Response.Headers.Add("Access-Control-Allow-Credentials", "true");
+                context.Response.Headers.Append("Access-Control-Allow-Credentials", "true");
                 await next();
             });
 

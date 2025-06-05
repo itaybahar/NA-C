@@ -1,4 +1,6 @@
-﻿namespace Blazor_WebAssembly.Models.Auth
+﻿using Domain_Project.DTOs;
+
+namespace Blazor_WebAssembly.Models.Auth
 {
     public class AuthenticationResponse
     {

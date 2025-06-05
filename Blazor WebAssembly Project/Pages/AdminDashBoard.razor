@@ -2,15 +2,17 @@
 @using Microsoft.AspNetCore.Authorization
 @using Blazor_WebAssembly_Project.Components.helpers
 @using Blazor_WebAssembly_Project.Components
+@using Microsoft.AspNetCore.Components.Authorization
+@using Blazor_WebAssembly.Auth
 @inject ILogger<AdminDashBoard> Logger
 @inject IJSRuntime JS
-@attribute [Authorize(Roles = "Admin")]
+@inject AuthenticationStateProvider AuthStateProvider
+@attribute [Authorize(Roles = "Admin,admin,Administrator,administrator")]
 
 <link href="css/dashboard.css" rel="stylesheet" />
 <link href="css/themeToggle.css" rel="stylesheet" />
 <link href="css/Sidebar.css" rel="stylesheet" />
 <link href="css/themeToggle.css" rel="stylesheet" />
-
 
 <PageTitle>Dashboard - מנהל מערכת</PageTitle>
 
@@ -98,7 +100,7 @@
     private bool sidebarOpen = false;
     private bool sidebarCollapsed = true;
 
-    protected override void OnInitialized()
+    protected override async Task OnInitializedAsync()
     {
         // Set the initial tab
         Logger.LogInformation($"Initializing admin dashboard with tab: {ActiveTab}");

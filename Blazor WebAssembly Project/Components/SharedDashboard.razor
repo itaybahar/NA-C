@@ -1,0 +1,106 @@
+@using Microsoft.AspNetCore.Authorization
+@using Blazor_WebAssembly_Project.Components.helpers
+@using Blazor_WebAssembly_Project.Components
+@inject IAuthService AuthService
+@inject NavigationManager NavigationManager
+
+<link href="css/dashboard-shared.css" rel="stylesheet" />
+
+<div class="dashboard-wrapper @(sidebarCollapsed ? "sidebar-collapsed" : "")">
+    <Sidebar SidebarOpen="@sidebarOpen"
+             SidebarOpenChanged="@ToggleSidebarFromDashboard"
+             IsCollapsed="@sidebarCollapsed"
+             OnCollapseChanged="@OnSidebarCollapseChanged" />
+    <div style="flex: 1; display: flex; flex-direction: column;">
+        <!-- Top navbar with tabs -->
+        <header class="admin-header">
+            <div class="admin-navbar tabs-with-separator">
+                @foreach (var tab in FilteredTabs)
+                {
+                    <button class="dashboard-tab @(ActiveTab == tab.Key ? "active" : "")" @onclick='() => ChangeTab(tab.Key)'>
+                        <i class="@tab.Icon"></i> @tab.Label
+                    </button>
+                }
+                <div style="flex:1"></div>
+            </div>
+        </header>
+        <main class="admin-content">
+            <div class="admin-content-container">
+                <div class="dashboard-card">
+                    <div class="card-header">
+                        <h3>@(FilteredTabs.FirstOrDefault(t => t.Key == ActiveTab)?.Label ?? "")</h3>
+                    </div>
+                    <div class="card-content">
+                        @ChildContent
+                    </div>
+                </div>
+            </div>
+        </main>
+    </div>
+</div>
+
+@code {
+    [Parameter]
+    public string ActiveTab { get; set; } = "equipment";
+
+    [Parameter]
+    public EventCallback<string> ActiveTabChanged { get; set; }
+
+    [Parameter]
+    public List<DashboardTab> Tabs { get; set; } = new();
+
+    [Parameter]
+    public RenderFragment ChildContent { get; set; }
+
+    private bool sidebarOpen = false;
+    private bool sidebarCollapsed = true;
+    private bool isAdmin;
+    private bool isManager;
+    private List<DashboardTab> FilteredTabs => Tabs.Where(t => 
+        (!t.RequiresAdmin || isAdmin) && 
+        (!t.RequiresManager || isManager || isAdmin)).ToList();
+
+    protected override async Task OnInitializedAsync()
+    {
+        var isAuthenticated = await AuthService.IsAuthenticatedAsync();
+        if (!isAuthenticated)
+        {
+            NavigationManager.NavigateTo("/login");
+            return;
+        }
+
+        isAdmin = await AuthService.IsUserInRoleAsync("Admin");
+        isManager = await AuthService.IsUserInRoleAsync("WarehouseManager");
+
+        // If the current tab is not accessible, switch to the first available tab
+        if (!FilteredTabs.Any(t => t.Key == ActiveTab) && FilteredTabs.Any())
+        {
+            await ChangeTab(FilteredTabs.First().Key);
+        }
+    }
+
+    private async Task ChangeTab(string tabName)
+    {
+        if (FilteredTabs.Any(t => t.Key == tabName))
+        {
+            ActiveTab = tabName;
+            await ActiveTabChanged.InvokeAsync(tabName);
+        }
+    }
+
+    private void ToggleSidebarFromDashboard(bool open = true) => sidebarOpen = open ? !sidebarOpen : sidebarOpen;
+
+    private void OnSidebarCollapseChanged(bool collapsed)
+    {
+        sidebarCollapsed = collapsed;
+    }
+
+    public class DashboardTab
+    {
+        public string Key { get; set; }
+        public string Label { get; set; }
+        public string Icon { get; set; }
+        public bool RequiresAdmin { get; set; }
+        public bool RequiresManager { get; set; }
+    }
+} 

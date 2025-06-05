@@ -4,6 +4,7 @@ using Blazor_WebAssembly.Models.Auth;
 using Blazor_WebAssembly_Project.Models.Auth;
 using Blazor_WebAssembly.Services.Interfaces;
 using Blazor_WebAssembly_Project.Models;
+using Domain_Project.DTOs;
 
 namespace Blazor_WebAssembly.Services.Implementations
 {
